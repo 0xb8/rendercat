@@ -38,17 +38,17 @@ namespace globals {
 	static float pitch =  0.0f;
 	static float lastX =  glfw_framebuffer_width / 2.0;
 	static float lastY =  glfw_framebuffer_height / 2.0;
-	static float fov  = 60.0f;
+	static float fov   = 60.0f;
 
 
-	static bool forward = false;
+	static bool forward  = false;
 	static bool backward = false;
-	static bool left = false;
-	static bool right = false;
+	static bool left     = false;
+	static bool right    = false;
 
 	static bool mod_shift = false;
-	static bool mod_alt = false;
-	static bool mod_ctrl = false;
+	static bool mod_alt   = false;
+	static bool mod_ctrl  = false;
 
 }
 
@@ -56,47 +56,45 @@ namespace globals {
 namespace consts {
 	static const float window_target_fps = 64.0f;
 	static const float window_target_frametime = 1.0f / window_target_fps;
-	static const char* window_title = "glrun";
+	static const char* window_title = "rendercat";
 }
 
 // ---------------------------------- helpers  ---------------------------------
 void GLAPIENTRY gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
 {
 	std::cerr << "[GL] ";
-
-
 	switch (source)
 	{
-		case GL_DEBUG_SOURCE_API:             std::cerr << "src: API  "; break;
-		case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   std::cerr << "src: Window System  "; break;
-		case GL_DEBUG_SOURCE_SHADER_COMPILER: std::cerr << "src: Shader Compiler  "; break;
-		case GL_DEBUG_SOURCE_THIRD_PARTY:     std::cerr << "src: Third Party  "; break;
-		case GL_DEBUG_SOURCE_APPLICATION:     std::cerr << "src: Application  "; break;
-		case GL_DEBUG_SOURCE_OTHER:           std::cerr << "src: Other  "; break;
+		case GL_DEBUG_SOURCE_API:             std::cerr << "API "; break;
+		case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   std::cerr << "Window System "; break;
+		case GL_DEBUG_SOURCE_SHADER_COMPILER: std::cerr << "Shader Compiler "; break;
+		case GL_DEBUG_SOURCE_THIRD_PARTY:     std::cerr << "Third Party "; break;
+		case GL_DEBUG_SOURCE_APPLICATION:     std::cerr << "Application "; break;
+		case GL_DEBUG_SOURCE_OTHER:           std::cerr << "Other "; break;
 	}
 
 	switch (type)
 	{
-		case GL_DEBUG_TYPE_ERROR:               std::cerr << "type: Error  "; break;
-		case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: std::cerr << "type: Deprecated Behaviour  "; break;
-		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  std::cerr << "type: Undefined Behaviour  "; break;
-		case GL_DEBUG_TYPE_PORTABILITY:         std::cerr << "type: Portability  "; break;
-		case GL_DEBUG_TYPE_PERFORMANCE:         std::cerr << "type: Performance  "; break;
-		case GL_DEBUG_TYPE_MARKER:              std::cerr << "type: Marker  "; break;
-		case GL_DEBUG_TYPE_PUSH_GROUP:          std::cerr << "type: Push Group  "; break;
-		case GL_DEBUG_TYPE_POP_GROUP:           std::cerr << "type: Pop Group  "; break;
-		case GL_DEBUG_TYPE_OTHER:               std::cerr << "type: Other  "; break;
+		case GL_DEBUG_TYPE_ERROR:               std::cerr << "error "; break;
+		case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: std::cerr << "Deprecated Behaviour "; break;
+		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  std::cerr << "Undefined Behaviour "; break;
+		case GL_DEBUG_TYPE_PORTABILITY:         std::cerr << "Portability "; break;
+		case GL_DEBUG_TYPE_PERFORMANCE:         std::cerr << "Performance "; break;
+		case GL_DEBUG_TYPE_MARKER:              std::cerr << "Marker "; break;
+		case GL_DEBUG_TYPE_PUSH_GROUP:          std::cerr << "Push Group "; break;
+		case GL_DEBUG_TYPE_POP_GROUP:           std::cerr << "Pop Group "; break;
+		case GL_DEBUG_TYPE_OTHER:               std::cerr << "Other "; break;
 	}
 
 	switch (severity)
 	{
-		case GL_DEBUG_SEVERITY_HIGH:         std::cerr << "sev: high  "; break;
-		case GL_DEBUG_SEVERITY_MEDIUM:       std::cerr << "sev: medium  "; break;
-		case GL_DEBUG_SEVERITY_LOW:          std::cerr << "sev: low  "; break;
-		case GL_DEBUG_SEVERITY_NOTIFICATION: std::cerr << "sev: notification  "; break;
+		case GL_DEBUG_SEVERITY_HIGH:         std::cerr << "(high) "; break;
+		case GL_DEBUG_SEVERITY_MEDIUM:       std::cerr << "(med)  "; break;
+		case GL_DEBUG_SEVERITY_LOW:          std::cerr << "(low)  "; break;
+		case GL_DEBUG_SEVERITY_NOTIFICATION: std::cerr << "(info) "; break;
 	}
 
-	std::cerr << "msg (" << id << "):\t" << message << '\n';
+	std::cerr << "[" << id << "]:\t" << message << '\n';
 }
 
 
@@ -108,7 +106,6 @@ static void glfw_mouse_click_callback(GLFWwindow* window, int button, int action
 static void glfw_focus_callback(GLFWwindow* window, int focused);
 static void glfw_scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 static void glfw_framebuffer_resized_callback(GLFWwindow*, int width, int height);
-
 
 
 static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -126,12 +123,8 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 	case GLFW_KEY_D:
 		globals::right = (action != GLFW_RELEASE);
 		break;
-
-
 	case GLFW_KEY_ESCAPE:
-		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-		glfwSetCursorPosCallback(window, nullptr);
-		globals::mouse_captured = false;
+		glfwSetWindowShouldClose(window,true);
 		break;
 	default:
 		break;
@@ -144,6 +137,9 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 		globals::mod_alt = (action != GLFW_RELEASE);
 	}
 	if(mods & GLFW_MOD_CONTROL) {
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		glfwSetCursorPosCallback(window, nullptr);
+		globals::mouse_captured = false;
 		globals::mod_ctrl = (action != GLFW_RELEASE);
 	}
 }
@@ -231,7 +227,6 @@ void gflw_mouse_motion_callback(GLFWwindow* window, double xpos, double ypos)
 
 static void glfw_focus_callback(GLFWwindow* window, int focused)
 {
-	std::cerr << "focus state: " <<focused;
 	if(focused == GLFW_TRUE) {
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 		glfwSetCursorPosCallback(window, gflw_mouse_motion_callback);
@@ -297,7 +292,7 @@ int main() try
 	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 	glfwWindowHint(GLFW_SRGB_CAPABLE, GLFW_TRUE);
-	glfwWindowHint(GLFW_SAMPLES, 16);
+	glfwWindowHint(GLFW_SAMPLES, Renderer::SampleCount);
 
 	auto window = glfwCreateWindow(globals::glfw_framebuffer_width,
 	                               globals::glfw_framebuffer_height,

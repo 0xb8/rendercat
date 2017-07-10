@@ -23,48 +23,49 @@ const glm::vec3 Scene::cubePositions[] = {
 Scene::Scene()
 {
 	float vertices[] = {
-	        -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-	         0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-	         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-	         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-	        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-	        -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+	        // positions          // normals           // texture coords
+	        -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  0.0f,  0.0f,
+	         0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  1.0f,  0.0f,
+	         0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  1.0f,  1.0f,
+	         0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  1.0f,  1.0f,
+	        -0.5f,  0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  0.0f,  1.0f,
+	        -0.5f, -0.5f, -0.5f,  0.0f,  0.0f, -1.0f,  0.0f,  0.0f,
 
-	        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-	         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-	         0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-	         0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-	        -0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
-	        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+	        -0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  0.0f,  0.0f,
+	         0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  1.0f,  0.0f,
+	         0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  1.0f,  1.0f,
+	         0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  1.0f,  1.0f,
+	        -0.5f,  0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  0.0f,  1.0f,
+	        -0.5f, -0.5f,  0.5f,  0.0f,  0.0f,  1.0f,  0.0f,  0.0f,
 
-	        -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-	        -0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-	        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-	        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-	        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-	        -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+	        -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,  1.0f,  0.0f,
+	        -0.5f,  0.5f, -0.5f, -1.0f,  0.0f,  0.0f,  1.0f,  1.0f,
+	        -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,  0.0f,  1.0f,
+	        -0.5f, -0.5f, -0.5f, -1.0f,  0.0f,  0.0f,  0.0f,  1.0f,
+	        -0.5f, -0.5f,  0.5f, -1.0f,  0.0f,  0.0f,  0.0f,  0.0f,
+	        -0.5f,  0.5f,  0.5f, -1.0f,  0.0f,  0.0f,  1.0f,  0.0f,
 
-	         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-	         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-	         0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-	         0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-	         0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-	         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+	         0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  1.0f,  0.0f,
+	         0.5f,  0.5f, -0.5f,  1.0f,  0.0f,  0.0f,  1.0f,  1.0f,
+	         0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,  0.0f,  1.0f,
+	         0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,  0.0f,  1.0f,
+	         0.5f, -0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  0.0f,  0.0f,
+	         0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  1.0f,  0.0f,
 
-	        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-	         0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
-	         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-	         0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-	        -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-	        -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+	        -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  0.0f,  1.0f,
+	         0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  1.0f,  1.0f,
+	         0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  1.0f,  0.0f,
+	         0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  1.0f,  0.0f,
+	        -0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  0.0f,  0.0f,
+	        -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  0.0f,  1.0f,
 
-	        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-	         0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-	         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-	         0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-	        -0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
-	        -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
-	};
+	        -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  0.0f,  1.0f,
+	         0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  1.0f,  1.0f,
+	         0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  1.0f,  0.0f,
+	         0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  1.0f,  0.0f,
+	        -0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  0.0f,  0.0f,
+	        -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  0.0f,  1.0f
+	    };
 
 
 
@@ -79,15 +80,17 @@ Scene::Scene()
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
 	// add vertices
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5*sizeof(float), nullptr);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8*sizeof(float), nullptr);
 	glEnableVertexAttribArray(0);
 
 	// add colors
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5*sizeof(float), (GLvoid*)(3*sizeof(float)));
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8*sizeof(float), (GLvoid*)(3*sizeof(float)));
 	glEnableVertexAttribArray(1);
 
+	glVertexAttribPointer(2,2, GL_FLOAT, GL_FALSE, 8*sizeof(float), (GLvoid*)(6*sizeof(float)));
+	glEnableVertexAttribArray(2);
 
-	this->vao = VAO;
+	box.vao = VAO;
 	glBindVertexArray(0);
 
 	float maxAnisotropy;
@@ -98,7 +101,7 @@ Scene::Scene()
 	stbi_set_flip_vertically_on_load(1);
 	// load and generate the texture
 	int width, height, nrChannels;
-	unsigned char *data = stbi_load("assets/materials/container.jpg", &width, &height, &nrChannels, 0);
+	unsigned char *data = stbi_load("assets/materials/marble.jpg", &width, &height, &nrChannels, 0);
 	if (data)
 	{
 		GLuint tex;
@@ -111,7 +114,7 @@ Scene::Scene()
 		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, std::min(maxAnisotropy, max_aniso));
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
 		glGenerateMipmap(GL_TEXTURE_2D);
-		this->texture = tex;
+		box.material.diffuse = tex;
 		glBindTexture(GL_TEXTURE_2D, 0);
 	}
 	else
@@ -119,5 +122,36 @@ Scene::Scene()
 		std::cout << "Failed to load texture" << std::endl;
 	}
 	stbi_image_free(data);
+
+//	data = stbi_load("assets/materials/marble_normal.jpg", &width, &height, &nrChannels, 0);
+//	if (data)
+//	{
+//		GLuint tex;
+//		glGenTextures(1, &tex);
+//		glBindTexture(GL_TEXTURE_2D, tex);
+//		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+//		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+//		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+//		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+//		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, std::min(maxAnisotropy, max_aniso));
+//		glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+//		glGenerateMipmap(GL_TEXTURE_2D);
+//		box.material.normal = tex;
+//		glBindTexture(GL_TEXTURE_2D, 0);
+//	}
+//	else
+//	{
+//		std::cout << "Failed to load texture" << std::endl;
+//	}
+//	stbi_image_free(data);
+
+	unsigned int lightVAO;
+	glGenVertexArrays(1, &lightVAO);
+	glBindVertexArray(lightVAO);
+
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+	point_light.vao = lightVAO;
 }
 

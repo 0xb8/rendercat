@@ -3,153 +3,63 @@
 #include <iostream>
 #include <sstream>
 
+#include <vector>
+
 #define VERT_SHADER_EXT ".vert"
 #define FRAG_SHADER_EXT ".frag"
 
 
 namespace fs = boost::filesystem;
 
-
-
 struct Shader
 {
-	Shader(const char* source, int type);
-	~Shader();
+	explicit Shader(const fs::path&& fpath) : filepath(fpath)
+	{
+		reload(true);
+	}
 
-	Shader(Shader&& o);
-	Shader(Shader&) = delete;
-
-	bool is_valid() const;
-
-	GLuint handle{};
-	std::string filename;
-	uint64_t last_mod;
-};
-
-struct Program
-{
-	Program();
-	~Program();
-
-	Program(Program&& o);
-	Program(Program&) = delete;
-
-	void attach_shader(Shader&&);
-	void link();
-
-	bool is_valid() const;
-
-	GLuint handle{};
-
-	bool operator <(const Program& o) const {return handle < o.handle;}
-private:
-
-	std::vector<Shader> m_shaders;
-};
-
-
-ShaderSet::ShaderSet(const char * directory) : m_directory(directory) { }
-ShaderSet::~ShaderSet() { }
-
-
-
-Shader::Shader(const char *source, int type)
-{
-	handle = glCreateShader(type);
-	glShaderSource(handle, 1, &source, nullptr);
-	glCompileShader(handle);
-	GLint success = 0;
-	glGetShaderiv(handle, GL_COMPILE_STATUS, &success);
-	if(!success) {
-		char msg[1024];
-		glGetShaderInfoLog(handle, 1024, nullptr, msg);
-		std::cerr << "Shader compilation failed:\n" << msg << std::endl;
+	~Shader()
+	{
 		glDeleteShader(handle);
-		handle = 0;
 	}
-}
 
-Shader::~Shader()
-{
-	glDeleteShader(handle);
-}
+	bool should_reload()
+	{
+		auto mod_date = fs::last_write_time(filepath);
 
-Shader::Shader(Shader && o)
-{
-	std::swap(handle,o.handle);
-}
-
-bool Shader::is_valid() const
-{
-	return handle != 0;
-}
-
-Program::Program() : handle(glCreateProgram()) { }
-
-Program::~Program()
-{
-	glDeleteProgram(handle);
-}
-Program::Program(Program && o)
-{
-	std::swap(handle, o.handle);
-}
-
-void Program::attach_shader(Shader && s)
-{
-	if(s.is_valid()) {
-		m_shaders.push_back(std::move(s));
-		glAttachShader(handle, m_shaders.back().handle);
-	}
-}
-
-void Program::link()
-{
-	glLinkProgram(handle);
-	GLint success = 0;
-	glGetProgramiv(handle, GL_LINK_STATUS, &success);
-	if(!success) {
-		char msg[512];
-		glGetShaderInfoLog(handle, 512, nullptr, msg);
-		std::cerr << "Shader compilation failed:\n" << msg << std::endl;
-		glDeleteProgram(handle);
-		handle = 0;
-	}
-	m_shaders.clear();
-}
-
-bool Program::is_valid() const
-{
-	return handle != 0;
-}
-
-
-
-
-
-GLuint * ShaderSet::load_program(std::initializer_list<const char *> names)
-{
-
-	Program program;
-
-
-	for(auto name : names) {
-		fs::path filepath{m_directory};
-		filepath /= name;
-
-		if(!fs::exists(filepath)) {
-			std::cerr << "Shader file does not exist: " << name << std::endl;
-			return nullptr;
+		if(last_mod >= mod_date)
+		{
+			return false;
 		}
+		return true;
+	}
 
+	void reload(bool force)
+	{
 		fs::ifstream sh_fstream;
 		sh_fstream.open(filepath);
+
+		auto filename_str = filepath.string();
+		auto filename = std::string_view{filename_str};
+
 		if(!sh_fstream.is_open()) {
-			std::cerr << "Cannot open shader file: " << name << std::endl;
-			return nullptr;
+			std::cerr << "[shader]  could not open " << filename << std::endl;
+			return;
 		}
 
-		auto ext = filepath.extension().string();
+		if(!force && !should_reload())
+		{
+			return;
+		}
+
+		last_mod = fs::last_write_time(filepath);
+
+		auto ext_pos = filename.find_last_of('.');
+		if(ext_pos == std::string_view::npos || ext_pos == filename.length()-1) {
+			std::cerr << "[shader]  could not determine shader type of " << filename << std::endl;
+			return;
+		}
+		auto ext = filename.substr(ext_pos);
 
 		int shader_type = 0;
 		if(ext == VERT_SHADER_EXT) {
@@ -159,8 +69,8 @@ GLuint * ShaderSet::load_program(std::initializer_list<const char *> names)
 			shader_type = GL_FRAGMENT_SHADER;
 		}
 		else {
-			std::cerr << "Unknown shader type: " << ext << std::endl;
-			return nullptr;
+			std::cerr << "[shader]  unknown shader type: " << ext << " of " << filename <<std::endl;
+			return;
 		}
 
 		std::ostringstream oss{};
@@ -168,17 +78,190 @@ GLuint * ShaderSet::load_program(std::initializer_list<const char *> names)
 		auto shader_source = oss.str();
 		auto shader_source_data = shader_source.c_str();
 
-		Shader shader(shader_source_data, shader_type);
-		program.attach_shader(std::move(shader));
+
+		GLuint new_handle = glCreateShader(shader_type);
+		glShaderSource(new_handle, 1, &shader_source_data, nullptr);
+		glCompileShader(new_handle);
+		GLint success = 0;
+		glGetShaderiv(new_handle, GL_COMPILE_STATUS, &success);
+		if(!success) {
+//			char msg[1024];
+//			glGetShaderInfoLog(handle, 1024, nullptr, msg);
+//			std::cerr << "Shader compilation failed:\n" << msg << std::endl;
+			glDeleteShader(new_handle);
+			new_handle = 0;
+		}
+
+		if(new_handle != 0) {
+			handle = new_handle;
+			std::cerr << "[shader]  (re)loaded " << filepath.filename() << std::endl;
+		}
+	}
+
+	Shader(Shader&& o)
+	{
+		std::swap(handle,o.handle);
+		std::swap(filepath, o.filepath);
+		last_mod = o.last_mod;
+	}
+
+	Shader& operator=(const Shader&&) = delete;
+	Shader& operator=(const Shader&) = delete;
+	Shader(Shader&) = delete;
+
+	bool valid() const
+	{
+		return handle != 0;
+	}
+
+	fs::path filepath;
+	uint64_t last_mod = 0;
+	GLuint handle{};
+};
+
+struct Program
+{
+	Program() : handle(glCreateProgram()) { }
+	~Program()
+	{
+		glDeleteProgram(handle);
+	}
+
+	Program(Program&& o)
+	{
+		std::swap(handle, o.handle);
+		std::swap(m_shaders, o.m_shaders);
+	}
+
+
+	Program& operator=(Program&) = delete;
+	Program(Program&) = delete;
+
+	void attach_shader(Shader&& s)
+	{
+		if(s.valid()) {
+			auto sh = s.handle;
+			m_shaders.push_back(std::move(s));
+			glAttachShader(handle, sh);
+			//std::cerr << "attached " << m_shaders.back().filepath << std::endl;
+			glDeleteShader(sh); // mark for garbage collection after detaching from program
+		}
+	}
+
+	void link()
+	{
+		glLinkProgram(handle);
+		GLint success = 0;
+		glGetProgramiv(handle, GL_LINK_STATUS, &success);
+		if(!success) {
+
+			std::cerr << "[shader] failed to link program..." << std::endl;
+			//char msg[512];
+			//glGetShaderInfoLog(handle, 512, nullptr, msg);
+			//std::cerr << "Shader compilation failed:\n" << msg << std::endl;
+			glDeleteProgram(handle);
+			handle = 0;
+		}
+	}
+
+	void reload()
+	{
+		GLuint new_program_handle = glCreateProgram();
+
+		bool should_reload = false;
+		for(auto& s : m_shaders) {
+			if(s.should_reload()) {
+				should_reload = true;
+				break;
+			}
+		}
+
+		if(!should_reload)
+			return;
+
+		size_t valid_shaders = 0;
+		for(auto& s : m_shaders) {
+			s.reload(true);
+			if(s.valid()) {
+				glAttachShader(new_program_handle, s.handle);
+				glDeleteShader(s.handle);
+				++valid_shaders;
+			}
+		}
+
+		if(valid_shaders < m_shaders.size()) {
+			std::cerr << "[shader]  only " << valid_shaders << " out of " << m_shaders.size() << " attached." << std::endl;
+			return;
+		}
+
+		glLinkProgram(new_program_handle);
+		GLint success = 0;
+		glGetProgramiv(handle, GL_LINK_STATUS, &success);
+		if(!success) {
+			glDeleteProgram(new_program_handle);
+			new_program_handle = 0;
+		} else {
+			glDeleteProgram(handle);
+			handle = new_program_handle;
+			//std::cerr << "Reloaded program successfully!" << std::endl;
+		}
+	}
+
+
+	bool valid() const
+	{
+		return handle != 0;
+	}
+
+	GLuint handle{};
+
+private:
+
+	std::vector<Shader> m_shaders;
+};
+
+
+ShaderSet::ShaderSet(std::string_view directory) : m_directory(directory)
+{
+	static_assert(sizeof(ProgramPlaceholder) == sizeof(Program));
+}
+
+ShaderSet::~ShaderSet()
+{
+	for(int i= 0; i < m_program_count; ++i)	{
+		reinterpret_cast<Program&>(m_programs_storage[i]).~Program();
+	}
+}
+
+void ShaderSet::check_updates()
+{
+	for(int i= 0; i < m_program_count; ++i)	{
+		reinterpret_cast<Program&>(m_programs_storage[i]).reload();
+	}
+}
+
+
+GLuint * ShaderSet::load_program(std::initializer_list<std::string_view> names)
+{
+	Program program;
+
+	for(auto&& name : names) {
+		fs::path filepath{m_directory};
+		filepath /= name.data();
+
+		if(!fs::exists(filepath)) {
+			std::cerr << "[shader]  file does not exist: " << filepath << std::endl;
+			return nullptr;
+		}
+
+		program.attach_shader(Shader(std::move(filepath)));
 	}
 
 	program.link();
 
-	if(program.is_valid()) {
-		auto res = m_programs.insert(std::move(program));
-		if(res.second) {
-			return const_cast<GLuint*>(&(res.first->handle));
-		}
+	if(program.valid()) {
+		new(&m_programs_storage[m_program_count]) Program{std::move(program)};
+		return &reinterpret_cast<Program&>(m_programs_storage[m_program_count++]).handle;
 	}
 
 	return nullptr;
