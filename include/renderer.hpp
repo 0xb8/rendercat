@@ -8,8 +8,8 @@ class Scene;
 class Renderer
 {
 
-	Scene* m_scene;
 	ShaderSet m_shader_set;
+	Scene* m_scene;
 	GLuint* m_shader;
 	GLuint* m_point_lamp_shader;
 
@@ -20,18 +20,15 @@ class Renderer
 	GLuint m_backbuffer_color_to = 0;
 	GLuint m_backbuffer_depth_to = 0;
 
-	glm::mat4 projection;
-	float last_fov = 0.0f;
-
-	glm::vec4 clear_color{0.0f, 0.0f, 0.0f, 1.0f};
-
+	glm::mat4 m_projection;
+	glm::vec4 m_clear_color{0.0f, 0.0f, 0.0f, 1.0f};
+	float m_last_fov = 0.0f;
+	float m_last_aspect = 0.0f;
 
 	void update_projection();
 
-
-
 public:
-	static constexpr int SampleCount = 0;
+	static constexpr int MSAASampleCount = 0;
 
 	explicit Renderer(Scene* s = nullptr);
 	~Renderer();

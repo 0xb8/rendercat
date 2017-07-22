@@ -6,12 +6,12 @@ find_package(glfw3 3.2 REQUIRED)
 find_package(glew 2 REQUIRED)
 find_package(glm 0.9 REQUIRED)
 find_package(OpenGL REQUIRED)
-find_package(Assimp REQUIRED)
 
 add_subdirectory(third_party)
 
 add_executable(rendercat
 	src/main.cpp
+	src/mesh.cpp
 	src/renderer.cpp
 	src/scene.cpp
 	src/shader_set.cpp
@@ -33,9 +33,9 @@ target_link_libraries(rendercat
 	PRIVATE
 		Boost::filesystem
 		Stb::Stb
+		tinyobjloader
 		glfw
 		glm
-		Assimp
 		${GLEW_LIBRARIES}
 		${OPENGL_gl_LIBRARY}
 )

@@ -34,11 +34,11 @@ namespace globals {
 	static bool mouse_button2 = false;
 
 	static bool mouse_first = true;
-	static float yaw   = -90.0f;
-	static float pitch =  0.0f;
+	static float xoffset   = 0.0f;
+	static float yoffset =  0.0f;
 	static float lastX =  glfw_framebuffer_width / 2.0;
 	static float lastY =  glfw_framebuffer_height / 2.0;
-	static float fov   = 60.0f;
+	static float fov   = 90.0f;
 
 
 	static bool forward  = false;
@@ -178,21 +178,19 @@ static void glfw_process_input(Scene* s)
 		cameraSpeed *= 5.0f;
 
 	if (globals::forward)
-		s->main_camera.pos += cameraSpeed * s->main_camera.front;
+		s->main_camera.forward(cameraSpeed);
 	if (globals::backward)
-		s->main_camera.pos -= cameraSpeed * s->main_camera.front;
+		s->main_camera.backward(cameraSpeed);
 	if (globals::left)
-		s->main_camera.pos -= glm::normalize(glm::cross(s->main_camera.front, s->main_camera.up)) * cameraSpeed;
+		s->main_camera.left(cameraSpeed);
 	if (globals::right)
-		s->main_camera.pos += glm::normalize(glm::cross(s->main_camera.front, s->main_camera.up)) * cameraSpeed;
+		s->main_camera.right(cameraSpeed);
 
-
-	glm::vec3 front;
-	front.x = cos(glm::radians(globals::yaw)) * cos(glm::radians(globals::pitch));
-	front.y = sin(glm::radians(globals::pitch));
-	front.z = sin(glm::radians(globals::yaw)) * cos(glm::radians(globals::pitch));
-	s->main_camera.front = glm::normalize(front);
+	s->main_camera.aim(globals::xoffset, globals::yoffset);
 	s->main_camera.fov = globals::fov;
+	globals::xoffset = 0.0f;
+	globals::yoffset = 0.0f;
+
 }
 
 
@@ -210,18 +208,13 @@ void gflw_mouse_motion_callback(GLFWwindow* window, double xpos, double ypos)
 	globals::lastX = xpos;
 	globals::lastY = ypos;
 
-	float sensitivity = 0.1f; // change this value to your liking
+	float sensitivity = 0.1f;
 	xoffset *= sensitivity;
 	yoffset *= sensitivity;
 
-	globals::yaw += xoffset;
-	globals::pitch += yoffset;
+	globals::xoffset = xoffset;
+	globals::yoffset = yoffset;
 
-	// make sure that when pitch is out of bounds, screen doesn't get flipped
-	if (globals::pitch > 89.0f)
-		globals::pitch = 89.0f;
-	if (globals::pitch < -89.0f)
-		globals::pitch = -89.0f;
 }
 
 
@@ -241,10 +234,7 @@ static void glfw_scroll_callback(GLFWwindow* window, double xoffset, double yoff
 {
 	if (globals::fov >= 1.0f && globals::fov <= 110.0f)
 		globals::fov -= yoffset;
-	if (globals::fov <= 1.0f)
-		globals::fov = 1.0f;
-	if (globals::fov >= 110.0f)
-		globals::fov = 110.0f;
+	glm::clamp(globals::fov, 1.0f, 110.0f);
 }
 
 
@@ -292,7 +282,7 @@ int main() try
 	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 	glfwWindowHint(GLFW_SRGB_CAPABLE, GLFW_TRUE);
-	glfwWindowHint(GLFW_SAMPLES, Renderer::SampleCount);
+	glfwWindowHint(GLFW_SAMPLES, Renderer::MSAASampleCount);
 
 	auto window = glfwCreateWindow(globals::glfw_framebuffer_width,
 	                               globals::glfw_framebuffer_height,
