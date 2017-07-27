@@ -1,24 +1,13 @@
 #include <iostream>
-#include <iomanip>
-#include <cmath>
 #include <chrono>
 #include <thread>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <shader_set.hpp>
 
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
 #include <scene.hpp>
 #include <renderer.hpp>
 
-
-
-
-
-
-
-// ---------------------------------- globals ----------------------------------
 namespace globals {
 
 	static bool glfw_framebuffer_resized = false;
@@ -27,32 +16,32 @@ namespace globals {
 
 	static float delta_time = 0.0f;
 	static float last_frame_time = 0.0f;
+}
 
+namespace input {
 
+	static bool screenshot = false;
 	static bool mouse_captured = true;
-	static bool mouse_button1 = false;
-	static bool mouse_button2 = false;
+	static bool mouse_init = true;
+	static float sensitivity = 0.1f;
 
-	static bool mouse_first = true;
-	static float xoffset   = 0.0f;
-	static float yoffset =  0.0f;
-	static float lastX =  glfw_framebuffer_width / 2.0;
-	static float lastY =  glfw_framebuffer_height / 2.0;
+	static float xoffset = 0.0f;
+	static float yoffset = 0.0f;
+	static int lastX =  globals::glfw_framebuffer_width / 2.0;
+	static int lastY =  globals::glfw_framebuffer_height / 2.0;
 	static float fov   = 90.0f;
+	static const float minfov = 10.0f;
+	static const float maxfov = 110.0f;
 
 
 	static bool forward  = false;
 	static bool backward = false;
 	static bool left     = false;
 	static bool right    = false;
-
-	static bool mod_shift = false;
-	static bool mod_alt   = false;
-	static bool mod_ctrl  = false;
-
+	static bool shift    = false;
+	static bool alt      = false;
 }
 
-// --------------------------------- constants ---------------------------------
 namespace consts {
 	static const float window_target_fps = 64.0f;
 	static const float window_target_frametime = 1.0f / window_target_fps;
@@ -60,7 +49,7 @@ namespace consts {
 }
 
 // ---------------------------------- helpers  ---------------------------------
-void GLAPIENTRY gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
+void GLAPIENTRY gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei /*length*/, const GLchar *message, const void */*userParam*/)
 {
 	std::cerr << "[GL] ";
 	switch (source)
@@ -100,145 +89,153 @@ void GLAPIENTRY gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum 
 
 // ------------------------------- declarations --------------------------------
 
-static void gflw_mouse_motion_callback(GLFWwindow* window, double xpos, double ypos);
+static void gflw_mouse_motion_callback(GLFWwindow* window, int dx, int dy);
 static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 static void glfw_mouse_click_callback(GLFWwindow* window, int button, int action, int mods);
 static void glfw_focus_callback(GLFWwindow* window, int focused);
 static void glfw_scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
-static void glfw_framebuffer_resized_callback(GLFWwindow*, int width, int height);
+static void glfw_framebuffer_resized_callback(GLFWwindow* window, int width, int height);
 
 
-static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+static void glfw_key_callback(GLFWwindow* window, int key, int /*scancode*/, int action, int mods)
 {
 	switch (key) {
 	case GLFW_KEY_W:
-		globals::forward = (action != GLFW_RELEASE);
+		input::forward = (action != GLFW_RELEASE);
+		if(mods & GLFW_MOD_CONTROL)
+			glfwSetWindowShouldClose(window,true);
 		break;
 	case GLFW_KEY_A:
-		globals::left = (action != GLFW_RELEASE);
+		input::left = (action != GLFW_RELEASE);
 		break;
 	case GLFW_KEY_S:
-		globals::backward = (action != GLFW_RELEASE);
+		input::backward = (action != GLFW_RELEASE);
 		break;
 	case GLFW_KEY_D:
-		globals::right = (action != GLFW_RELEASE);
+		input::right = (action != GLFW_RELEASE);
+		break;
+	case GLFW_KEY_LEFT_SHIFT:
+		input::shift = (action != GLFW_RELEASE);
+		break;
+	case GLFW_KEY_LEFT_ALT:
+		input::alt = (action != GLFW_RELEASE);
 		break;
 	case GLFW_KEY_ESCAPE:
-		glfwSetWindowShouldClose(window,true);
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		glfwSetCursorPosCallback(window, nullptr);
+		input::mouse_captured = false;
 		break;
+	case GLFW_KEY_PRINT_SCREEN:
+		input::screenshot = true;
 	default:
 		break;
 	}
-
-	if(mods & GLFW_MOD_SHIFT) {
-		globals::mod_shift = (action != GLFW_RELEASE);
-	}
-	if(mods & GLFW_MOD_ALT) {
-		globals::mod_alt = (action != GLFW_RELEASE);
-	}
-	if(mods & GLFW_MOD_CONTROL) {
-		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-		glfwSetCursorPosCallback(window, nullptr);
-		globals::mouse_captured = false;
-		globals::mod_ctrl = (action != GLFW_RELEASE);
-	}
 }
 
-static void glfw_mouse_click_callback(GLFWwindow* window, int button, int action, int mods)
+static void glfw_mouse_click_callback(GLFWwindow* window, int button, int action, int /*mods*/)
 {
-	if(!globals::mouse_captured && action == GLFW_PRESS)
+	if(!input::mouse_captured && action == GLFW_PRESS)
 	{
-		globals::mouse_captured = true;
+		input::mouse_captured = true;
+		input::mouse_init = true;
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-		glfwSetCursorPosCallback(window, gflw_mouse_motion_callback);
+		glfwSetCursorDeltaCallback(window, gflw_mouse_motion_callback);
 	}
-
-	if(button = GLFW_MOUSE_BUTTON_1) {
-		if(action != GLFW_RELEASE) {
-			globals::mouse_button1 = true;
-		} else {
-			globals::mouse_button1 = false;
-		}
-	}
-	if(button = GLFW_MOUSE_BUTTON_2) {
-		if(action != GLFW_RELEASE) {
-			globals::mouse_button2 = true;
-		} else {
-			globals::mouse_button2 = false;
-		}
+	if(button == GLFW_MOUSE_BUTTON_3 && action == GLFW_PRESS) {
+		input::fov = 90.0f;
 	}
 }
 
 
 static void glfw_process_input(Scene* s)
 {
-	float cameraSpeed = 2.5f * globals::delta_time;
+	float cameraSpeed = 3.0f * consts::window_target_frametime;
 
-	if(globals::mod_shift)
+	if(input::shift)
 		cameraSpeed *= 5.0f;
+	else if(input::alt)
+		cameraSpeed *= 0.5f;
 
-	if (globals::forward)
+	if (input::forward)
 		s->main_camera.forward(cameraSpeed);
-	if (globals::backward)
+	if (input::backward)
 		s->main_camera.backward(cameraSpeed);
-	if (globals::left)
+	if (input::left)
 		s->main_camera.left(cameraSpeed);
-	if (globals::right)
+	if (input::right)
 		s->main_camera.right(cameraSpeed);
 
-	s->main_camera.aim(globals::xoffset, globals::yoffset);
-	s->main_camera.fov = globals::fov;
-	globals::xoffset = 0.0f;
-	globals::yoffset = 0.0f;
-
+	s->main_camera.aim(input::xoffset, input::yoffset);
+	s->main_camera.fov = input::fov;
+	input::xoffset = 0.0f;
+	input::yoffset = 0.0f;
 }
 
-
-void gflw_mouse_motion_callback(GLFWwindow* window, double xpos, double ypos)
+void gflw_mouse_motion_callback(GLFWwindow* /*window*/, int dx, int dy)
 {
-	if(globals::mouse_first) // this bool variable is initially set to true
+	if(unlikely(input::mouse_init)) // this bool variable is initially set to true
 	{
-		globals::lastX = xpos;
-		globals::lastY = ypos;
-		globals::mouse_first = false;
+		input::lastX = dx;
+		input::lastY = dy;
+		input::mouse_init = false;
+		return;
 	}
 
-	float xoffset = xpos - globals::lastX;
-	float yoffset = globals::lastY - ypos; // reversed since y-coordinates go from bottom to top
-	globals::lastX = xpos;
-	globals::lastY = ypos;
+	float dxf = dx;
+	float dyf = dy;
 
-	float sensitivity = 0.1f;
-	xoffset *= sensitivity;
-	yoffset *= sensitivity;
+#if 0
+	// NOTE: hacky AF, but seems to give decent results
+	switch (abs(dx)) {
+	case 1:
+		dxf *= 0.5;
+		break;
+	case 2:
+		dxf *= 0.75;
+	default:
+		break;
+	}
+	switch (abs(dy)) {
+	case 1:
+		dyf *= 0.5;
+		break;
+	case 2:
+		dyf *= 0.75;
+	default:
+		break;
+	}
+#endif
 
-	globals::xoffset = xoffset;
-	globals::yoffset = yoffset;
+	//std::cerr << "dx: " << dxf << "\tdy: " << dyf << '\n';
 
+	input::xoffset = dxf * input::sensitivity;
+	input::yoffset = -dyf * input::sensitivity;
 }
+
 
 
 static void glfw_focus_callback(GLFWwindow* window, int focused)
 {
 	if(focused == GLFW_TRUE) {
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-		glfwSetCursorPosCallback(window, gflw_mouse_motion_callback);
+		glfwSetCursorDeltaCallback(window, gflw_mouse_motion_callback);
 	} else {
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-		glfwSetCursorPosCallback(window, nullptr);
+		glfwSetCursorDeltaCallback(window, nullptr);
 	}
+	input::mouse_init = true;
 }
 
 
-static void glfw_scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+static void glfw_scroll_callback(GLFWwindow* /*window*/, double /*xoffset*/, double yoffset)
 {
-	if (globals::fov >= 1.0f && globals::fov <= 110.0f)
-		globals::fov -= yoffset;
-	glm::clamp(globals::fov, 1.0f, 110.0f);
+	if (input::fov >= input::minfov && input::fov <= input::maxfov)
+		input::fov -= yoffset;
+	input::fov = glm::clamp(input::fov, input::minfov, input::maxfov);
 }
 
 
-static void glfw_framebuffer_resized_callback(GLFWwindow*, int width, int height)
+static void glfw_framebuffer_resized_callback(GLFWwindow* /*window*/, int width, int height)
 {
 	globals::glfw_framebuffer_resized = true;
 	globals::glfw_framebuffer_width = width;
@@ -270,6 +267,16 @@ static void enable_gl_debug_callback()
 }
 
 
+static void assert_gl_default_framebuffer_is_srgb()
+{
+	GLint param;
+	glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_FRONT_LEFT, GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING, &param);
+	if(param != GL_SRGB)
+		throw std::runtime_error("Default framebuffer is not SRGB!");
+
+}
+
+
 
 //------------------------------------------------------------------------------
 int main() try
@@ -297,7 +304,7 @@ int main() try
 	glfwMakeContextCurrent(window);
 	glfwSetKeyCallback(window, glfw_key_callback);
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-	glfwSetCursorPosCallback(window, gflw_mouse_motion_callback);
+	glfwSetCursorDeltaCallback(window, gflw_mouse_motion_callback);
 	glfwSetMouseButtonCallback(window, glfw_mouse_click_callback);
 	glfwSetWindowFocusCallback(window, glfw_focus_callback);
 	glfwSetScrollCallback(window, glfw_scroll_callback);
@@ -310,36 +317,37 @@ int main() try
 
 	enable_gl_debug_callback();
 	enable_gl_clip_control();
+	assert_gl_default_framebuffer_is_srgb();
+
+	glfw_focus_callback(window, false);
 
 	Scene scene;
 	Renderer renderer(&scene);
 	renderer.resize(globals::glfw_framebuffer_width,
 	                globals::glfw_framebuffer_height);
 
+	glfw_focus_callback(window, true);
+
 
 	globals::last_frame_time = glfwGetTime();
-
 	while(!glfwWindowShouldClose(window))
 	{
 		glfwPollEvents();
-
 		glfw_process_input(&scene);
 
 		if(globals::glfw_framebuffer_resized) {
 			globals::glfw_framebuffer_resized = false;
-			std::cerr << "framebuffer resized to "
-			          << globals::glfw_framebuffer_width
-			          << " x "
-			          << globals::glfw_framebuffer_height
-			          << '\n';
-
 			renderer.resize(globals::glfw_framebuffer_width,
 			                globals::glfw_framebuffer_height);
-
 		}
 
+		renderer.draw();
 
-		renderer.draw(globals::last_frame_time);
+
+		if(unlikely(input::screenshot)) {
+			input::screenshot = false;
+			renderer.screenshot();
+		}
 
 		glfwSwapBuffers(window);
 

@@ -2,14 +2,13 @@
 #include <boost/filesystem.hpp>
 #include <iostream>
 #include <sstream>
-
 #include <vector>
 
 #define VERT_SHADER_EXT ".vert"
 #define FRAG_SHADER_EXT ".frag"
 
-
 namespace fs = boost::filesystem;
+namespace {
 
 struct Shader
 {
@@ -34,7 +33,7 @@ struct Shader
 		return true;
 	}
 
-	void reload(bool force)
+	void reload(bool force) try
 	{
 		fs::ifstream sh_fstream;
 		sh_fstream.open(filepath);
@@ -96,6 +95,8 @@ struct Shader
 			handle = new_handle;
 			std::cerr << "[shader]  (re)loaded " << filepath.filename() << std::endl;
 		}
+	} catch(const boost::filesystem::filesystem_error& err) {
+		std::cerr << "exception in shader reload(), code: " << err.code() << ", what(): \n" << err.what() << std::endl;
 	}
 
 	Shader(Shader&& o)
@@ -115,11 +116,13 @@ struct Shader
 	}
 
 	fs::path filepath;
-	uint64_t last_mod = 0;
+	time_t last_mod = 0;
 	GLuint handle{};
 };
 
-struct Program
+}
+
+struct ShaderSet::Program
 {
 	Program() : handle(glCreateProgram()) { }
 	~Program()
@@ -166,8 +169,6 @@ struct Program
 
 	void reload()
 	{
-		GLuint new_program_handle = glCreateProgram();
-
 		bool should_reload = false;
 		for(auto& s : m_shaders) {
 			if(s.should_reload()) {
@@ -178,6 +179,8 @@ struct Program
 
 		if(!should_reload)
 			return;
+
+		GLuint new_program_handle = glCreateProgram();
 
 		size_t valid_shaders = 0;
 		for(auto& s : m_shaders) {
@@ -223,20 +226,20 @@ private:
 
 ShaderSet::ShaderSet(std::string_view directory) : m_directory(directory)
 {
-	static_assert(sizeof(ProgramPlaceholder) == sizeof(Program));
+
 }
 
 ShaderSet::~ShaderSet()
 {
 	for(int i= 0; i < m_program_count; ++i)	{
-		reinterpret_cast<Program&>(m_programs_storage[i]).~Program();
+		(m_programs[i])->~Program();
 	}
 }
 
 void ShaderSet::check_updates()
 {
 	for(int i= 0; i < m_program_count; ++i)	{
-		reinterpret_cast<Program&>(m_programs_storage[i]).reload();
+		(m_programs[i])->reload();
 	}
 }
 
@@ -260,8 +263,8 @@ GLuint * ShaderSet::load_program(std::initializer_list<std::string_view> names)
 	program.link();
 
 	if(program.valid()) {
-		new(&m_programs_storage[m_program_count]) Program{std::move(program)};
-		return &reinterpret_cast<Program&>(m_programs_storage[m_program_count++]).handle;
+		m_programs[m_program_count] = new Program{std::move(program)};
+		return &((m_programs[m_program_count++])->handle);
 	}
 
 	return nullptr;

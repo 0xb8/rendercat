@@ -1,6 +1,6 @@
 #pragma once
 
-#include <glm/common.hpp>
+#include <common.hpp>
 
 struct Camera
 {
@@ -8,10 +8,10 @@ struct Camera
 	{
 		yaw += dx;
 		pitch += dy;
-		if(pitch < -89.0f)
-			pitch = -89.0f;
-		if(pitch > 89.0f)
-			pitch = 89.0f;
+		pitch = glm::clamp(pitch, -89.9f, 89.9f);
+		yaw = fmod(yaw, 360.0);
+		if(yaw < 0)
+		    yaw += 360.0;
 
 		front = glm::normalize(glm::vec3(cos(glm::radians(yaw)) * cos(glm::radians(pitch)),
 		                                 sin(glm::radians(pitch)),

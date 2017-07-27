@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
 project(rendercat VERSION 0.1)
 
 find_package(Boost COMPONENTS filesystem REQUIRED)
-find_package(glfw3 3.2 REQUIRED)
 find_package(glew 2 REQUIRED)
 find_package(glm 0.9 REQUIRED)
 find_package(OpenGL REQUIRED)
@@ -40,19 +39,23 @@ target_link_libraries(rendercat
 		${OPENGL_gl_LIBRARY}
 )
 
+if(CMAKE_COMPILER_IS_GNUCC)
+	target_compile_options(rendercat
+		PRIVATE
+			"-Wall"
+			"-Wextra"
+			"-pedantic")
 
-#add_custom_target(copy-runtime-files ALL
-#    COMMAND cmake -E copy_directory ${CMAKE_SOURCE_DIR}/shaders ${CMAKE_BINARY_DIR}/shaders
-#    COMMAND cmake -E copy_directory ${CMAKE_SOURCE_DIR}/assets  ${CMAKE_BINARY_DIR}/assets
-#    DEPENDS rendercat)
-
+endif()
 
 add_custom_target(shaders
 	SOURCES
 		"shaders/generic.frag"
 		"shaders/generic.vert"
-		"shaders/point_lamp.vert"
-		"shaders/point_lamp.frag"
+		"shaders/shadow_mapping.vert"
+		"shaders/shadow_mapping.frag"
+		"shaders/debug_quad.vert"
+		"shaders/debug_quad.frag"
 	DEPENDS
 		rendercat
 )
