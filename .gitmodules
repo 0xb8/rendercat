@@ -1,9 +1,13 @@
 [submodule "third_party/stb"]
 	path = third_party/stb
-	url = https://github.com/nothings/stb.git
+	url = ssh://git@bitbucket.org/catgirl/stb.git
+	branch = add-impl
+
 [submodule "third_party/tiny_obj"]
 	path = third_party/tiny_obj
 	url = https://github.com/syoyo/tinyobjloader.git
+
 [submodule "third_party/glfw"]
 	path = third_party/glfw
-	url = https://github.com/glfw/glfw.git
+	url = ssh://git@bitbucket.org/catgirl/glfw.git
+	branch = mouse-delta
