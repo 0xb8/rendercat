@@ -6,9 +6,7 @@
 #include <iostream>
 #include <unordered_map>
 
-
-
-Scene::TextureResult Scene::load_texture(std::string_view name, std::string_view basedir)
+Scene::TextureResult Scene::load_texture(std::string_view name, std::string_view basedir, bool linear)
 {
 	static const float max_aniso = 16.0f;
 
@@ -39,13 +37,11 @@ Scene::TextureResult Scene::load_texture(std::string_view name, std::string_view
 		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, std::min(maxAnisotropy, max_aniso));
 
 		if(nrChannels == 3) {
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+			glTexImage2D(GL_TEXTURE_2D, 0, (linear ? GL_RGB : GL_SRGB), width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
 		}
 		if(nrChannels == 4) {
-
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB_ALPHA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+			glTexImage2D(GL_TEXTURE_2D, 0, (linear ? GL_RGBA : GL_SRGB_ALPHA), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 		}
-		std::cerr << name << nrChannels << std::endl;
 		glGenerateMipmap(GL_TEXTURE_2D);
 		glBindTexture(GL_TEXTURE_2D, 0);
 		stbi_image_free(data);
@@ -116,7 +112,7 @@ void Scene::load_model(std::string_view name, std::string_view basedir)
 
 		if(!mat.normal_texname.empty()) {
 			std::cerr << "   ~ loading normal \'" << mat.normal_texname << '\'';
-			auto res = load_texture(mat.normal_texname, material_path);
+			auto res = load_texture(mat.normal_texname, material_path, true);
 			if(res.texture_object && res.num_channels >= 3) {
 				material.normal_map = res.texture_object;
 			} else {
@@ -127,7 +123,7 @@ void Scene::load_model(std::string_view name, std::string_view basedir)
 
 		if(!mat.specular_texname.empty()) {
 			std::cerr << "   ~ loading specular \'" << mat.specular_texname << '\'';
-			auto res = load_texture(mat.specular_texname, material_path);
+			auto res = load_texture(mat.specular_texname, material_path, true);
 			if(res.texture_object) {
 				material.specular_map = res.texture_object;
 			}
@@ -167,7 +163,7 @@ void Scene::load_model(std::string_view name, std::string_view basedir)
 			auto pos = material_instances.find(material_path + mat.diffuse_texname);
 			if(pos != material_instances.end()) {
 				instance.material_id = pos->second;
-				std::cerr << "   ~ material \'" << mat.name << "\' (" << mat_id << ',' << pos->second  << ")\n";
+				//std::cerr << "   ~ material \'" << mat.name << "\' (" << mat_id << ',' << pos->second  << ")\n";
 			} else {
 				std::cerr << "   - could not find diffuse " << mat.diffuse_texname  << " in materials!\n";
 				instance.material_id = missing_material_idx;
@@ -203,16 +199,21 @@ void Scene::load_model(std::string_view name, std::string_view basedir)
 				        attrib.texcoords[2 * index.texcoord_index + 1]
 				};
 			}
-
+#ifndef DISABLE_COMPACTION
 			if (uniqueVertices.count(vert) == 0) {
 				uniqueVertices[vert] = static_cast<uint32_t>(vertices.size());
 				vertices.push_back(vert);
 			}
 
 			indices.push_back(uniqueVertices[vert]);
+
+#else
+			vertices.push_back(vert);
+			indices.push_back(vertices.size()-1);
+#endif
 		}
 
-		std::cerr << "   + done loading submesh,  vertices:  " << indices.size() << "  unique:  " << vertices.size() << '\n' << std::endl;
+		//std::cerr << "   + done loading submesh,  vertices:  " << indices.size() << "  unique:  " << vertices.size() << '\n' << std::endl;
 		meshes.emplace_back(Mesh(std::move(vertices), std::move(indices)));
 		instance.mesh_id = meshes.size()-1;
 		instances.emplace_back(std::move(instance));
@@ -240,8 +241,8 @@ Scene::Scene()
 	pl.position({8.0f, 2.0f, 2.0f})
 	  .ambient({0.1f, 0.0f, 0.0f})
 	  .diffuse({1.0, 0.2, 0.1})
-	  .specular({.2, 0.0, 0.0})
-	  .radius(15.0)
+	  .specular({0.3, 0.05, 0.0})
+	  .radius(10.0)
 	  .flux(150.0);
 
 //	lights.push_back(pl);
@@ -260,7 +261,7 @@ Scene::Scene()
 
 	pl.position({1.5f, 2.5f, -1.5f})
 	  .diffuse({0.1, 0.2, 1.0})
-	  .specular({0.0, 0.0, 0.2});
+	  .specular({0.0, 0.05, 0.3});
 	lights.push_back(pl);
 
 
@@ -269,7 +270,7 @@ Scene::Scene()
 	auto missing_mat_idx = add_material("missing", Material{});
 	assert(missing_mat_idx == missing_material_idx);
 
-	//load_model("sponza.obj", "sponza_crytek/");
-	//load_model("2b.obj",     "yorha_2b/");
-	//load_model("assets/models/cube.obj");
+	load_model("sponza.obj", "sponza_crytek/");
+	load_model("2b.obj",     "yorha_2b/");
+	//load_model("cube.obj", "/");
 }

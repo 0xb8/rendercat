@@ -19,8 +19,6 @@ namespace globals {
 }
 
 namespace input {
-
-	static bool screenshot = false;
 	static bool mouse_captured = true;
 	static bool mouse_init = true;
 	static float sensitivity = 0.1f;
@@ -125,8 +123,6 @@ static void glfw_key_callback(GLFWwindow* window, int key, int /*scancode*/, int
 		glfwSetCursorPosCallback(window, nullptr);
 		input::mouse_captured = false;
 		break;
-	case GLFW_KEY_PRINT_SCREEN:
-		input::screenshot = true;
 	default:
 		break;
 	}
@@ -342,12 +338,6 @@ int main() try
 		}
 
 		renderer.draw();
-
-
-		if(unlikely(input::screenshot)) {
-			input::screenshot = false;
-			renderer.screenshot();
-		}
 
 		glfwSwapBuffers(window);
 

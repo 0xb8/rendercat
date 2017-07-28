@@ -202,10 +202,6 @@ void Renderer::draw()
 	glViewport(0, 0, m_backbuffer_width, m_backbuffer_height);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-
-
-
-
 	glUseProgram(*m_shader);
 
 	update_projection();

@@ -48,16 +48,18 @@ if(CMAKE_COMPILER_IS_GNUCC)
 
 endif()
 
+set(SHADERS_SOURCES
+	"shaders/generic.frag"
+	"shaders/generic.vert"
+	"shaders/shadow_mapping.vert"
+	"shaders/shadow_mapping.frag"
+	"shaders/debug_quad.vert"
+	"shaders/debug_quad.frag"
+)
+
 add_custom_target(shaders
 	SOURCES
-		"shaders/generic.frag"
-		"shaders/generic.vert"
-		"shaders/shadow_mapping.vert"
-		"shaders/shadow_mapping.frag"
-		"shaders/debug_quad.vert"
-		"shaders/debug_quad.frag"
+		${SHADERS_SOURCES}
 	DEPENDS
 		rendercat
 )
-
-

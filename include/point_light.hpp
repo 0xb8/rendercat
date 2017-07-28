@@ -8,8 +8,8 @@ class PointLight
 	glm::vec3 m_ambient;
 	glm::vec3 m_diffuse;
 	glm::vec3 m_specular;
-	float m_radius = 20.0f;
-	float m_luminous_intensity = 20.0f; // in candelas
+	float m_radius = 0.0f;
+	float m_luminous_intensity = 0.0f; // in candelas
 
 public:
 
@@ -87,5 +87,15 @@ public:
 		assert(luminous_flux > 0.0f);
 		m_luminous_intensity = luminous_flux / (4.0 * mc::M_PI);
 		return *this;
+	}
+
+	// same code as in fragment shader
+	float falloff(float dist) const
+	{
+		const float decay = 2.0f;
+
+		// ref: equation (26) from https://seblagarde.files.wordpress.com/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
+		// @ https://seblagarde.wordpress.com/2015/07/14/siggraph-2014-moving-frostbite-to-physically-based-rendering/
+		return glm::pow(glm::clamp(1.0 - glm::pow(dist/m_radius, 4.0), 0.0, 1.0), decay) / glm::max(glm::pow(dist, decay), 0.01f);
 	}
 };

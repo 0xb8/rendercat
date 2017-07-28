@@ -49,17 +49,17 @@ struct Scene
 	std::vector<Instance>  instances;
 	std::vector<PointLight> lights;
 
-	TextureResult load_texture(std::string_view name, std::string_view basedir = std::string_view{});
+	TextureResult load_texture(std::string_view name, std::string_view basedir = std::string_view{}, bool linear = false);
 	void load_model(std::string_view name, std::string_view basedir);
 	size_t add_material(std::string_view name, Material&& mat, std::string_view basedir = std::string_view{});
 
 	Camera main_camera;
 
 	DirectionalLight directional_light {
-		glm::vec3(0.2f, 1.0f, 0.5f),       // dir
+		glm::vec3(0.3f, 1.0f, 0.8f),       // dir
 		glm::vec3(0.004f, 0.009f, 0.011f), // amb
-		glm::vec3(0.1f, 0.1f, 0.1f),       // diff
-		glm::vec3(0.05f, 0.05f, 0.05f)};      // spec
+		glm::vec3(0.1f, 0.1f, 0.15f),       // diff
+		glm::vec3(0.05f, 0.05f, 0.05f)};    // spec
 
 
 };

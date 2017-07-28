@@ -10,6 +10,7 @@ static void* gloffset(unsigned off)
 Mesh::Mesh(std::vector<vertex>&& verts,
            std::vector<uint32_t>&& indices)
 {
+	assert(indices.size() % 3 == 0);
 	// calculate tangents and bitangents
 	for(uint32_t i = 0; i < indices.size(); i += 3) {
 		auto& vert0 = verts[indices[i]];
@@ -43,13 +44,24 @@ Mesh::Mesh(std::vector<vertex>&& verts,
 		vert2.bitangent += binormal;
 	}
 
-	for(uint32_t i = 0; i < indices.size(); ++i) {
-		auto& vert = verts[indices[i]];
+	for(uint32_t i = 0; i < indices.size(); i += 3) {
+		auto& vert0 = verts[indices[i]];
+		auto& vert1 = verts[indices[i+1]];
+		auto& vert2 = verts[indices[i+2]];
+		const auto n = vert0.normal;
+		auto t = vert0.tangent;
+		const auto b = vert0.bitangent;
+
 		// re-orthogonalize T with N
-		vert.tangent = glm::normalize(vert.tangent - vert.normal * glm::dot(vert.normal, vert.tangent));
-		if(glm::dot(cross(vert.normal, vert.tangent), vert.bitangent) < 0.0f) {
-			vert.tangent *= -1.0f;
+		t = glm::normalize(t - n * glm::dot(n, t));
+		// fix sign
+		if(glm::dot(cross(n, t), b) < 0.0f) {
+			t = -t;
 		}
+
+		vert0.tangent = t;
+		vert1.tangent = t;
+		vert2.tangent = t;
 	}
 
 	GLuint vbo, ebo;
@@ -77,10 +89,10 @@ Mesh::Mesh(std::vector<vertex>&& verts,
 	glEnableVertexAttribArray(3);
 	glVertexAttribPointer(3, 3,  GL_FLOAT, false, sizeof(vertex), gloffset(offsetof(vertex, tangent)));
 
-	glEnableVertexAttribArray(4);
-	glVertexAttribPointer(4, 3,  GL_FLOAT, false, sizeof(vertex), gloffset(offsetof(vertex, bitangent)));
+	//TODO: fix vertex struct to not upload unneeded bitangents to GPU
+	//glEnableVertexAttribArray(4);
+	//glVertexAttribPointer(4, 3,  GL_FLOAT, false, sizeof(vertex), gloffset(offsetof(vertex, bitangent)));
 
 	glBindVertexArray(0);
-
 	numverts = indices.size();
 }
