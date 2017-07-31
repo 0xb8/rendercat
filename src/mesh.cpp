@@ -1,5 +1,6 @@
 #include <GL/glew.h>
 #include <mesh.hpp>
+#include <AABB.hpp>
 //#include <iostream>
 
 static void* gloffset(unsigned off)
@@ -11,6 +12,9 @@ Mesh::Mesh(std::vector<vertex>&& verts,
            std::vector<uint32_t>&& indices)
 {
 	assert(indices.size() % 3 == 0);
+	std::vector<glm::vec3> bitangents;
+	bitangents.resize(verts.size());
+
 	// calculate tangents and bitangents
 	for(uint32_t i = 0; i < indices.size(); i += 3) {
 		auto& vert0 = verts[indices[i]];
@@ -20,6 +24,9 @@ Mesh::Mesh(std::vector<vertex>&& verts,
 		const auto v0 = vert0.position;
 		const auto v1 = vert1.position;
 		const auto v2 = vert2.position;
+		aabb.include(v0);
+		aabb.include(v1);
+		aabb.include(v2);
 
 		const auto uv0  = vert0.texcoords;
 		const auto uv1  = vert1.texcoords;
@@ -39,9 +46,7 @@ Mesh::Mesh(std::vector<vertex>&& verts,
 		vert1.tangent += tangent;
 		vert2.tangent += tangent;
 
-		vert0.bitangent += binormal;
-		vert1.bitangent += binormal;
-		vert2.bitangent += binormal;
+		bitangents[indices[i]]   += binormal;
 	}
 
 	for(uint32_t i = 0; i < indices.size(); i += 3) {
@@ -50,7 +55,7 @@ Mesh::Mesh(std::vector<vertex>&& verts,
 		auto& vert2 = verts[indices[i+2]];
 		const auto n = vert0.normal;
 		auto t = vert0.tangent;
-		const auto b = vert0.bitangent;
+		const auto b = bitangents[indices[i]];
 
 		// re-orthogonalize T with N
 		t = glm::normalize(t - n * glm::dot(n, t));
@@ -72,10 +77,20 @@ Mesh::Mesh(std::vector<vertex>&& verts,
 
 	glBindVertexArray(vao);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+
+#if USE_MUTABLE_STORAGE_FOR_VERTICES
 	glBufferData(GL_ARRAY_BUFFER, verts.size() * sizeof(vertex), verts.data(), GL_STATIC_DRAW);
+#else
+	glBufferStorage(GL_ARRAY_BUFFER, verts.size() * sizeof(vertex), verts.data(), 0);
+#endif
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+
+#if USE_MUTABLE_STORAGE_FOR_VERTICES
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(uint32_t), indices.data(), GL_STATIC_DRAW);
+#else
+	glBufferStorage(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(uint32_t), indices.data(), 0);
+#endif
 
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 3,  GL_FLOAT, false, sizeof(vertex), gloffset(offsetof(vertex, position)));
@@ -83,16 +98,17 @@ Mesh::Mesh(std::vector<vertex>&& verts,
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1, 3,  GL_FLOAT, false, sizeof(vertex), gloffset(offsetof(vertex, normal)));
 
-	glEnableVertexAttribArray(2); // NOTE: size of 2 below is very important!
-	glVertexAttribPointer(2, 2,  GL_FLOAT, false, sizeof(vertex), gloffset(offsetof(vertex, texcoords)));
+	glEnableVertexAttribArray(2);
+	glVertexAttribPointer(2, 3,  GL_FLOAT, false, sizeof(vertex), gloffset(offsetof(vertex, tangent)));
 
-	glEnableVertexAttribArray(3);
-	glVertexAttribPointer(3, 3,  GL_FLOAT, false, sizeof(vertex), gloffset(offsetof(vertex, tangent)));
+	glEnableVertexAttribArray(3); // NOTE: size of 2 below is very important!
+	glVertexAttribPointer(3, 2,  GL_FLOAT, false, sizeof(vertex), gloffset(offsetof(vertex, texcoords)));
 
-	//TODO: fix vertex struct to not upload unneeded bitangents to GPU
 	//glEnableVertexAttribArray(4);
 	//glVertexAttribPointer(4, 3,  GL_FLOAT, false, sizeof(vertex), gloffset(offsetof(vertex, bitangent)));
 
 	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 	numverts = indices.size();
 }

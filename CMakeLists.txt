@@ -10,6 +10,7 @@ add_subdirectory(third_party)
 
 add_executable(rendercat
 	src/main.cpp
+	src/material.cpp
 	src/mesh.cpp
 	src/renderer.cpp
 	src/scene.cpp
@@ -53,8 +54,6 @@ set(SHADERS_SOURCES
 	"shaders/generic.vert"
 	"shaders/shadow_mapping.vert"
 	"shaders/shadow_mapping.frag"
-	"shaders/debug_quad.vert"
-	"shaders/debug_quad.frag"
 )
 
 add_custom_target(shaders

@@ -1,38 +1,47 @@
 #pragma once
+#include <unordered_map>
+#include <common.hpp>
 
-#include <uniform.hpp>
+class TextureCache
+{
+	struct Result
+	{
+		uint32_t to = 0;
+		int num_channels = 0;
+	};
+
+	std::unordered_map<std::string, Result> cache;
+
+public:
+	TextureCache() = default;
+
+	void add(std::string&& path, uint32_t to, int numchan);
+	Result get(const std::string& path);
+};
 
 class Material
 {
-	friend class Scene;
-
-	static uint32_t default_diffuse;
-
-	glm::vec3 specular_color = {0.0f, 0.0f, 0.0f};
-	float     shininess      = 0.0f;
-
-	uint32_t  diffuse_map  = 0;
-	uint32_t  normal_map   = 0;
-	uint32_t  specular_map = 0;
-	bool      opaque       = true;
-
 public:
-	static void set_default_diffuse(uint32_t diffuse) noexcept
+
+	enum Type
 	{
-		assert(diffuse);
-		default_diffuse = diffuse;
-	}
+		Opaque      = 1 << 1,
+		Masked      = 1 << 2,
+		Transparent = 1 << 3,
+
+		NormalMapped = 1 << 8,
+		SpecularMapped = 1 << 9
+	};
+
+	static void set_texture_cache(TextureCache* c);
+	static void set_default_diffuse() noexcept;
 
 	Material() noexcept
 	{
-		diffuse_map = default_diffuse;
+		m_diffuse_map = default_diffuse;
 	}
 
-	~Material() {
-		glDeleteTextures(1, &diffuse_map);
-		glDeleteTextures(1, &normal_map);
-		glDeleteTextures(1, &specular_map);
-	}
+	~Material() noexcept;
 
 	Material(const Material&) = delete;
 	Material& operator=(const Material&) = delete;
@@ -43,50 +52,45 @@ public:
 	}
 	Material& operator =(Material&& o) noexcept
 	{
-		specular_color = o.specular_color;
-		shininess      = o.shininess;
-		diffuse_map    = o.diffuse_map;
-		normal_map     = o.normal_map;
-		specular_map   = o.specular_map;
-		opaque         = o.opaque;
+		m_specular_color = o.m_specular_color;
+		m_shininess      = o.m_shininess;
+		m_diffuse_map    = o.m_diffuse_map;
+		m_normal_map     = o.m_normal_map;
+		m_specular_map   = o.m_specular_map;
+		m_type           = o.m_type;
 
-		o.diffuse_map  = 0;
-		o.normal_map   = 0;
-		o.specular_map = 0;
+		o.m_diffuse_map  = 0;
+		o.m_normal_map   = 0;
+		o.m_specular_map = 0;
 		return *this;
 	}
 
-	void bind(GLuint s) const noexcept
+	Type type() const noexcept
 	{
-		unif::v3(s,  "material.specular",  specular_color);
-		unif::f1(s,  "material.shininess", shininess);
-		if(diffuse_map) {
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, diffuse_map);
-			unif::i1(s, "material.diffuse", 0);
-		} else {
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, 0);
-		}
-		if(normal_map) {
-			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, normal_map);
-			unif::i1(s, "material.normal", 1);
-			unif::i1(s, "material.has_normal_map", 1);
-		} else {
-			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, 0);
-			unif::i1(s, "material.has_normal_map", 0);
-		}
-		if(specular_map) {
-			glActiveTexture(GL_TEXTURE2);
-			glBindTexture(GL_TEXTURE_2D, specular_map);
-			unif::i1(s, "material.specular_map", 2);
-			unif::i1(s, "material.has_specular_map", 1);
-		} else {
-			glActiveTexture(GL_TEXTURE2);
-			glBindTexture(GL_TEXTURE_2D, 0);
-			unif::i1(s, "material.has_specular_map", 0);
-		}
+		return (Type)m_type;
 	}
+
+	void bind(GLuint s) const noexcept;
+
+	void specularColorShininess(glm::vec3 color, float shininess = 8.0f) noexcept
+	{
+		m_specular_color = color;
+		m_shininess = shininess;
+	}
+
+	void addDiffuseMap(std::string_view name, std::string_view basedir);
+	void addNormalMap(std::string_view name, std::string_view basedir);
+	void addSpecularMap(std::string_view name, std::string_view basedir);
+
+private:
+	static TextureCache* cache;
+	static uint32_t default_diffuse;
+
+	glm::vec3 m_specular_color = {0.0f, 0.0f, 0.0f};
+	float     m_shininess      = 0.0f;
+
+	int  m_type         = Type::Opaque;
+	uint32_t  m_diffuse_map  = 0;
+	uint32_t  m_normal_map   = 0;
+	uint32_t  m_specular_map = 0;
 };

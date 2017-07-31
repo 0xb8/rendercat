@@ -1,56 +1,9 @@
 #include <scene.hpp>
-
-#include <stb_image.h>
 #include <tiny_obj_loader.h>
 
 #include <iostream>
 #include <unordered_map>
 
-Scene::TextureResult Scene::load_texture(std::string_view name, std::string_view basedir, bool linear)
-{
-	static const float max_aniso = 16.0f;
-
-	std::string path(basedir);
-	path.append(name);
-	auto it = texture_instances.find(path);
-	if(it != texture_instances.end())
-	{
-		return it->second;
-	}
-
-	static float maxAnisotropy = 0.0f;
-	if(maxAnisotropy == 0.0f)
-		glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAnisotropy);
-
-	TextureResult res;
-	int width, height, nrChannels;
-	auto data = stbi_load(path.data(), &width, &height, &nrChannels, 0);
-	if (data)
-	{
-		GLuint tex;
-		glGenTextures(1, &tex);
-		glBindTexture(GL_TEXTURE_2D, tex);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, std::min(maxAnisotropy, max_aniso));
-
-		if(nrChannels == 3) {
-			glTexImage2D(GL_TEXTURE_2D, 0, (linear ? GL_RGB : GL_SRGB), width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-		}
-		if(nrChannels == 4) {
-			glTexImage2D(GL_TEXTURE_2D, 0, (linear ? GL_RGBA : GL_SRGB_ALPHA), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-		}
-		glGenerateMipmap(GL_TEXTURE_2D);
-		glBindTexture(GL_TEXTURE_2D, 0);
-		stbi_image_free(data);
-		res.texture_object = tex;
-		res.num_channels = nrChannels;
-		texture_instances.emplace(std::make_pair(std::move(path), res));
-	}
-	return res;
-}
 
 void Scene::load_model(std::string_view name, std::string_view basedir)
 {
@@ -69,6 +22,7 @@ void Scene::load_model(std::string_view name, std::string_view basedir)
 	material_path.append(basedir);
 
 	std::cerr << "\n--- loading model \'" << name << "\' from \'" << model_path << "\' ------------------------\n";
+	size_t vertex_cout = 0, unique_vertex_count = 0;
 
 
 	if(!tinyobj::LoadObj(&attrib, &shapes, &obj_materials, &err, model_path_full.data(), model_path.data()))
@@ -87,24 +41,17 @@ void Scene::load_model(std::string_view name, std::string_view basedir)
 	for(size_t i = 0; i < obj_materials.size(); ++i) {
 		const auto& mat = obj_materials[i];
 		Material material;
-		material.specular_color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
-		material.shininess = mat.shininess;
+		auto spec_color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
+		material.specularColorShininess(spec_color, mat.shininess);
 		std::cerr << " * material:\t\'" << mat.name << "\'\tformat_id: " << i << "\n";
-		std::cerr << "   ~ material params:\tspecular:  " << material.specular_color << ",  shininess:  " << material.shininess << '\n';
+		std::cerr << "   ~ material params:\tspecular:  " << spec_color
+		          << ",  shininess:  " << mat.shininess
+		          << ",  dissolve:  " << mat.dissolve << '\n';
+
 
 		if(!mat.diffuse_texname.empty()) {
 			std::cerr << "   ~ loading diffuse \'" << mat.diffuse_texname << '\'';
-			auto res = load_texture(mat.diffuse_texname, material_path);
-
-			if(res.texture_object == 0) {
-				std::cerr << " \tbad texture!";
-			} else {
-				material.diffuse_map = res.texture_object;
-				material.opaque      = (res.num_channels < 4);
-				if(!material.opaque) {
-					std::cerr << " translucent texture!";
-				}
-			}
+			material.addDiffuseMap(mat.diffuse_texname, material_path);
 			std::cerr << '\n';
 		} else {
 			std::cerr << "   - MISSING diffuse map\n";
@@ -112,21 +59,13 @@ void Scene::load_model(std::string_view name, std::string_view basedir)
 
 		if(!mat.normal_texname.empty()) {
 			std::cerr << "   ~ loading normal \'" << mat.normal_texname << '\'';
-			auto res = load_texture(mat.normal_texname, material_path, true);
-			if(res.texture_object && res.num_channels >= 3) {
-				material.normal_map = res.texture_object;
-			} else {
-				std::cerr << " not enough channels: " << res.num_channels;
-			}
+			material.addNormalMap(mat.normal_texname, material_path);
 			std::cerr << '\n';
 		}
 
 		if(!mat.specular_texname.empty()) {
 			std::cerr << "   ~ loading specular \'" << mat.specular_texname << '\'';
-			auto res = load_texture(mat.specular_texname, material_path, true);
-			if(res.texture_object) {
-				material.specular_map = res.texture_object;
-			}
+			material.addSpecularMap(mat.specular_texname, material_path);
 			std::cerr << '\n';
 		}
 
@@ -135,7 +74,6 @@ void Scene::load_model(std::string_view name, std::string_view basedir)
 	}
 
 	std::cerr << "\n--- materials loaded -----------------------\n\n";
-
 	for(const tinyobj::shape_t& shape : shapes) {
 
 		std::cerr << " * loading submesh \'" << shape.name << "\'\n";
@@ -213,11 +151,15 @@ void Scene::load_model(std::string_view name, std::string_view basedir)
 #endif
 		}
 
+		vertex_cout += indices.size();
+		unique_vertex_count += vertices.size();
+
 		//std::cerr << "   + done loading submesh,  vertices:  " << indices.size() << "  unique:  " << vertices.size() << '\n' << std::endl;
 		meshes.emplace_back(Mesh(std::move(vertices), std::move(indices)));
 		instance.mesh_id = meshes.size()-1;
 		instances.emplace_back(std::move(instance));
 	}
+	std::cerr << " ~ final vertex count: " << vertex_cout << ", unique: " << unique_vertex_count << " (" << 100-m::percent(unique_vertex_count, vertex_cout) << "% saved)";
 	std::cerr << "\n--- model \'" << name <<"\' loaded -------------------------------\n" << std::endl;
 }
 
@@ -232,11 +174,12 @@ size_t Scene::add_material(std::string_view name, Material&& mat, std::string_vi
 
 }
 
-uint32_t Material::default_diffuse = 0;
 Scene::Scene()
 {
-	Material::set_default_diffuse(load_texture("missing.png", "assets/materials/").texture_object);
+	Material::set_default_diffuse();
+	Material::set_texture_cache(&m_texture_cache);
 
+	main_camera.pos = {0.0f, 2.0f, 2.0f};
 	PointLight pl;
 	pl.position({8.0f, 2.0f, 2.0f})
 	  .ambient({0.1f, 0.0f, 0.0f})
@@ -245,10 +188,10 @@ Scene::Scene()
 	  .radius(10.0)
 	  .flux(150.0);
 
-//	lights.push_back(pl);
+	//lights.push_back(pl);
 
-//	pl.position({8.0f, 2.0f, -3.0f});
-//	lights.push_back(pl);
+	pl.position({8.0f, 2.0f, -3.0f});
+	//lights.push_back(pl);
 
 	pl.position({-10.0f, 2.0f, -3.0f});;
 	lights.push_back(pl);
@@ -264,9 +207,6 @@ Scene::Scene()
 	  .specular({0.0, 0.05, 0.3});
 	lights.push_back(pl);
 
-
-
-	stbi_set_flip_vertically_on_load(1);
 	auto missing_mat_idx = add_material("missing", Material{});
 	assert(missing_mat_idx == missing_material_idx);
 

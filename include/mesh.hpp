@@ -4,15 +4,15 @@
 #include <glm/gtx/hash.hpp>
 #include <vector>
 #include <string_view>
+#include <AABB.hpp>
 
 struct Mesh
 {
 	struct vertex {
 		glm::vec3 position;
 		glm::vec3 normal;
-		glm::vec2 texcoords;
 		glm::vec3 tangent;
-		glm::vec3 bitangent;
+		glm::vec2 texcoords;
 
 		bool operator==(const vertex& other) const noexcept {
 			return position == other.position && normal == other.normal && texcoords == other.texcoords;
@@ -20,6 +20,7 @@ struct Mesh
 	};
 	uint32_t vao;
 	uint32_t numverts;
+	AABB aabb;
 
 	Mesh(std::vector<vertex>&& verts, std::vector<uint32_t>&& indices);
 

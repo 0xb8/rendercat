@@ -31,7 +31,7 @@ public:
 	}
 	PointLight& ambient(glm::vec3 amb)
 	{
-		assert(m::saturated(amb));
+		assert(m::between(amb, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}));
 		m_ambient = amb;
 		return *this;
 	}
@@ -42,7 +42,7 @@ public:
 	}
 	PointLight& diffuse(glm::vec3 dif)
 	{
-		assert(m::saturated(dif));
+		assert(m::between(dif, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}));
 		m_diffuse = dif;
 		return *this;
 	}
@@ -53,7 +53,7 @@ public:
 	}
 	PointLight& specular(glm::vec3 spec)
 	{
-		assert(m::saturated(spec));
+		assert(m::between(spec, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}));
 		m_specular = spec;
 		return *this;
 	}
@@ -79,13 +79,13 @@ public:
 	{
 		// ref: equation (15) from https://seblagarde.files.wordpress.com/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
 		// @ https://seblagarde.wordpress.com/2015/07/14/siggraph-2014-moving-frostbite-to-physically-based-rendering/
-		return m_luminous_intensity * 4.0 * mc::M_PI;
+		return m_luminous_intensity * 4.0 * mc::pi;
 	}
 
 	PointLight& flux(float luminous_flux) // in lumens
 	{
 		assert(luminous_flux > 0.0f);
-		m_luminous_intensity = luminous_flux / (4.0 * mc::M_PI);
+		m_luminous_intensity = luminous_flux / (4.0 * mc::pi);
 		return *this;
 	}
 

@@ -35,21 +35,15 @@ struct Scene
 	Scene();
 
 	static constexpr size_t missing_material_idx = 0u;
+	TextureCache m_texture_cache;
 
-	struct TextureResult
-	{
-		uint32_t texture_object = 0;
-		int      num_channels   = 0;
-	};
 
-	std::map<std::string, TextureResult> texture_instances;
 	std::map<std::string, uint32_t> material_instances;
 	std::vector<Material>  materials;
 	std::vector<Mesh>      meshes;
 	std::vector<Instance>  instances;
 	std::vector<PointLight> lights;
 
-	TextureResult load_texture(std::string_view name, std::string_view basedir = std::string_view{}, bool linear = false);
 	void load_model(std::string_view name, std::string_view basedir);
 	size_t add_material(std::string_view name, Material&& mat, std::string_view basedir = std::string_view{});
 

@@ -9,9 +9,8 @@ class Renderer
 
 	ShaderSet m_shader_set;
 	Scene*  m_scene;
-	GLuint* m_shader;
-	GLuint* m_shadowmap_shader;
-	GLuint* m_debug_quad_shader;
+	GLuint* m_shader = nullptr;
+	GLuint* m_shadowmap_shader = nullptr;
 
 	int m_backbuffer_width  = 0;
 	int m_backbuffer_height = 0;
@@ -38,7 +37,5 @@ public:
 	~Renderer();
 
 	void resize(int width, int height);
-
 	void draw();
-	void screenshot();
 };

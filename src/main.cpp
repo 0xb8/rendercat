@@ -249,9 +249,7 @@ static void enable_gl_clip_control()
 		glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
 	}
 	else throw std::runtime_error("required opengl extension missing: GL_ARB_clip_control\n");
-
 }
-
 
 static void enable_gl_debug_callback()
 {
@@ -272,6 +270,16 @@ static void assert_gl_default_framebuffer_is_srgb()
 
 }
 
+static void print_all_extensions()
+{
+	int n;
+	glGetIntegerv(GL_NUM_EXTENSIONS, &n);
+	std::cerr << n << " supported extensions:\n";
+	for(int i = 0; i <n; ++i) {
+		std::cerr << glGetStringi(GL_EXTENSIONS, i) << '\n';
+	}
+}
+
 
 
 //------------------------------------------------------------------------------
@@ -282,7 +290,9 @@ int main() try
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 4);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+#ifndef NDEBUG
 	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
+#endif
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 	glfwWindowHint(GLFW_SRGB_CAPABLE, GLFW_TRUE);
 	glfwWindowHint(GLFW_SAMPLES, Renderer::MSAASampleCount);
@@ -310,6 +320,8 @@ int main() try
 	if (glewInit() != GLEW_OK) {
 		throw std::runtime_error("Failed to initialize GLEW.");
 	}
+
+	//print_all_extensions();
 
 	enable_gl_debug_callback();
 	enable_gl_clip_control();
