@@ -7,6 +7,7 @@
 #include <camera.hpp>
 #include <material.hpp>
 #include <point_light.hpp>
+#include <cubemap.hpp>
 
 struct DirectionalLight
 {
@@ -51,9 +52,10 @@ struct Scene
 
 	DirectionalLight directional_light {
 		glm::vec3(0.3f, 1.0f, 0.8f),       // dir
-		glm::vec3(0.004f, 0.009f, 0.011f), // amb
-		glm::vec3(0.1f, 0.1f, 0.15f),       // diff
+		glm::vec3(0.012f, 0.009f, 0.016f), // amb
+		glm::vec3(0.1f, 0.1f, 0.14f),       // diff
 		glm::vec3(0.05f, 0.05f, 0.05f)};    // spec
 
+	Cubemap cubemap;
 
 };

@@ -18,7 +18,7 @@ void Scene::load_model(std::string_view name, std::string_view basedir)
 	std::string model_path_full = model_path;
 	model_path_full.append(name);
 
-	std::string material_path{"assets/materials/"};
+	std::string material_path{"assets/materials/models/"};
 	material_path.append(basedir);
 
 	std::cerr << "\n--- loading model \'" << name << "\' from \'" << model_path << "\' ------------------------\n";
@@ -179,6 +179,15 @@ Scene::Scene()
 	Material::set_default_diffuse();
 	Material::set_texture_cache(&m_texture_cache);
 
+	cubemap.load_textures({
+		"left.hdr",
+		"right.hdr",
+		"top.hdr",
+		"bottom.hdr",
+		"front.hdr",
+		"back.hdr"
+		}, "assets/materials/cubemaps/night_suburbs/");
+
 	main_camera.pos = {0.0f, 2.0f, 2.0f};
 	PointLight pl;
 	pl.position({8.0f, 2.0f, 2.0f})
@@ -188,10 +197,10 @@ Scene::Scene()
 	  .radius(10.0)
 	  .flux(150.0);
 
-	//lights.push_back(pl);
+	lights.push_back(pl);
 
 	pl.position({8.0f, 2.0f, -3.0f});
-	//lights.push_back(pl);
+	lights.push_back(pl);
 
 	pl.position({-10.0f, 2.0f, -3.0f});;
 	lights.push_back(pl);
@@ -210,7 +219,7 @@ Scene::Scene()
 	auto missing_mat_idx = add_material("missing", Material{});
 	assert(missing_mat_idx == missing_material_idx);
 
-	load_model("sponza.obj", "sponza_crytek/");
+	//load_model("sponza.obj", "sponza_crytek/");
 	load_model("2b.obj",     "yorha_2b/");
 	//load_model("cube.obj", "/");
 }

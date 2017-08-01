@@ -69,8 +69,6 @@ Mesh::Mesh(std::vector<vertex>&& verts,
 		vert2.tangent = t;
 	}
 
-	GLuint vbo, ebo;
-
 	glGenVertexArrays(1, &vao);
 	glGenBuffers(1, &vbo);
 	glGenBuffers(1, &ebo);
@@ -111,4 +109,11 @@ Mesh::Mesh(std::vector<vertex>&& verts,
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 	numverts = indices.size();
+}
+
+Mesh::~Mesh()
+{
+	glDeleteBuffers(1, &vbo);
+	glDeleteBuffers(1, &ebo);
+	glDeleteVertexArrays(1, &vao);
 }

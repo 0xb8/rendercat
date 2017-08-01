@@ -36,11 +36,14 @@ void Renderer::update_projection()
 	}
 }
 
+
+
 Renderer::Renderer(Scene * s) : m_scene(s)
 {
 	assert(s != nullptr);
 
 	m_shader = m_shader_set.load_program({"generic.vert", "generic.frag"});
+	m_cubemap_shader = m_shader_set.load_program({"cubemap.vert", "cubemap.frag"});
 
 	glEnable(GL_FRAMEBUFFER_SRGB);
 
@@ -54,7 +57,7 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 	glTextureParameteriEXT(depthMap, GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTextureParameteriEXT(depthMap, GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTextureParameteriEXT(depthMap, GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTextureImage2DEXT(depthMap,  GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, ShadowMapWidth, ShadowMapHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+	glTextureImage2DEXT(depthMap,    GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, ShadowMapWidth, ShadowMapHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
 
 
 	glNamedFramebufferTexture2DEXT(depthMapFBO, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
@@ -81,15 +84,28 @@ void Renderer::resize(int width, int height)
 	// reinitialize multisampled color texture object
 	glDeleteTextures(1, &m_backbuffer_color_to);
 	glGenTextures(1,    &m_backbuffer_color_to);
+
 	// TODO: research why SRGB conversion breaks when using RGBA16F format
-	glTextureStorage2DMultisampleEXT(m_backbuffer_color_to, GL_TEXTURE_2D_MULTISAMPLE, MSAASampleCount, GL_SRGB8_ALPHA8, m_backbuffer_width, m_backbuffer_height, GL_TRUE);
+	glTextureStorage2DMultisampleEXT(m_backbuffer_color_to,
+	                                 GL_TEXTURE_2D_MULTISAMPLE,
+	                                 MSAASampleCount,
+	                                 GL_SRGB8_ALPHA8,
+	                                 m_backbuffer_width,
+	                                 m_backbuffer_height,
+	                                 GL_TRUE);
 
 	// reinitialize multisampled depth texture object
 	glDeleteTextures(1, &m_backbuffer_depth_to);
 	glGenTextures(1,    &m_backbuffer_depth_to);
 
 	// TODO: research if GL_DEPTH24_STENCIL8 is viable here
-	glTextureStorage2DMultisampleEXT(m_backbuffer_depth_to, GL_TEXTURE_2D_MULTISAMPLE, MSAASampleCount, GL_DEPTH_COMPONENT32F, m_backbuffer_width, m_backbuffer_height, GL_TRUE);
+	glTextureStorage2DMultisampleEXT(m_backbuffer_depth_to,
+	                                 GL_TEXTURE_2D_MULTISAMPLE,
+	                                 MSAASampleCount,
+	                                 GL_DEPTH_COMPONENT32F,
+	                                 m_backbuffer_width,
+	                                 m_backbuffer_height,
+	                                 GL_TRUE);
 
 
 	// reinitialize framebuffer
@@ -97,8 +113,17 @@ void Renderer::resize(int width, int height)
 	glGenFramebuffers(1,    &m_backbuffer_fbo);
 
 	// attach texture objects
-	glNamedFramebufferTexture2DEXT(m_backbuffer_fbo, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, m_backbuffer_color_to, 0);
-	glNamedFramebufferTexture2DEXT(m_backbuffer_fbo, GL_DEPTH_ATTACHMENT,  GL_TEXTURE_2D_MULTISAMPLE, m_backbuffer_depth_to, 0);
+	glNamedFramebufferTexture2DEXT(m_backbuffer_fbo,
+	                               GL_COLOR_ATTACHMENT0,
+	                               GL_TEXTURE_2D_MULTISAMPLE,
+	                               m_backbuffer_color_to,
+	                               0);
+	glNamedFramebufferTexture2DEXT(m_backbuffer_fbo,
+	                               GL_DEPTH_ATTACHMENT,
+	                               GL_TEXTURE_2D_MULTISAMPLE,
+	                               m_backbuffer_depth_to,
+	                               0);
+
 	GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	if (fboStatus != GL_FRAMEBUFFER_COMPLETE) {
 		throw std::runtime_error("[renderer] could not resize backbuffer!");
@@ -259,6 +284,7 @@ void Renderer::draw()
 		glDrawElements(GL_TRIANGLES, mesh_instance.numverts, GL_UNSIGNED_INT, nullptr);
 	}
 
+	draw_skybox();
 
 	glUseProgram(0);
 	glBindVertexArray(0);
@@ -274,4 +300,11 @@ void Renderer::draw()
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);
+}
+
+void Renderer::draw_skybox()
+{
+	glDepthFunc(GL_GEQUAL);
+	m_scene->cubemap.draw(*m_cubemap_shader, m_scene->main_camera.view(), m_projection);
+	glDepthFunc(GL_GREATER);
 }

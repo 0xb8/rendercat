@@ -15,6 +15,7 @@ add_executable(rendercat
 	src/renderer.cpp
 	src/scene.cpp
 	src/shader_set.cpp
+	src/cubemap.cpp
 )
 
 set_target_properties(rendercat
@@ -52,6 +53,8 @@ endif()
 set(SHADERS_SOURCES
 	"shaders/generic.frag"
 	"shaders/generic.vert"
+	"shaders/cubemap.vert"
+	"shaders/cubemap.frag"
 	"shaders/shadow_mapping.vert"
 	"shaders/shadow_mapping.frag"
 )

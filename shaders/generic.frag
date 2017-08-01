@@ -28,7 +28,7 @@ struct PointLight {
 };
 
 in INTERFACE {
-	smooth vec3 FragPos;
+	vec3 FragPos;
 	mat3 TBN;
 	vec2 TexCoords;
 } fs_in;

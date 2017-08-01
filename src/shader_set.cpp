@@ -42,7 +42,7 @@ struct Shader
 		auto filename = std::string_view{filename_str};
 
 		if(!sh_fstream.is_open()) {
-			std::cerr << "[shader]  could not open " << filename << std::endl;
+			std::cerr << "[shader]   could not open " << filename << std::endl;
 			return;
 		}
 
@@ -55,7 +55,7 @@ struct Shader
 
 		auto ext_pos = filename.find_last_of('.');
 		if(ext_pos == std::string_view::npos || ext_pos == filename.length()-1) {
-			std::cerr << "[shader]  could not determine shader type of " << filename << std::endl;
+			std::cerr << "[shader]   could not determine shader type of " << filename << std::endl;
 			return;
 		}
 		auto ext = filename.substr(ext_pos);
@@ -68,7 +68,7 @@ struct Shader
 			shader_type = GL_FRAGMENT_SHADER;
 		}
 		else {
-			std::cerr << "[shader]  unknown shader type: " << ext << " of " << filename <<std::endl;
+			std::cerr << "[shader]   unknown shader type: " << ext << " of " << filename <<std::endl;
 			return;
 		}
 
@@ -93,7 +93,7 @@ struct Shader
 
 		if(new_handle != 0) {
 			handle = new_handle;
-			std::cerr << "[shader]  (re)loaded " << filepath.filename() << std::endl;
+			std::cerr << "[shader]   (re)loaded " << filepath.filename() << std::endl;
 		}
 	} catch(const boost::filesystem::filesystem_error& err) {
 		std::cerr << "exception in shader reload(), code: " << err.code() << ", what(): \n" << err.what() << std::endl;
@@ -158,7 +158,7 @@ struct ShaderSet::Program
 		glGetProgramiv(handle, GL_LINK_STATUS, &success);
 		if(!success) {
 
-			std::cerr << "[shader] failed to link program..." << std::endl;
+			std::cerr << "[shader]  failed to link program..." << std::endl;
 			//char msg[512];
 			//glGetShaderInfoLog(handle, 512, nullptr, msg);
 			//std::cerr << "Shader compilation failed:\n" << msg << std::endl;
@@ -193,7 +193,7 @@ struct ShaderSet::Program
 		}
 
 		if(valid_shaders < m_shaders.size()) {
-			std::cerr << "[shader]  only " << valid_shaders << " out of " << m_shaders.size() << " attached." << std::endl;
+			std::cerr << "[shader]   only " << valid_shaders << " out of " << m_shaders.size() << " attached." << std::endl;
 			return;
 		}
 
@@ -253,7 +253,7 @@ GLuint * ShaderSet::load_program(std::initializer_list<std::string_view> names)
 		filepath /= name.data();
 
 		if(!fs::exists(filepath)) {
-			std::cerr << "[shader]  file does not exist: " << filepath << std::endl;
+			std::cerr << "[shader]   file does not exist: " << filepath << std::endl;
 			return nullptr;
 		}
 

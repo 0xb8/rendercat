@@ -21,7 +21,7 @@ namespace globals {
 namespace input {
 	static bool mouse_captured = true;
 	static bool mouse_init = true;
-	static float sensitivity = 0.1f;
+	static float sensitivity = 0.02f;
 
 	static float xoffset = 0.0f;
 	static float yoffset = 0.0f;
@@ -87,7 +87,7 @@ void GLAPIENTRY gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum 
 
 // ------------------------------- declarations --------------------------------
 
-static void gflw_mouse_motion_callback(GLFWwindow* window, int dx, int dy);
+static void gflw_mouse_motion_callback(GLFWwindow* window, double dx, double dy);
 static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 static void glfw_mouse_click_callback(GLFWwindow* window, int button, int action, int mods);
 static void glfw_focus_callback(GLFWwindow* window, int focused);
@@ -145,7 +145,7 @@ static void glfw_mouse_click_callback(GLFWwindow* window, int button, int action
 
 static void glfw_process_input(Scene* s)
 {
-	float cameraSpeed = 3.0f * consts::window_target_frametime;
+	float cameraSpeed = 0.04;
 
 	if(input::shift)
 		cameraSpeed *= 5.0f;
@@ -167,7 +167,7 @@ static void glfw_process_input(Scene* s)
 	input::yoffset = 0.0f;
 }
 
-void gflw_mouse_motion_callback(GLFWwindow* /*window*/, int dx, int dy)
+void gflw_mouse_motion_callback(GLFWwindow* /*window*/, double dx, double dy)
 {
 	if(unlikely(input::mouse_init)) // this bool variable is initially set to true
 	{
@@ -177,35 +177,9 @@ void gflw_mouse_motion_callback(GLFWwindow* /*window*/, int dx, int dy)
 		return;
 	}
 
-	float dxf = dx;
-	float dyf = dy;
 
-#if 0
-	// NOTE: hacky AF, but seems to give decent results
-	switch (abs(dx)) {
-	case 1:
-		dxf *= 0.5;
-		break;
-	case 2:
-		dxf *= 0.75;
-	default:
-		break;
-	}
-	switch (abs(dy)) {
-	case 1:
-		dyf *= 0.5;
-		break;
-	case 2:
-		dyf *= 0.75;
-	default:
-		break;
-	}
-#endif
-
-	//std::cerr << "dx: " << dxf << "\tdy: " << dyf << '\n';
-
-	input::xoffset = dxf * input::sensitivity;
-	input::yoffset = -dyf * input::sensitivity;
+	input::xoffset += dx * input::sensitivity;
+	input::yoffset += -dy * input::sensitivity;
 }
 
 
@@ -321,7 +295,7 @@ int main() try
 		throw std::runtime_error("Failed to initialize GLEW.");
 	}
 
-	//print_all_extensions();
+	print_all_extensions();
 
 	enable_gl_debug_callback();
 	enable_gl_clip_control();

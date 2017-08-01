@@ -11,6 +11,7 @@ class Renderer
 	Scene*  m_scene;
 	GLuint* m_shader = nullptr;
 	GLuint* m_shadowmap_shader = nullptr;
+	GLuint* m_cubemap_shader = nullptr;
 
 	int m_backbuffer_width  = 0;
 	int m_backbuffer_height = 0;
@@ -27,6 +28,8 @@ class Renderer
 	float m_last_aspect = 0.0f;
 
 	void update_projection();
+
+	void draw_skybox();
 
 public:
 	static const unsigned int ShadowMapWidth = 1024;

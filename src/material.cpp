@@ -40,7 +40,7 @@ GLuint load_texture(const std::string& path, bool linear, int desired_channels =
 			glTextureImage2DEXT(tex, GL_TEXTURE_2D, 0, (linear ? GL_RGBA : GL_SRGB8_ALPHA8), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 			break;
 		default:
-			std::cerr << "invalid channel count: " << nrChannels << " in " << path << '\n';
+			std::cerr << "[material] invalid channel count: " << nrChannels << " in " << path << '\n';
 			assert(false);
 			break;
 		}
@@ -111,6 +111,8 @@ void Material::addDiffuseMap(std::string_view name, std::string_view basedir)
 	diffuse_path.append(name);
 
 	assert(cache != nullptr);
+
+	m_diffuse_map = default_diffuse;
 
 	if(auto res = cache->get(diffuse_path); res.to) {
 		m_diffuse_map = res.to;
