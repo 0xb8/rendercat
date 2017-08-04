@@ -55,14 +55,9 @@ Cubemap::Cubemap() noexcept
 
 	glGenVertexArrays(1, &vao);
 	glGenBuffers(1, &vbo);
-	glBindVertexArray(vao);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferStorage(GL_ARRAY_BUFFER, sizeof(cubemap_vertices), &cubemap_vertices, 0);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), 0);
-
-	glBindVertexArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glNamedBufferStorageEXT(vbo, sizeof(cubemap_vertices), &cubemap_vertices, 0);
+	glEnableVertexArrayAttribEXT(vao, 0);
+	glVertexArrayVertexAttribOffsetEXT(vao, vbo, 0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), 0);
 	m_vao = vao;
 	m_vbo = vbo;
 }
@@ -82,8 +77,8 @@ void Cubemap::load_textures(const std::initializer_list<std::string_view> & text
 
 	GLuint tex;
 	glGenTextures(1, &tex);
-	glTextureParameteriEXT(tex, GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTextureParameteriEXT(tex, GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTextureParameteriEXT(tex, GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTextureParameteriEXT(tex, GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTextureParameteriEXT(tex, GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTextureParameteriEXT(tex, GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTextureParameteriEXT(tex, GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
@@ -100,7 +95,7 @@ void Cubemap::load_textures(const std::initializer_list<std::string_view> & text
 		int width, height, chan;
 		auto data = stbi_loadf(path.data(), &width, &height, &chan, 3);
 		if(data) {
-			const auto format = GL_RGBA16F; //GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT - seems to reduce memory usage by ~50 MiB but has artifacts
+			const auto format = GL_RGBA16F; //  GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT;// - seems to reduce memory usage by ~50 MiB but has artifacts
 
 			glTextureImage2DEXT(tex, GL_TEXTURE_CUBE_MAP_POSITIVE_X + face++, 0, format, width, height, 0, GL_RGB, GL_FLOAT, data);
 			stbi_image_free(data);

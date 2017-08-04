@@ -186,8 +186,6 @@ struct ShaderSet::Program
 		for(auto& s : m_shaders) {
 			s.reload(true);
 			if(s.valid()) {
-				glAttachShader(new_program_handle, s.handle);
-				glDeleteShader(s.handle);
 				++valid_shaders;
 			}
 		}
@@ -195,6 +193,11 @@ struct ShaderSet::Program
 		if(valid_shaders < m_shaders.size()) {
 			std::cerr << "[shader]   only " << valid_shaders << " out of " << m_shaders.size() << " attached." << std::endl;
 			return;
+		}
+
+		for(auto& s : m_shaders) {
+			glAttachShader(new_program_handle, s.handle);
+			glDeleteShader(s.handle);
 		}
 
 		glLinkProgram(new_program_handle);

@@ -186,7 +186,7 @@ Scene::Scene()
 		"bottom.hdr",
 		"front.hdr",
 		"back.hdr"
-		}, "assets/materials/cubemaps/night_suburbs/");
+		}, "assets/materials/cubemaps/evening_field/");
 
 	main_camera.pos = {0.0f, 2.0f, 2.0f};
 	PointLight pl;
@@ -219,7 +219,7 @@ Scene::Scene()
 	auto missing_mat_idx = add_material("missing", Material{});
 	assert(missing_mat_idx == missing_material_idx);
 
-	//load_model("sponza.obj", "sponza_crytek/");
+	load_model("sponza.obj", "sponza_crytek/");
 	load_model("2b.obj",     "yorha_2b/");
 	//load_model("cube.obj", "/");
 }

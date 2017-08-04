@@ -40,7 +40,7 @@ uniform vec3 viewPos;
 uniform Material material;
 uniform DirectionalLight directional_light;
 
-const   int MAX_LIGHTS = 8;
+const   int MAX_LIGHTS = 16;
 uniform int num_active_lights;
 uniform PointLight point_light[MAX_LIGHTS];
 uniform int active_light_indices[MAX_LIGHTS];
@@ -63,7 +63,8 @@ vec3 getNormal()
 		vec3 normal = texture(material.normal, fs_in.TexCoords).rgb;
 		return normalize(fs_in.TBN * normalize(normal * 2.0 - 1.0));
 	} else {
-		return fs_in.TBN[2];
+		// normalize interpolated normals to prevent issues with specular pixel flicker.
+		return normalize(fs_in.TBN[2]);
 	}
 }
 
@@ -79,7 +80,10 @@ vec3 calcDirectionalLight(const in DirectionalLight light,  const in vec3 viewDi
 
 	// specular (blinn-phong)
 	vec3 halfwayDir = normalize(lightDir + viewDir);
-	vec3 specular = light.specular * materialParams[1] * pow(max(dot(normal, halfwayDir), 0.0), material.shininess);
+	// saturating dot product seems to greatly reduce specular pixel flicker
+	// with MSAA, but does not solve it completely (due to other light sources' contribution).
+	float spec = pow(clamp(dot(normal, halfwayDir), 0.0, 1.0), material.shininess);
+	vec3 specular = spec * light.specular * materialParams[1];
 
 	return ambient + diffuse + specular;
 }
@@ -109,7 +113,7 @@ vec3 calcPointLight(const in PointLight light, const in vec3 viewDir, const in m
 
 	// specular (blinn-phong)
 	vec3 halfwayDir = normalize(lightDir + viewDir);
-	float spec = pow(max(dot(normal, halfwayDir), 0.0), material.shininess);
+	float spec = pow(clamp(dot(normal, halfwayDir), 0.0, 1.0), material.shininess);
 	vec3 specular = light.intensity * light.specular * spec * materialParams[1];
 
 	// attenuation

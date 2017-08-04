@@ -7,43 +7,13 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-static glm::mat4 make_reversed_z_projection(float fovY_radians, float aspectWbyH, float zNear)
-{
-	float f = 1.0f / tan(fovY_radians / 2.0f);
-	return glm::mat4(f / aspectWbyH, 0.0f,  0.0f,  0.0f,
-	                 0.0f,    f,  0.0f,  0.0f,
-	                 0.0f, 0.0f,  0.0f, -1.0f,
-	                 0.0f, 0.0f, zNear,  0.0f);
-}
-#if 0
-static glm::mat4 make_default_projection(float fov_rad, float aspect, float znear, float zfar)
-{
-	return glm::perspective(fov_rad, aspect, znear, zfar);
-}
-#endif
-
-void Renderer::update_projection()
-{
-	float aspect = (float)m_backbuffer_width / (float)m_backbuffer_height;
-	if(m_last_fov != m_scene->main_camera.fov || m_last_aspect != aspect)
-	{
-		m_last_fov =  m_scene->main_camera.fov;
-		m_last_aspect = aspect;
-		m_projection = make_reversed_z_projection(glm::radians(m_scene->main_camera.fov),
-		                                         aspect,
-		                                         m_scene->main_camera.znear);
-		m_scene->main_camera.frustum.setup(m_scene->main_camera.fov, aspect, m_scene->main_camera.znear, m_scene->main_camera.zfar);
-	}
-}
-
-
-
 Renderer::Renderer(Scene * s) : m_scene(s)
 {
 	assert(s != nullptr);
 
 	m_shader = m_shader_set.load_program({"generic.vert", "generic.frag"});
 	m_cubemap_shader = m_shader_set.load_program({"cubemap.vert", "cubemap.frag"});
+	m_hdr_shader = m_shader_set.load_program({"hdr.vert", "hdr.frag"});
 
 	glEnable(GL_FRAMEBUFFER_SRGB);
 
@@ -76,23 +46,32 @@ Renderer::~Renderer()
 	glDeleteFramebuffers(1, &m_backbuffer_fbo);
 }
 
-void Renderer::resize(int width, int height)
+void Renderer::resize(uint32_t width, uint32_t height)
 {
-	m_backbuffer_width = width;
+	if(width < 2 || height < 2)
+		return;
+
+	if(width == m_backbuffer_width || height == m_backbuffer_height)
+		return;
+
+	m_backbuffer_width  = width;
 	m_backbuffer_height = height;
 
 	// reinitialize multisampled color texture object
 	glDeleteTextures(1, &m_backbuffer_color_to);
 	glGenTextures(1,    &m_backbuffer_color_to);
 
-	// TODO: research why SRGB conversion breaks when using RGBA16F format
 	glTextureStorage2DMultisampleEXT(m_backbuffer_color_to,
 	                                 GL_TEXTURE_2D_MULTISAMPLE,
 	                                 MSAASampleCount,
-	                                 GL_SRGB8_ALPHA8,
+	                                 GL_RGBA16F,
 	                                 m_backbuffer_width,
 	                                 m_backbuffer_height,
-	                                 GL_TRUE);
+	                                 GL_FALSE);
+
+	glTextureParameteriEXT(m_backbuffer_color_to, GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTextureParameteriEXT(m_backbuffer_color_to, GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
 
 	// reinitialize multisampled depth texture object
 	glDeleteTextures(1, &m_backbuffer_depth_to);
@@ -105,7 +84,8 @@ void Renderer::resize(int width, int height)
 	                                 GL_DEPTH_COMPONENT32F,
 	                                 m_backbuffer_width,
 	                                 m_backbuffer_height,
-	                                 GL_TRUE);
+	                                 GL_FALSE);
+
 
 
 	// reinitialize framebuffer
@@ -124,41 +104,40 @@ void Renderer::resize(int width, int height)
 	                               m_backbuffer_depth_to,
 	                               0);
 
-	GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+
+
+	GLenum fboStatus = glCheckNamedFramebufferStatusEXT(m_backbuffer_fbo, GL_FRAMEBUFFER);
 	if (fboStatus != GL_FRAMEBUFFER_COMPLETE) {
 		throw std::runtime_error("[renderer] could not resize backbuffer!");
 	}
 
-	update_projection();
+	m_scene->main_camera.update_projection(float(m_backbuffer_width) / (float)m_backbuffer_height);
 	std::cerr << "[renderer] framebuffer resized to " << m_backbuffer_width << " x " << m_backbuffer_height << '\n';
 
 }
 
 static void renderQuad()
 {
-	static unsigned int quadVAO = 0;
-	static unsigned int quadVBO;
-	if (quadVAO == 0)
-	{
+	static GLuint vao = 0;
+	static GLuint vbo = 0;
+	if (vao == 0) {
 		float quadVertices[] = {
-		        // positions        // texture Coords
-		        -1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
-		        -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
-		        1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
-		        1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+			// positions        // texture Coords
+			-1.0f,  1.0f, 1.0f, 0.0f, 1.0f,
+			-1.0f, -1.0f, 1.0f, 0.0f, 0.0f,
+			 1.0f,  1.0f, 1.0f, 1.0f, 1.0f,
+			 1.0f, -1.0f, 1.0f, 1.0f, 0.0f,
 		};
-		// setup plane VAO
-		glGenVertexArrays(1, &quadVAO);
-		glGenBuffers(1, &quadVBO);
-		glBindVertexArray(quadVAO);
-		glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
-		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-		glEnableVertexAttribArray(1);
-		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+		glGenVertexArrays(1, &vao);
+		glGenBuffers(1, &vbo);
+		assert(vao && vbo);
+		glNamedBufferStorageEXT(vbo, sizeof(quadVertices), &quadVertices, 0);
+		glEnableVertexArrayAttribEXT(vao, 0);
+		glVertexArrayVertexAttribOffsetEXT(vao, vbo, 0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 0);
+		glEnableVertexArrayAttribEXT(vao, 1);
+		glVertexArrayVertexAttribOffsetEXT(vao, vbo, 1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (3 * sizeof(float)));
 	}
-	glBindVertexArray(quadVAO);
+	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	glBindVertexArray(0);
 }
@@ -223,10 +202,8 @@ void Renderer::draw()
 
 	glUseProgram(*m_shader);
 
-	update_projection();
-
-	unif::m4(*m_shader, "projection", m_projection);
-	unif::m4(*m_shader, "view", m_scene->main_camera.view());
+	unif::m4(*m_shader, "projection", m_scene->main_camera.projection);
+	unif::m4(*m_shader, "view", m_scene->main_camera.view);
 //	unif::m4(*m_shader, "lightSpace", lightSpaceMatrix);
 	unif::v3(*m_shader, "viewPos", m_scene->main_camera.pos);
 	unif::v3(*m_shader, "directional_light.direction", m_scene->directional_light.direction);
@@ -235,7 +212,7 @@ void Renderer::draw()
 	unif::v3(*m_shader, "directional_light.specular",  m_scene->directional_light.specular);
 
 
-	for(unsigned i = 0; i < m_scene->lights.size() && i < 8; ++i) {
+	for(unsigned i = 0; i < m_scene->lights.size() && i < MaxLights; ++i) {
 		unif::v3(*m_shader, indexed_uniform("point_light", ".position",  i),  m_scene->lights[i].position());
 		unif::v3(*m_shader, indexed_uniform("point_light", ".ambient",   i),  m_scene->lights[i].ambient());
 		unif::v3(*m_shader, indexed_uniform("point_light", ".diffuse",   i),  m_scene->lights[i].diffuse());
@@ -253,14 +230,13 @@ void Renderer::draw()
 		const auto& mesh_instance = m_scene->meshes[instance.mesh_id];
 		const auto& material = m_scene->materials[instance.material_id];
 
-		//if(!(material.type() & Material::Opaque)) continue;
-
 		auto aabb = mesh_instance.aabb;
 		aabb.translate(instance.position);
 		int count = 0;
-		for(unsigned i = 0; i < m_scene->lights.size() && i < 8; ++i) {
+		for(unsigned i = 0; i < m_scene->lights.size() && i < MaxLights; ++i) {
 			const auto& light = m_scene->lights[i];
 
+			// TODO: implement per-light AABB cutoff to prevent light leaking
 			if(mesh_instance.aabb.intersects_sphere(light.position(), light.radius())) {
 				auto dist = glm::length(light.position() - mesh_instance.aabb.closest_point(light.position()));
 				if(light.falloff(dist) > 0.001f) {
@@ -286,25 +262,37 @@ void Renderer::draw()
 
 	draw_skybox();
 
-	glUseProgram(0);
-	glBindVertexArray(0);
-	glDepthFunc(GL_LESS);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glUseProgram(*m_hdr_shader);
+	glBindMultiTextureEXT(GL_TEXTURE0, GL_TEXTURE_2D_MULTISAMPLE, m_backbuffer_color_to);
+	unif::f1(*m_hdr_shader, "exposure", m_scene->main_camera.exposure);
+	unif::i2(*m_hdr_shader, "texture_size", m_backbuffer_width, m_backbuffer_height);
+	unif::i1(*m_hdr_shader, "sample_count", MSAASampleCount);
+	renderQuad();
 
+
+#if 0
 	// resolve multisampled framebuffer into default backbuffer
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0 /* default fbo */);
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, m_backbuffer_fbo);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, m_backbuffer_fbo_ms);
 	//glDrawBuffer(GL_BACK); // dunno if needed
 	glBlitFramebuffer(0, 0, m_backbuffer_width, m_backbuffer_height,
 	                  0, 0, m_backbuffer_width, m_backbuffer_height,
 	                  GL_COLOR_BUFFER_BIT, GL_NEAREST);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+#endif
+
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);
+
+	glUseProgram(0);
+	glBindVertexArray(0);
+	glDepthFunc(GL_LESS);
 }
 
 void Renderer::draw_skybox()
 {
 	glDepthFunc(GL_GEQUAL);
-	m_scene->cubemap.draw(*m_cubemap_shader, m_scene->main_camera.view(), m_projection);
+	m_scene->cubemap.draw(*m_cubemap_shader, m_scene->main_camera.view, m_scene->main_camera.projection);
 	glDepthFunc(GL_GREATER);
 }

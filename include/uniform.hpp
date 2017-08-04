@@ -15,6 +15,11 @@ inline void i1(GLuint shader, const std::string_view name, int value)
 	glProgramUniform1i(shader, glGetUniformLocation(shader, name.data()), value);
 }
 
+inline void i2(GLuint shader, const std::string_view name, int x, int y)
+{
+	glProgramUniform2i(shader, glGetUniformLocation(shader, name.data()), x, y);
+}
+
 inline void f1(GLuint shader, const std::string_view name, float value)
 {
 	glProgramUniform1f(shader, glGetUniformLocation(shader, name.data()), value);

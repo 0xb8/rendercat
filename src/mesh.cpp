@@ -1,12 +1,6 @@
 #include <GL/glew.h>
 #include <mesh.hpp>
 #include <AABB.hpp>
-//#include <iostream>
-
-static void* gloffset(unsigned off)
-{
-	return reinterpret_cast<void*>(off);
-}
 
 Mesh::Mesh(std::vector<vertex>&& verts,
            std::vector<uint32_t>&& indices)
@@ -46,13 +40,13 @@ Mesh::Mesh(std::vector<vertex>&& verts,
 		vert1.tangent += tangent;
 		vert2.tangent += tangent;
 
-		bitangents[indices[i]]   += binormal;
+		bitangents[indices[i]]     += binormal;
+		bitangents[indices[i+1]]   += binormal;
+		bitangents[indices[i+2]]   += binormal;
 	}
 
-	for(uint32_t i = 0; i < indices.size(); i += 3) {
+	for(uint32_t i = 0; i < indices.size(); ++i) {
 		auto& vert0 = verts[indices[i]];
-		auto& vert1 = verts[indices[i+1]];
-		auto& vert2 = verts[indices[i+2]];
 		const auto n = vert0.normal;
 		auto t = vert0.tangent;
 		const auto b = bitangents[indices[i]];
@@ -63,51 +57,37 @@ Mesh::Mesh(std::vector<vertex>&& verts,
 		if(glm::dot(cross(n, t), b) < 0.0f) {
 			t = -t;
 		}
-
 		vert0.tangent = t;
-		vert1.tangent = t;
-		vert2.tangent = t;
 	}
 
 	glGenVertexArrays(1, &vao);
-	glGenBuffers(1, &vbo);
 	glGenBuffers(1, &ebo);
 
+	// BUG: for some reason EXT_DSA does not provide VertexArrayElementBuffer(), only GL 4.5 ARB_DSA does.
+	//----------------------------------------------------------------------
 	glBindVertexArray(vao);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-
-#if USE_MUTABLE_STORAGE_FOR_VERTICES
-	glBufferData(GL_ARRAY_BUFFER, verts.size() * sizeof(vertex), verts.data(), GL_STATIC_DRAW);
-#else
-	glBufferStorage(GL_ARRAY_BUFFER, verts.size() * sizeof(vertex), verts.data(), 0);
-#endif
-
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-
-#if USE_MUTABLE_STORAGE_FOR_VERTICES
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(uint32_t), indices.data(), GL_STATIC_DRAW);
-#else
-	glBufferStorage(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(uint32_t), indices.data(), 0);
-#endif
-
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3,  GL_FLOAT, false, sizeof(vertex), gloffset(offsetof(vertex, position)));
-
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3,  GL_FLOAT, false, sizeof(vertex), gloffset(offsetof(vertex, normal)));
-
-	glEnableVertexAttribArray(2);
-	glVertexAttribPointer(2, 3,  GL_FLOAT, false, sizeof(vertex), gloffset(offsetof(vertex, tangent)));
-
-	glEnableVertexAttribArray(3); // NOTE: size of 2 below is very important!
-	glVertexAttribPointer(3, 2,  GL_FLOAT, false, sizeof(vertex), gloffset(offsetof(vertex, texcoords)));
-
-	//glEnableVertexAttribArray(4);
-	//glVertexAttribPointer(4, 3,  GL_FLOAT, false, sizeof(vertex), gloffset(offsetof(vertex, bitangent)));
-
+	glNamedBufferStorageEXT(ebo, indices.size() * sizeof(uint32_t), indices.data(), 0);
 	glBindVertexArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	//----------------------------------------------------------------------
+
+
+	glGenBuffers(1, &vbo);
+	glNamedBufferStorageEXT(vbo, verts.size() * sizeof(vertex), verts.data(), 0);
+
+	glEnableVertexArrayAttribEXT(vao, 0);
+	glVertexArrayVertexAttribOffsetEXT(vao, vbo, 0, 3,  GL_FLOAT, false, sizeof(vertex), offsetof(vertex, position));
+
+	glEnableVertexArrayAttribEXT(vao, 1);
+	glVertexArrayVertexAttribOffsetEXT(vao, vbo, 1, 3,  GL_FLOAT, false, sizeof(vertex), offsetof(vertex, normal));
+
+	glEnableVertexArrayAttribEXT(vao, 2);
+	glVertexArrayVertexAttribOffsetEXT(vao, vbo, 2, 3,  GL_FLOAT, false, sizeof(vertex), offsetof(vertex, tangent));
+
+	glEnableVertexArrayAttribEXT(vao, 3); // NOTE: size of 2 below is very important!
+	glVertexArrayVertexAttribOffsetEXT(vao, vbo, 3, 2,  GL_FLOAT, false, sizeof(vertex), offsetof(vertex, texcoords));
+
 	numverts = indices.size();
 }
 

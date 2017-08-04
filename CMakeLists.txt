@@ -55,6 +55,8 @@ set(SHADERS_SOURCES
 	"shaders/generic.vert"
 	"shaders/cubemap.vert"
 	"shaders/cubemap.frag"
+	"shaders/hdr.vert"
+	"shaders/hdr.frag"
 	"shaders/shadow_mapping.vert"
 	"shaders/shadow_mapping.frag"
 )
