@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <unordered_map>
+#include <imgui.h>
 
 
 void Scene::load_model(std::string_view name, std::string_view basedir)
@@ -40,7 +41,7 @@ void Scene::load_model(std::string_view name, std::string_view basedir)
 	obj_materials.push_back(tinyobj::material_t());
 	for(size_t i = 0; i < obj_materials.size(); ++i) {
 		const auto& mat = obj_materials[i];
-		Material material;
+		Material material(mat.name);
 		auto spec_color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
 		material.specularColorShininess(spec_color, mat.shininess);
 		std::cerr << " * material:\t\'" << mat.name << "\'\tformat_id: " << i << "\n";
@@ -69,8 +70,8 @@ void Scene::load_model(std::string_view name, std::string_view basedir)
 			std::cerr << '\n';
 		}
 
-		auto res = add_material(mat.diffuse_texname, std::move(material), material_path);
-		std::cerr << "   + ready\tformat_id:  " << i << ",  scene_id:  " << res << '\n' << std::endl;
+		materials.emplace_back(std::move(material));
+		std::cerr << "   + ready\tformat_id:  " << i << ",  scene_id:  " << materials.size()-1 << '\n' << std::endl;
 	}
 
 	std::cerr << "\n--- materials loaded -----------------------\n\n";
@@ -98,12 +99,17 @@ void Scene::load_model(std::string_view name, std::string_view basedir)
 			instance.material_id = missing_material_idx;
 		} else {
 			tinyobj::material_t& mat = obj_materials[mat_id];
-			auto pos = material_instances.find(material_path + mat.diffuse_texname);
-			if(pos != material_instances.end()) {
-				instance.material_id = pos->second;
+			const auto mat_name = mat.name;
+
+			auto pos = std::find_if(materials.begin(), materials.end(), [&mat_name](const auto& mat)
+			{
+				return mat.m_name == mat_name;
+			});
+			if(pos != materials.end()) {
+				instance.material_id = std::distance(materials.begin(), pos);
 				//std::cerr << "   ~ material \'" << mat.name << "\' (" << mat_id << ',' << pos->second  << ")\n";
 			} else {
-				std::cerr << "   - could not find diffuse " << mat.diffuse_texname  << " in materials!\n";
+				std::cerr << "   - could not find " << mat_name  << " in materials!\n";
 				instance.material_id = missing_material_idx;
 			}
 		}
@@ -163,17 +169,6 @@ void Scene::load_model(std::string_view name, std::string_view basedir)
 	std::cerr << "\n--- model \'" << name <<"\' loaded -------------------------------\n" << std::endl;
 }
 
-size_t Scene::add_material(std::string_view name, Material&& mat, std::string_view basedir)
-{
-	std::string path(basedir);
-	path.append(name);
-	materials.emplace_back(std::move(mat));
-	auto pos = materials.size()-1;
-	material_instances.insert(std::make_pair(path, pos));
-	return pos;
-
-}
-
 Scene::Scene()
 {
 	Material::set_default_diffuse();
@@ -191,7 +186,7 @@ Scene::Scene()
 	main_camera.pos = {0.0f, 2.0f, 2.0f};
 	PointLight pl;
 	pl.position({8.0f, 2.0f, 2.0f})
-	  .ambient({0.1f, 0.0f, 0.0f})
+	  .ambient({0.0f, 0.0f, 0.0f})
 	  .diffuse({1.0, 0.2, 0.1})
 	  .specular({0.3, 0.05, 0.0})
 	  .radius(10.0)
@@ -216,10 +211,122 @@ Scene::Scene()
 	  .specular({0.0, 0.05, 0.3});
 	lights.push_back(pl);
 
-	auto missing_mat_idx = add_material("missing", Material{});
-	assert(missing_mat_idx == missing_material_idx);
+	materials.emplace_back(Material{"missing"});
 
 	load_model("sponza.obj", "sponza_crytek/");
 	load_model("2b.obj",     "yorha_2b/");
-	//load_model("cube.obj", "/");
+}
+
+void Scene::update()
+{
+	ImGui::Begin("Scene", &window_shown, glm::vec2(300.0, 100.0));
+	if(ImGui::CollapsingHeader("Camera")) {
+		ImGui::InputFloat3("Position", glm::value_ptr(main_camera.pos));
+		ImGui::SliderFloat("FOV", &main_camera.fov, 30.0f, 120.0f);
+		ImGui::SliderFloat("Near Z", &main_camera.znear, 0.001f, 10.0f);
+		ImGui::SliderFloat("Exposure", &main_camera.exposure, 0.001f, 10.0f);
+	}
+
+	if(ImGui::CollapsingHeader("Lighting")) {
+		if(ImGui::TreeNode("Directional")) {
+
+			ImGui::SliderFloat3("Direction", glm::value_ptr(directional_light.direction), -1.0, 1.0);
+			ImGui::ColorEdit3("Ambient",   glm::value_ptr(directional_light.ambient),
+			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
+			ImGui::ColorEdit3("Diffuse",   glm::value_ptr(directional_light.diffuse),
+			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
+			ImGui::ColorEdit3("Specular",  glm::value_ptr(directional_light.specular),
+			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
+			ImGui::TreePop();
+		}
+
+		if(ImGui::TreeNode("Point Lights")) {
+			if(ImGui::Button("Add light")) {
+				lights.push_back(PointLight{});
+			}
+			for(unsigned i = 0; i < lights.size(); ++i) {
+				ImGui::PushID(i);
+				if(ImGui::TreeNode("PointLight", "Point light #%d", i)) {
+					auto& light = lights[i];
+
+					auto pos = light.position();
+					auto amb = light.ambient();
+					auto diff = light.diffuse();
+					auto spec = light.specular();
+					float power = light.flux();
+					float radius = light.radius();
+
+					ImGui::Checkbox("Enabled", &light.enabled);
+					ImGui::SameLine();
+					if (ImGui::Button("Remove?"))
+						ImGui::OpenPopup("RemovePopup");
+
+					ImGui::DragFloat3("Position", glm::value_ptr(pos), 0.1f);
+					ImGui::ColorEdit3("Ambient",  glm::value_ptr(amb),
+					                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
+					ImGui::ColorEdit3("Diffuse",  glm::value_ptr(diff),
+					                    ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
+					ImGui::ColorEdit3("Specular", glm::value_ptr(spec),
+					                    ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
+					ImGui::DragFloat("Flux (lm)", &power,  1.0f, 1.0f, 100000.0f);
+					ImGui::DragFloat("Radius",    &radius, 0.1f, 0.5f, 1000.0f);
+
+					light
+					  .radius(radius)
+					  .flux(power)
+					  .position(pos)
+					  .ambient(amb)
+					  .diffuse(diff)
+					  .specular(spec);
+
+					if (ImGui::BeginPopup("RemovePopup")) {
+						if(ImGui::Button("Confirm"))
+							lights.erase(std::next(lights.begin(), i));
+						ImGui::EndPopup();
+					}
+
+					ImGui::TreePop();
+				}
+				ImGui::PopID();
+			}
+			ImGui::TreePop();
+		} // TreeNode("Point Lights")
+	} // CollapsingHeader("Lighting")
+
+
+	if(ImGui::CollapsingHeader("Materials")) {
+		for(unsigned i = 0; i < materials.size(); ++i) {
+			ImGui::PushID(i);
+			if(ImGui::TreeNode("Material", "%s", materials[i].m_name.data())) {
+				ImGui::ColorEdit3("Specular Color", glm::value_ptr(materials[i].m_specular_color),
+					ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
+				ImGui::DragFloat("Shininess", &(materials[i].m_shininess), 0.1f, 0.01f, 128.0f);
+
+				int texture_count = 1;
+				if(materials[i].type() & Material::SpecularMapped)
+					++texture_count;
+				if(materials[i].type() & Material::NormalMapped)
+					++texture_count;
+
+
+				auto width = ImGui::GetContentRegionAvailWidth() / texture_count - 5.0f;
+				if(materials[i].m_diffuse_map)
+					ImGui::Image((ImTextureID)(uintptr_t)materials[i].m_diffuse_map, ImVec2(width,width));
+
+				if(materials[i].m_normal_map) {
+					ImGui::SameLine();
+					ImGui::Image((ImTextureID)(uintptr_t)materials[i].m_normal_map, ImVec2(width,width));
+				}
+				if(materials[i].m_specular_map) {
+					ImGui::SameLine();
+					ImGui::Image((ImTextureID)(uintptr_t)materials[i].m_specular_map, ImVec2(width,width));
+				}
+
+				ImGui::TreePop();
+			}
+			ImGui::PopID();
+		}
+
+	}
+	ImGui::End();
 }

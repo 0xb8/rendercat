@@ -6,12 +6,13 @@ class PointLight
 {
 	glm::vec3 m_position;
 	glm::vec3 m_ambient;
-	glm::vec3 m_diffuse;
-	glm::vec3 m_specular;
-	float m_radius = 0.0f;
-	float m_luminous_intensity = 0.0f; // in candelas
+	glm::vec3 m_diffuse = {1.0f, 1.0f, 1.0f};
+	glm::vec3 m_specular = {0.1f, 0.1f, 0.1f};
+	float m_radius = 3.0f;
+	float m_luminous_intensity = 1.0f; // in candelas
 
 public:
+	bool enabled = true;
 
 	PointLight() = default;
 
@@ -65,7 +66,7 @@ public:
 
 	PointLight& radius(float rad)
 	{
-		assert(rad > 0.0f && rad < 500.0f);
+		assert(rad > 0.0f);
 		m_radius = rad;
 		return *this;
 	}

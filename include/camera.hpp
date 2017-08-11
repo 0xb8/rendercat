@@ -43,6 +43,7 @@ struct Plane
 
 struct Camera
 {
+	friend class Scene;
 	struct Frustum
 	{
 		glm::vec4 planes[6];

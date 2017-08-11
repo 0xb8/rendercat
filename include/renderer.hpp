@@ -24,9 +24,16 @@ class Renderer
 	GLuint m_shadowmap_fbo = 0;
 	GLuint m_shadowmap_to = 0;
 
+	GLuint m_gpu_time_query = 0;
+
 	glm::vec4 m_clear_color {0.0f, 0.0f, 0.0f, 1.0f};
 
 	void draw_skybox();
+
+	float gpu_times[64] = {0.0f};
+	float gpu_time_avg = 0.0f;
+
+	float getTimeElapsed();
 
 public:
 	static const unsigned int ShadowMapWidth = 1024;
@@ -37,11 +44,10 @@ public:
 	static constexpr int MSAASampleCount = 0;
 	static constexpr int MaxLights = 16;
 
-
-
 	explicit Renderer(Scene* s);
 	~Renderer();
 
 	void resize(uint32_t width, uint32_t height);
 	void draw();
+	void draw_gui();
 };

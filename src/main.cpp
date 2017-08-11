@@ -7,6 +7,8 @@
 
 #include <scene.hpp>
 #include <renderer.hpp>
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
 
 namespace globals {
 
@@ -19,7 +21,7 @@ namespace globals {
 }
 
 namespace input {
-	static bool mouse_captured = true;
+	static bool captured = true;
 	static bool mouse_init = true;
 	static float sensitivity = 0.02f;
 
@@ -30,7 +32,6 @@ namespace input {
 	static float fov   = 90.0f;
 	static const float minfov = 10.0f;
 	static const float maxfov = 110.0f;
-	static float exposure = 1.0f;
 
 
 	static bool forward  = false;
@@ -96,8 +97,27 @@ static void glfw_scroll_callback(GLFWwindow* window, double xoffset, double yoff
 static void glfw_framebuffer_resized_callback(GLFWwindow* window, int width, int height);
 
 
-static void glfw_key_callback(GLFWwindow* window, int key, int /*scancode*/, int action, int mods)
+static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
+	if(key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE) {
+		input::captured = !input::captured;
+		if(input::captured) {
+			input::mouse_init = true;
+			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+			glfwSetCursorDeltaCallback(window, gflw_mouse_motion_callback);
+			glfwSetCharCallback(window, nullptr);
+		} else {
+			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+			glfwSetCharCallback(window, ImGui_ImplGlfwGL3_CharCallback);
+			glfwSetCursorDeltaCallback(window, nullptr);
+		}
+	}
+
+	if(!input::captured) {
+		ImGui_ImplGlfwGL3_KeyCallback(window, key, scancode, action, mods);
+		return;
+	}
+
 	switch (key) {
 	case GLFW_KEY_W:
 		input::forward = (action != GLFW_RELEASE);
@@ -119,31 +139,23 @@ static void glfw_key_callback(GLFWwindow* window, int key, int /*scancode*/, int
 	case GLFW_KEY_LEFT_ALT:
 		input::alt = (action != GLFW_RELEASE);
 		break;
-	case GLFW_KEY_DOWN:
-		input::exposure -= 0.01f;
-		break;
-	case GLFW_KEY_UP:
-		input::exposure += 0.01f;
-		break;
-	case GLFW_KEY_ESCAPE:
-		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-		glfwSetCursorPosCallback(window, nullptr);
-		input::mouse_captured = false;
-		break;
 	default:
 		break;
 	}
 }
 
-static void glfw_mouse_click_callback(GLFWwindow* window, int button, int action, int /*mods*/)
+static void glfw_mouse_click_callback(GLFWwindow* window, int button, int action, int mods)
 {
-	if(!input::mouse_captured && action == GLFW_PRESS)
-	{
-		input::mouse_captured = true;
-		input::mouse_init = true;
-		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-		glfwSetCursorDeltaCallback(window, gflw_mouse_motion_callback);
+	if(!input::captured) {
+		if(action == GLFW_PRESS && (mods & GLFW_MOD_SHIFT)) {
+
+			return;
+		}
+
+		ImGui_ImplGlfwGL3_MouseButtonCallback(window, button, action, mods);
+		return;
 	}
+
 	if(button == GLFW_MOUSE_BUTTON_3 && action == GLFW_PRESS) {
 		input::fov = 90.0f;
 	}
@@ -170,7 +182,6 @@ static void glfw_process_input(Scene* s)
 
 	s->main_camera.aim(input::xoffset, input::yoffset);
 	s->main_camera.zoom(input::fov);
-	s->main_camera.exposure = input::exposure;
 	input::xoffset = 0.0f;
 	input::yoffset = 0.0f;
 }
@@ -205,8 +216,13 @@ static void glfw_focus_callback(GLFWwindow* window, int focused)
 }
 
 
-static void glfw_scroll_callback(GLFWwindow* /*window*/, double /*xoffset*/, double yoffset)
+static void glfw_scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
+	if(!input::captured) {
+		ImGui_ImplGlfwGL3_ScrollCallback(window, xoffset, yoffset);
+		return;
+	}
+
 	if (input::fov >= input::minfov && input::fov <= input::maxfov)
 		input::fov -= yoffset;
 	input::fov = glm::clamp(input::fov, input::minfov, input::maxfov);
@@ -308,37 +324,42 @@ int main() try
 	enable_gl_clip_control();
 	assert_gl_default_framebuffer_is_srgb();
 
-	//glfw_focus_callback(window, false);
+	{
+		ImGui_ImplGlfwGL3_Init(window);
+		ImGuiStyle& st = ImGui::GetStyle();
+
+		st.WindowRounding = 3.0f;
+		st.ScrollbarRounding = 0.0f;
+	}
 
 	Scene scene;
 	Renderer renderer(&scene);
 	renderer.resize(globals::glfw_framebuffer_width,
 	                globals::glfw_framebuffer_height);
 
-	//glfw_focus_callback(window, true);
-
-
 	globals::last_frame_time = glfwGetTime();
 	while(!glfwWindowShouldClose(window))
 	{
 		glfwPollEvents();
 		glfw_process_input(&scene);
+		ImGui_ImplGlfwGL3_NewFrame();
+
+		scene.update();
 
 		if(globals::glfw_framebuffer_resized) {
 			globals::glfw_framebuffer_resized = false;
 			renderer.resize(globals::glfw_framebuffer_width,
 			                globals::glfw_framebuffer_height);
 		}
-
 		renderer.draw();
-
+		renderer.draw_gui();
+		ImGui::Render();
 		glfwSwapBuffers(window);
 
 		auto end_time = glfwGetTime();
 		globals::delta_time = end_time - globals::last_frame_time;
 		globals::last_frame_time = end_time;
 		auto st = std::max(consts::window_target_frametime - globals::delta_time, 0.0f);
-
 		std::this_thread::sleep_for(std::chrono::duration<float>(st));
 	}
 

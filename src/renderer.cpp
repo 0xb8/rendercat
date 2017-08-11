@@ -3,6 +3,7 @@
 #include <iostream>
 #include <cstdio>
 #include <string>
+#include <imgui.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -35,6 +36,8 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 	//glReadBuffer(GL_NONE);
 	m_shadowmap_fbo = depthMapFBO;
 	m_shadowmap_to = depthMap;
+
+	glGenQueries(1, &m_gpu_time_query);
 }
 
 Renderer::~Renderer()
@@ -154,6 +157,8 @@ void Renderer::draw()
 	if(!m_shader) return;
 	m_shader_set.check_updates();
 
+	glBeginQuery(GL_TIME_ELAPSED, m_gpu_time_query);
+
 	glClearColor(m_clear_color[0], m_clear_color[1], m_clear_color[2], m_clear_color[3]);
 	glClearDepth(0.0f);
 	glDepthFunc(GL_GREATER);
@@ -198,7 +203,7 @@ void Renderer::draw()
 	// set out framebuffer and viewport
 	glBindFramebuffer(GL_FRAMEBUFFER, m_backbuffer_fbo);
 	glViewport(0, 0, m_backbuffer_width, m_backbuffer_height);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glClear(GL_DEPTH_BUFFER_BIT); // NOTE: no need to clear color attachment bacause skybox will be drawn over it anyway
 
 	glUseProgram(*m_shader);
 
@@ -212,7 +217,7 @@ void Renderer::draw()
 	unif::v3(*m_shader, "directional_light.specular",  m_scene->directional_light.specular);
 
 
-	for(unsigned i = 0; i < m_scene->lights.size() && i < MaxLights; ++i) {
+	for(unsigned i = 0; i < m_scene->lights.size() && i < MaxLights;++i) {
 		unif::v3(*m_shader, indexed_uniform("point_light", ".position",  i),  m_scene->lights[i].position());
 		unif::v3(*m_shader, indexed_uniform("point_light", ".ambient",   i),  m_scene->lights[i].ambient());
 		unif::v3(*m_shader, indexed_uniform("point_light", ".diffuse",   i),  m_scene->lights[i].diffuse());
@@ -235,11 +240,13 @@ void Renderer::draw()
 		int count = 0;
 		for(unsigned i = 0; i < m_scene->lights.size() && i < MaxLights; ++i) {
 			const auto& light = m_scene->lights[i];
+			if(!light.enabled)
+				continue;
 
 			// TODO: implement per-light AABB cutoff to prevent light leaking
 			if(mesh_instance.aabb.intersects_sphere(light.position(), light.radius())) {
 				auto dist = glm::length(light.position() - mesh_instance.aabb.closest_point(light.position()));
-				if(light.falloff(dist) > 0.001f) {
+				if(light.falloff(dist) > 0.0001f) {
 					unif::i1(*m_shader, indexed_uniform("active_light_indices", "", count++), i);
 				}
 			}
@@ -288,6 +295,38 @@ void Renderer::draw()
 	glUseProgram(0);
 	glBindVertexArray(0);
 	glDepthFunc(GL_LESS);
+
+	glEndQuery(GL_TIME_ELAPSED);
+}
+
+void Renderer::draw_gui()
+{
+	ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiSetCond_FirstUseEver);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,ImVec2(0,0));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding,0.0f);
+	ImGui::Begin("Profile", nullptr, ImVec2(350, 40), 0.0f,
+		ImGuiWindowFlags_NoMove
+		|ImGuiWindowFlags_NoResize
+		|ImGuiWindowFlags_NoSavedSettings
+		|ImGuiWindowFlags_NoTitleBar
+		|ImGuiWindowFlags_NoScrollbar
+		|ImGuiWindowFlags_NoCollapse);
+
+
+	ImGui::PushItemWidth(-1.0f);
+	char avgbuf[64];
+	snprintf(avgbuf, std::size(avgbuf),
+	         "GPU avg: %5.2f ms (%4.1f fps), last: %5.2f ms",
+	         gpu_time_avg,
+	         1000.0f / std::max(gpu_time_avg, 0.01f), getTimeElapsed());
+
+	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.00f, 0.00f, 0.00f, 0.50f));
+	ImGui::PlotLines("", gpu_times, std::size(gpu_times), 0, avgbuf, 0.0f, 20.0f, ImVec2(0,40));
+	ImGui::PopStyleColor();
+
+	ImGui::PopItemWidth();
+	ImGui::End();
+	ImGui::PopStyleVar(2);
 }
 
 void Renderer::draw_skybox()
@@ -295,4 +334,22 @@ void Renderer::draw_skybox()
 	glDepthFunc(GL_GEQUAL);
 	m_scene->cubemap.draw(*m_cubemap_shader, m_scene->main_camera.view, m_scene->main_camera.projection);
 	glDepthFunc(GL_GREATER);
+}
+
+float Renderer::getTimeElapsed()
+{
+	uint64_t time_elapsed = 0;
+	glGetQueryObjectui64v(m_gpu_time_query, GL_QUERY_RESULT_NO_WAIT, &time_elapsed);
+	float gpu_time = (double)time_elapsed / 1000000.0;
+	gpu_time_avg = 0.0f;
+
+	for(unsigned i = 0; i < std::size(gpu_times)-1; ++i) {
+		gpu_times[i] = gpu_times[i+1];
+		gpu_time_avg += gpu_times[i+1];
+	}
+	gpu_times[std::size(gpu_times)-1] = gpu_time;
+	gpu_time_avg += gpu_time;
+	gpu_time_avg /= std::size(gpu_times);
+
+	return gpu_time;
 }

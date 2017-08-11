@@ -21,6 +21,7 @@ private:
 
 struct Material
 {
+	friend class Scene;
 	enum Type
 	{
 		Opaque         = 1 << 1,
@@ -34,9 +35,8 @@ struct Material
 
 	static void set_default_diffuse() noexcept;
 
-	Material() noexcept
+	Material(const std::string& name) noexcept : m_name(name), m_diffuse_map(default_diffuse)
 	{
-		m_diffuse_map = default_diffuse;
 	}
 
 	~Material() noexcept;
@@ -54,6 +54,7 @@ struct Material
 		m_shininess      = o.m_shininess;
 		m_type           = o.m_type;
 
+		std::swap(m_name, o.m_name);
 		std::swap(m_diffuse_map, o.m_diffuse_map);
 		std::swap(m_normal_map, o.m_normal_map);
 		std::swap(m_specular_map, o.m_specular_map);
@@ -82,6 +83,7 @@ private:
 	static TextureCache* cache;
 	static uint32_t default_diffuse;
 
+	std::string m_name;
 	glm::vec3 m_specular_color = {0.0f, 0.0f, 0.0f};
 	float     m_shininess      = 0.0f;
 

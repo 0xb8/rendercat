@@ -8,6 +8,8 @@ find_package(OpenGL REQUIRED)
 
 add_subdirectory(third_party)
 
+
+
 add_executable(rendercat
 	src/main.cpp
 	src/material.cpp
@@ -16,6 +18,10 @@ add_executable(rendercat
 	src/scene.cpp
 	src/shader_set.cpp
 	src/cubemap.cpp
+	third_party/imgui/imgui.cpp
+	third_party/imgui/imgui_demo.cpp
+	third_party/imgui/imgui_draw.cpp
+	third_party/imgui/imgui_impl_glfw.cpp
 )
 
 set_target_properties(rendercat
@@ -27,7 +33,9 @@ set_target_properties(rendercat
 
 target_include_directories(rendercat
 	PRIVATE
-		${PROJECT_SOURCE_DIR}/include
+		"${PROJECT_SOURCE_DIR}/include"
+		"${PROJECT_SOURCE_DIR}/third_party/imgui/"
+
 )
 
 target_link_libraries(rendercat
