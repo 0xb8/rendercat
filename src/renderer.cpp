@@ -301,7 +301,7 @@ void Renderer::draw()
 
 void Renderer::draw_gui()
 {
-	ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiSetCond_FirstUseEver);
+	ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiCond_Always);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,ImVec2(0,0));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding,0.0f);
 	ImGui::Begin("Profile", nullptr, ImVec2(350, 40), 0.0f,
