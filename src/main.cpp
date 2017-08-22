@@ -92,7 +92,6 @@ void GLAPIENTRY gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum 
 static void gflw_mouse_motion_callback(GLFWwindow* window, double dx, double dy);
 static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 static void glfw_mouse_click_callback(GLFWwindow* window, int button, int action, int mods);
-static void glfw_focus_callback(GLFWwindow* window, int focused);
 static void glfw_scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 static void glfw_framebuffer_resized_callback(GLFWwindow* window, int width, int height);
 
@@ -161,7 +160,6 @@ static void glfw_mouse_click_callback(GLFWwindow* window, int button, int action
 	}
 }
 
-
 static void glfw_process_input(Scene* s)
 {
 	float cameraSpeed = 0.04;
@@ -201,21 +199,6 @@ void gflw_mouse_motion_callback(GLFWwindow* /*window*/, double dx, double dy)
 	input::yoffset += -dy * input::sensitivity;
 }
 
-
-
-static void glfw_focus_callback(GLFWwindow* window, int focused)
-{
-	if(focused == GLFW_TRUE) {
-		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-		glfwSetCursorDeltaCallback(window, gflw_mouse_motion_callback);
-	} else {
-		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-		glfwSetCursorDeltaCallback(window, nullptr);
-	}
-	input::mouse_init = true;
-}
-
-
 static void glfw_scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
 	if(!input::captured) {
@@ -228,14 +211,12 @@ static void glfw_scroll_callback(GLFWwindow* window, double xoffset, double yoff
 	input::fov = glm::clamp(input::fov, input::minfov, input::maxfov);
 }
 
-
 static void glfw_framebuffer_resized_callback(GLFWwindow* /*window*/, int width, int height)
 {
 	globals::glfw_framebuffer_resized = true;
 	globals::glfw_framebuffer_width = width;
 	globals::glfw_framebuffer_height = height;
 }
-
 
 static void enable_gl_clip_control()
 {
@@ -278,7 +259,15 @@ static void print_all_extensions()
 	}
 }
 
-
+static void init_glfw_callbacks(GLFWwindow* window)
+{
+	glfwSetKeyCallback(window, glfw_key_callback);
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	glfwSetCursorDeltaCallback(window, gflw_mouse_motion_callback);
+	glfwSetMouseButtonCallback(window, glfw_mouse_click_callback);
+	glfwSetScrollCallback(window, glfw_scroll_callback);
+	glfwSetFramebufferSizeCallback(window, glfw_framebuffer_resized_callback);
+}
 
 //------------------------------------------------------------------------------
 int main() try
@@ -293,7 +282,6 @@ int main() try
 #endif
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 	glfwWindowHint(GLFW_SRGB_CAPABLE, GLFW_TRUE);
-	glfwWindowHint(GLFW_SAMPLES, Renderer::MSAASampleCount);
 
 	auto window = glfwCreateWindow(globals::glfw_framebuffer_width,
 	                               globals::glfw_framebuffer_height,
@@ -306,13 +294,6 @@ int main() try
 	}
 
 	glfwMakeContextCurrent(window);
-	glfwSetKeyCallback(window, glfw_key_callback);
-	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-	glfwSetCursorDeltaCallback(window, gflw_mouse_motion_callback);
-	glfwSetMouseButtonCallback(window, glfw_mouse_click_callback);
-	//glfwSetWindowFocusCallback(window, glfw_focus_callback);
-	glfwSetScrollCallback(window, glfw_scroll_callback);
-	glfwSetFramebufferSizeCallback(window, glfw_framebuffer_resized_callback);
 
 	glewExperimental = GL_TRUE;
 	if (glewInit() != GLEW_OK) {
@@ -336,6 +317,8 @@ int main() try
 	Renderer renderer(&scene);
 	renderer.resize(globals::glfw_framebuffer_width,
 	                globals::glfw_framebuffer_height);
+
+	init_glfw_callbacks(window);
 
 	globals::last_frame_time = glfwGetTime();
 	while(!glfwWindowShouldClose(window))

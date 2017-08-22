@@ -21,7 +21,7 @@ GLuint load_texture(const std::string& path, bool linear, int desired_channels =
 		glGenTextures(1, &tex);
 		glTextureParameteriEXT(tex, GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 		glTextureParameteriEXT(tex, GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-		glTextureParameteriEXT(tex, GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+		glTextureParameteriEXT(tex, GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		glTextureParameteriEXT(tex, GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		glTextureParameterfEXT(tex, GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, std::min(maxAnisotropy, max_aniso));
 
@@ -101,7 +101,7 @@ void Material::bind(GLuint s) const noexcept
 	}
 }
 
-void Material::addDiffuseMap(std::string_view name, std::string_view basedir)
+void Material::addDiffuseMap(const std::string_view name, const std::string_view basedir, bool alpha_masked)
 {
 
 	std::string diffuse_path;
@@ -114,17 +114,27 @@ void Material::addDiffuseMap(std::string_view name, std::string_view basedir)
 
 	m_diffuse_map = default_diffuse;
 
-	if(auto res = cache->get(diffuse_path); res.to) {
-		m_diffuse_map = res.to;
-		if(res.num_channels == 3) {
-			m_type &= (~(Transparent | Masked));
+
+	auto set_type = [this, alpha_masked](int nrChannels)
+	{
+		m_type &= (~(Type::Opaque | Type::Masked | Type::Blended));
+		if(nrChannels == 3) {
+			if(alpha_masked)
+				std::cerr << "specified alpha masked, but texture does not have alpha channel!";
 			m_type |= Type::Opaque;
 		}
-		if(res.num_channels == 4) {
-			// TODO: determine if texture has true translucency or just alpha mask, assume former for now
-			m_type &= (~(Type::Opaque | Type::Masked));
-			m_type |= Type::Transparent;
+		if(nrChannels == 4) {
+			if(alpha_masked)
+				m_type |= Type::Masked;
+			else
+				m_type |= Type::Blended;
 		}
+	};
+
+
+	if(auto res = cache->get(diffuse_path); res.to) {
+		m_diffuse_map = res.to;
+		set_type(res.num_channels);
 		return;
 	}
 
@@ -132,23 +142,15 @@ void Material::addDiffuseMap(std::string_view name, std::string_view basedir)
 	auto res = load_texture(diffuse_path, false, 0, &num_channels);
 	if(res) {
 		m_diffuse_map = res;
-		if(num_channels == 3) {
-			m_type &= (~(Transparent | Masked));
-			m_type |= Type::Opaque;
-		}
-		if(num_channels == 4) {
-			// TODO: determine if texture has true translucency or just alpha mask, assume former for now
-			m_type &= (~(Type::Opaque | Type::Masked));
-			m_type |= Type::Transparent;
-		}
+		set_type(num_channels);
 		cache->add(std::move(diffuse_path), res, num_channels);
-		std::cerr << " success, " << num_channels << " channels";
 	} else {
 		std::cerr << " failed!";
+		std::cerr << " Path: [" << diffuse_path << "]";
 	}
 }
 
-void Material::addNormalMap(std::string_view name, std::string_view basedir)
+void Material::addNormalMap(const std::string_view name, const std::string_view basedir)
 {
 	std::string normal_path;
 	normal_path = basedir;
@@ -175,7 +177,7 @@ void Material::addNormalMap(std::string_view name, std::string_view basedir)
 	}
 }
 
-void Material::addSpecularMap(std::string_view name, std::string_view basedir)
+void Material::addSpecularMap(const std::string_view name, const std::string_view basedir)
 {
 	std::string specular_path;
 	specular_path = basedir;

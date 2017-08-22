@@ -5,59 +5,78 @@
 #include <vector>
 #include <string_view>
 #include <AABB.hpp>
+#include <material.hpp>
 
-struct Mesh
-{
-	struct vertex {
-		glm::vec3 position;
-		glm::vec3 normal;
-		glm::vec3 tangent;
-		glm::vec2 texcoords;
+namespace model {
 
-		bool operator==(const vertex& other) const noexcept {
-			return position == other.position && normal == other.normal && texcoords == other.texcoords;
+	struct mesh
+	{
+		struct vertex {
+			glm::vec3 position;
+			glm::vec3 normal;
+			glm::vec3 tangent;
+			glm::vec3 bitangent;
+			glm::vec2 texcoords;
+
+			bool operator==(const vertex& other) const noexcept {
+				return position == other.position && normal == other.normal && texcoords == other.texcoords;
+			}
+		};
+
+		std::string name;
+		uint32_t ebo = 0;
+		uint32_t mut_vbo = 0;
+		uint32_t imut_vbo = 0;
+		uint32_t vao = 0;
+		uint32_t numverts = 0;
+		uint32_t numverts_unique = 0;
+		GLenum   index_type = 0;
+		AABB aabb;
+
+		mesh(const std::string & name_,
+		     std::vector<vertex>&& verts,
+		     std::vector<uint32_t>&& indices);
+
+		~mesh();
+
+		mesh(const mesh&) = delete;
+		mesh& operator=(const mesh&) = delete;
+
+		mesh(mesh&& o) noexcept
+		{
+			this->operator=(std::move(o));
+		}
+
+		mesh& operator=(mesh&& o) noexcept
+		{
+			name = std::move(o.name);
+			std::swap(ebo, o.ebo);
+			std::swap(mut_vbo, o.mut_vbo);
+			std::swap(imut_vbo, o.imut_vbo);
+			std::swap(vao, o.vao);
+			numverts = o.numverts;
+			numverts_unique = o.numverts_unique;
+			index_type = o.index_type;
+			aabb = o.aabb;
+			return *this;
 		}
 	};
 
-	uint32_t ebo = 0;
-	uint32_t vbo = 0;
-	uint32_t vao = 0;
-	uint32_t numverts = 0;
-	AABB aabb;
-
-	Mesh(std::vector<vertex>&& verts, std::vector<uint32_t>&& indices);
-	~Mesh();
-
-	Mesh(const Mesh&) = delete;
-	Mesh& operator=(const Mesh&) = delete;
-
-	Mesh(Mesh&& o) noexcept
+	struct data
 	{
-		this->operator=(std::move(o));
-	}
+		std::vector<Material> materials;
+		std::vector<mesh> submeshes;
+		std::vector<int> submesh_material;
+	};
 
-	Mesh& operator=(Mesh&& o) noexcept
-	{
-		std::swap(ebo, o.ebo);
-		std::swap(vbo, o.vbo);
-		std::swap(vao, o.vao);
-		numverts = o.numverts;
-		aabb = o.aabb;
-		return *this;
-	}
-};
 
-namespace std {
+	bool load_obj_file(data* res,
+			   const std::string_view name,
+			   const std::string_view basedir = std::string_view{});
 
-template<>
-struct hash<Mesh::vertex>
-{
-	size_t operator()(const Mesh::vertex vertex) const noexcept
-	{
-		return hash<glm::vec3>()(vertex.position)
-			^ hash<glm::vec3>()(vertex.normal)
-			^ hash<glm::vec2>()(vertex.texcoords);
-	}
-};
-}
+	// TODO: gltf loader
+	bool load_gltf_file(data* res,
+	                    const std::string_view name,
+			    const std::string_view basedir = std::string_view{});
+} // namespace model
 

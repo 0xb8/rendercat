@@ -1,5 +1,5 @@
-#version 330 core
-//layout(early_fragment_tests) in;
+#version 440 core
+layout(early_fragment_tests) in;
 
 struct Material {
 	sampler2D diffuse;
@@ -35,7 +35,6 @@ in INTERFACE {
 
 out	vec4 FragColor;
 
-
 uniform vec3 viewPos;
 uniform Material material;
 uniform DirectionalLight directional_light;
@@ -61,13 +60,14 @@ vec3 getNormal()
 {
 	if((material.type & MATERIAL_NORMAL_MAPPED) != 0) {
 		vec3 normal = texture(material.normal, fs_in.TexCoords).rgb;
-		return normalize(fs_in.TBN * normalize(normal * 2.0 - 1.0));
+		//vec3 normal = vec3(0.5, 0.5, 1.0);
+		// NOTE: texture conversion could be normalized, but doesn't affect the quality much
+		return normalize(fs_in.TBN * (normal * 2.0 - 1.0));
 	} else {
 		// normalize interpolated normals to prevent issues with specular pixel flicker.
 		return normalize(fs_in.TBN[2]);
 	}
 }
-
 
 vec3 calcDirectionalLight(const in DirectionalLight light,  const in vec3 viewDir, const in mat3 materialParams)
 {
@@ -95,11 +95,6 @@ float point_light_falloff(const in float dist, const in float radius)
 	// ref: equation (26) from https://seblagarde.files.wordpress.com/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
 	// @ https://seblagarde.wordpress.com/2015/07/14/siggraph-2014-moving-frostbite-to-physically-based-rendering/
 	return pow(clamp(1.0 - pow(dist/radius, 4.0), 0.0, 1.0), decay) / max(pow(dist, decay), 0.01);
-}
-
-float point_light_bad_falloff(const in float dist, const in float rad)
-{
-	return 1.0 / (1.0 + 0.35 * dist + 0.44 * (dist * dist));
 }
 
 vec3 calcPointLight(const in PointLight light, const in vec3 viewDir, const in mat3 materialParams)

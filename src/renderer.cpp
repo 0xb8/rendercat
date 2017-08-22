@@ -34,8 +34,9 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 	glNamedFramebufferTexture2DEXT(depthMapFBO, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
 	//glDrawBuffer(GL_NONE);
 	//glReadBuffer(GL_NONE);
-	m_shadowmap_fbo = depthMapFBO;
-	m_shadowmap_to = depthMap;
+
+	glGetIntegerv(GL_MAX_SAMPLES, &MSAASampleCountMax);
+	std::cerr << "[renderer] max MSAA samples: " << MSAASampleCountMax << '\n';
 
 	glGenQueries(1, &m_gpu_time_query);
 }
@@ -49,16 +50,25 @@ Renderer::~Renderer()
 	glDeleteFramebuffers(1, &m_backbuffer_fbo);
 }
 
-void Renderer::resize(uint32_t width, uint32_t height)
+void Renderer::resize(uint32_t width, uint32_t height, bool force)
 {
 	if(width < 2 || height < 2)
 		return;
 
-	if(width == m_backbuffer_width || height == m_backbuffer_height)
+	if(!force && (width == m_window_width || height == m_window_height))
 		return;
 
-	m_backbuffer_width  = width;
-	m_backbuffer_height = height;
+	m_backbuffer_scale = m_scene->desired_render_scale;
+	msaa_level = m_scene->desired_msaa_level;
+	MSAASampleCount = msaa_level ? std::exp2(msaa_level) : 0;
+
+	MSAASampleCount = std::min(MSAASampleCount, MSAASampleCountMax);
+
+	m_window_width = width;
+	m_window_height = height;
+
+	m_backbuffer_width  = width * m_backbuffer_scale;
+	m_backbuffer_height = height * m_backbuffer_scale;
 
 	// reinitialize multisampled color texture object
 	glDeleteTextures(1, &m_backbuffer_color_to);
@@ -90,7 +100,6 @@ void Renderer::resize(uint32_t width, uint32_t height)
 	                                 GL_FALSE);
 
 
-
 	// reinitialize framebuffer
 	glDeleteFramebuffers(1, &m_backbuffer_fbo);
 	glGenFramebuffers(1,    &m_backbuffer_fbo);
@@ -108,7 +117,6 @@ void Renderer::resize(uint32_t width, uint32_t height)
 	                               0);
 
 
-
 	GLenum fboStatus = glCheckNamedFramebufferStatusEXT(m_backbuffer_fbo, GL_FRAMEBUFFER);
 	if (fboStatus != GL_FRAMEBUFFER_COMPLETE) {
 		throw std::runtime_error("[renderer] could not resize backbuffer!");
@@ -123,7 +131,7 @@ static void renderQuad()
 {
 	static GLuint vao = 0;
 	static GLuint vbo = 0;
-	if (vao == 0) {
+	if (unlikely(vao == 0)) {
 		float quadVertices[] = {
 			// positions        // texture Coords
 			-1.0f,  1.0f, 1.0f, 0.0f, 1.0f,
@@ -152,53 +160,40 @@ static const char* indexed_uniform(std::string_view array, std::string_view name
 	return &buf[0];
 }
 
+void Renderer::set_uniforms(GLuint shader)
+{
+	unif::m4(shader, "proj_view", m_scene->main_camera.projection * m_scene->main_camera.view);
+	unif::v3(shader, "viewPos",   m_scene->main_camera.pos);
+	unif::v3(shader, "directional_light.direction", m_scene->directional_light.direction);
+	unif::v3(shader, "directional_light.ambient",   m_scene->directional_light.ambient);
+	unif::v3(shader, "directional_light.diffuse",   m_scene->directional_light.diffuse);
+	unif::v3(shader, "directional_light.specular",  m_scene->directional_light.specular);
+
+	for(unsigned i = 0; i < m_scene->point_lights.size() && i < MaxLights;++i) {
+		unif::v3(shader, indexed_uniform("point_light", ".position",  i),  m_scene->point_lights[i].position());
+		unif::v3(shader, indexed_uniform("point_light", ".ambient",   i),  m_scene->point_lights[i].ambient());
+		unif::v3(shader, indexed_uniform("point_light", ".diffuse",   i),  m_scene->point_lights[i].diffuse());
+		unif::v3(shader, indexed_uniform("point_light", ".specular",  i),  m_scene->point_lights[i].specular());
+		unif::f1(shader, indexed_uniform("point_light", ".radius",    i),  m_scene->point_lights[i].radius());
+		unif::f1(shader, indexed_uniform("point_light", ".intensity", i),  m_scene->point_lights[i].intensity());
+	}
+}
+
 void Renderer::draw()
 {
-	if(!m_shader) return;
+	if(unlikely(!m_shader)) return;
 	m_shader_set.check_updates();
+
+	if(unlikely(m_scene->desired_render_scale != m_backbuffer_scale || m_scene->desired_msaa_level != msaa_level))
+		resize(m_window_width, m_window_height, true);
 
 	glBeginQuery(GL_TIME_ELAPSED, m_gpu_time_query);
 
-	glClearColor(m_clear_color[0], m_clear_color[1], m_clear_color[2], m_clear_color[3]);
 	glClearDepth(0.0f);
 	glDepthFunc(GL_GREATER);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);
-
-#if 0
-	glDisable(GL_CULL_FACE);
-
-	glUseProgram(*m_shadowmap_shader);
-
-	glm::mat4 lightProjection, lightView;
-        glm::mat4 lightSpaceMatrix;
-        float near_plane = 15.0f, far_plane = 30.0f;
-        lightProjection = glm::ortho(-30.0f, 30.0f, -30.0f, 30.0f, near_plane, far_plane);
-        lightView = glm::lookAt(-m_scene->directional_light.direction, glm::vec3(0.0f), glm::vec3(0.0, 1.0, 0.0));
-        lightSpaceMatrix = lightProjection * lightView;
-
-	unif::m4(*m_shadowmap_shader, "lightSpace", lightSpaceMatrix);
-
-	glViewport(0, 0, ShadowMapWidth, ShadowMapHeight);
-	glBindFramebuffer(GL_FRAMEBUFFER, m_shadowmap_fbo);
-	glClear(GL_DEPTH_BUFFER_BIT);
-
-	for(const auto& instance : m_scene->instances) {
-		m_scene->materials[instance.material_id].bind(*m_shadowmap_shader);
-		glm::mat4 model;
-		model = glm::translate(model, instance.position);
-		model = glm::rotate(model, instance.angle, instance.axis);
-		model = glm::scale(model, instance.scale);
-		unif::m4(*m_shadowmap_shader, "model", model);
-
-		glBindVertexArray(m_scene->meshes[instance.mesh_id].vao);
-		glDrawElements(GL_TRIANGLES, m_scene->meshes[instance.mesh_id].numverts, GL_UNSIGNED_INT, nullptr);
-	}
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-#endif
 
 	// set out framebuffer and viewport
 	glBindFramebuffer(GL_FRAMEBUFFER, m_backbuffer_fbo);
@@ -206,70 +201,47 @@ void Renderer::draw()
 	glClear(GL_DEPTH_BUFFER_BIT); // NOTE: no need to clear color attachment bacause skybox will be drawn over it anyway
 
 	glUseProgram(*m_shader);
+	set_uniforms(*m_shader);
 
-	unif::m4(*m_shader, "projection", m_scene->main_camera.projection);
-	unif::m4(*m_shader, "view", m_scene->main_camera.view);
-//	unif::m4(*m_shader, "lightSpace", lightSpaceMatrix);
-	unif::v3(*m_shader, "viewPos", m_scene->main_camera.pos);
-	unif::v3(*m_shader, "directional_light.direction", m_scene->directional_light.direction);
-	unif::v3(*m_shader, "directional_light.ambient",   m_scene->directional_light.ambient);
-	unif::v3(*m_shader, "directional_light.diffuse",   m_scene->directional_light.diffuse);
-	unif::v3(*m_shader, "directional_light.specular",  m_scene->directional_light.specular);
+	for(unsigned model_idx = 0; model_idx < m_scene->models.size(); ++model_idx) {
+		const Model& model = m_scene->models[model_idx];
 
+		unif::m4(*m_shader, "model", model.transform);
+		unif::m3(*m_shader, "normal_matrix", glm::transpose(model.inv_transform));
 
-	for(unsigned i = 0; i < m_scene->lights.size() && i < MaxLights;++i) {
-		unif::v3(*m_shader, indexed_uniform("point_light", ".position",  i),  m_scene->lights[i].position());
-		unif::v3(*m_shader, indexed_uniform("point_light", ".ambient",   i),  m_scene->lights[i].ambient());
-		unif::v3(*m_shader, indexed_uniform("point_light", ".diffuse",   i),  m_scene->lights[i].diffuse());
-		unif::v3(*m_shader, indexed_uniform("point_light", ".specular",  i),  m_scene->lights[i].specular());
-		unif::f1(*m_shader, indexed_uniform("point_light", ".radius",    i),  m_scene->lights[i].radius());
-		unif::f1(*m_shader, indexed_uniform("point_light", ".intensity", i),  m_scene->lights[i].intensity());
-	}
+		for(unsigned submesh_idx = 0; submesh_idx < model.submesh_count; ++submesh_idx) {
+			const model::mesh& submesh = m_scene->submeshes[model.submeshes[submesh_idx]];
+			const Material& material = m_scene->materials[model.materials[submesh_idx]];
+			auto submesh_aabb = submesh.aabb;
+			submesh_aabb.translate(model.transform[3]);
 
-//	glActiveTexture(GL_TEXTURE2);
-//	glBindTexture(GL_TEXTURE_2D, m_shadowmap_to);
-//	unif::i1(*m_shader, "shadowMap", 2);
+			int light_count = 0;
+			for(unsigned i = 0; i < m_scene->point_lights.size() && i < MaxLights; ++i) {
+				const auto& light = m_scene->point_lights[i];
+				if(!light.enabled)
+					continue;
 
-
-	for(const auto& instance : m_scene->instances) {
-		const auto& mesh_instance = m_scene->meshes[instance.mesh_id];
-		const auto& material = m_scene->materials[instance.material_id];
-
-		auto aabb = mesh_instance.aabb;
-		aabb.translate(instance.position);
-		int count = 0;
-		for(unsigned i = 0; i < m_scene->lights.size() && i < MaxLights; ++i) {
-			const auto& light = m_scene->lights[i];
-			if(!light.enabled)
-				continue;
-
-			// TODO: implement per-light AABB cutoff to prevent light leaking
-			if(mesh_instance.aabb.intersects_sphere(light.position(), light.radius())) {
-				auto dist = glm::length(light.position() - mesh_instance.aabb.closest_point(light.position()));
-				if(light.falloff(dist) > 0.0001f) {
-					unif::i1(*m_shader, indexed_uniform("active_light_indices", "", count++), i);
+				// TODO: implement per-light AABB cutoff to prevent light leaking
+				if(submesh_aabb.intersects_sphere(light.position(), light.radius())) {
+					auto dist = glm::length(light.position() - submesh_aabb.closest_point(light.position()));
+					if(light.falloff(dist) > 0.0001f) {
+						unif::i1(*m_shader, indexed_uniform("active_light_indices", "", light_count++), i);
+					}
 				}
+
 			}
-
+			unif::i1(*m_shader, "num_active_lights", light_count);
+			material.bind(*m_shader);
+			glBindVertexArray(submesh.vao);
+			assert(submesh.index_type == GL_UNSIGNED_INT || submesh.index_type == GL_UNSIGNED_SHORT);
+			glDrawElements(GL_TRIANGLES, submesh.numverts, submesh.index_type, nullptr);
 		}
-		unif::i1(*m_shader, "num_active_lights", count);
-
-		material.bind(*m_shader);
-
-		glm::mat4 model;
-		model = glm::translate(model, instance.position);
-		model = glm::rotate(model, instance.angle, instance.axis);
-		model = glm::scale(model, instance.scale);
-		unif::m4(*m_shader, "model", model);
-		unif::m3(*m_shader, "normal_matrix", glm::transpose(glm::inverse(glm::mat3(model))));
-
-		glBindVertexArray(m_scene->meshes[instance.mesh_id].vao);
-		glDrawElements(GL_TRIANGLES, mesh_instance.numverts, GL_UNSIGNED_INT, nullptr);
 	}
 
 	draw_skybox();
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glViewport(0, 0, m_window_width, m_window_height);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glUseProgram(*m_hdr_shader);
 	glBindMultiTextureEXT(GL_TEXTURE0, GL_TEXTURE_2D_MULTISAMPLE, m_backbuffer_color_to);
@@ -277,17 +249,6 @@ void Renderer::draw()
 	unif::i2(*m_hdr_shader, "texture_size", m_backbuffer_width, m_backbuffer_height);
 	unif::i1(*m_hdr_shader, "sample_count", MSAASampleCount);
 	renderQuad();
-
-
-#if 0
-	// resolve multisampled framebuffer into default backbuffer
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, m_backbuffer_fbo_ms);
-	//glDrawBuffer(GL_BACK); // dunno if needed
-	glBlitFramebuffer(0, 0, m_backbuffer_width, m_backbuffer_height,
-	                  0, 0, m_backbuffer_width, m_backbuffer_height,
-	                  GL_COLOR_BUFFER_BIT, GL_NEAREST);
-#endif
 
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);
@@ -311,7 +272,6 @@ void Renderer::draw_gui()
 		|ImGuiWindowFlags_NoTitleBar
 		|ImGuiWindowFlags_NoScrollbar
 		|ImGuiWindowFlags_NoCollapse);
-
 
 	ImGui::PushItemWidth(-1.0f);
 	char avgbuf[64];

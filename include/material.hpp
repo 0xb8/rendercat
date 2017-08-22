@@ -24,21 +24,21 @@ struct Material
 	friend class Scene;
 	enum Type
 	{
-		Opaque         = 1 << 1,
-		Masked         = 1 << 2,
-		Transparent    = 1 << 3,
-		NormalMapped   = 1 << 8,
-		SpecularMapped = 1 << 9
+		Opaque          = 1 << 1,
+		Masked          = 1 << 2,
+		Blended         = 1 << 3,
+
+		NormalMapped    = 1 << 8,
+		SpecularMapped  = 1 << 9,
+		RoughnessMapped = 1 << 10,
+		MetallicMapped  = 1 << 11
 	};
 
 	static void set_texture_cache(TextureCache* c);
 
 	static void set_default_diffuse() noexcept;
 
-	Material(const std::string& name) noexcept : m_name(name), m_diffuse_map(default_diffuse)
-	{
-	}
-
+	Material(const std::string& name_) noexcept : name(name_), m_diffuse_map(default_diffuse){}
 	~Material() noexcept;
 
 	Material(const Material&) = delete;
@@ -54,7 +54,7 @@ struct Material
 		m_shininess      = o.m_shininess;
 		m_type           = o.m_type;
 
-		std::swap(m_name, o.m_name);
+		name = std::move(o.name);
 		std::swap(m_diffuse_map, o.m_diffuse_map);
 		std::swap(m_normal_map, o.m_normal_map);
 		std::swap(m_specular_map, o.m_specular_map);
@@ -75,15 +75,18 @@ struct Material
 		m_shininess = shininess;
 	}
 
-	void addDiffuseMap(std::string_view name, std::string_view basedir);
-	void addNormalMap(std::string_view name, std::string_view basedir);
-	void addSpecularMap(std::string_view name, std::string_view basedir);
+	void addDiffuseMap(const std::string_view name, const std::string_view basedir, bool alpha_masked);
+	void addNormalMap(const std::string_view name, const std::string_view basedir);
+	void addSpecularMap(const std::string_view name, const std::string_view basedir);
+
+
+	std::string name;
 
 private:
 	static TextureCache* cache;
 	static uint32_t default_diffuse;
 
-	std::string m_name;
+
 	glm::vec3 m_specular_color = {0.0f, 0.0f, 0.0f};
 	float     m_shininess      = 0.0f;
 
