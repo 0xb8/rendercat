@@ -7,7 +7,7 @@
 
 #include <scene.hpp>
 #include <renderer.hpp>
-#include <imgui.h>
+#include <imgui.hpp>
 #include <imgui_impl_glfw.h>
 
 namespace globals {
@@ -346,6 +346,7 @@ int main() try
 		std::this_thread::sleep_for(std::chrono::duration<float>(st));
 	}
 
+	ImGui_ImplGlfwGL3_Shutdown();
 	glfwTerminate();
 	return 0;
 } catch(const std::exception& e) {

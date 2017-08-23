@@ -1,6 +1,6 @@
 #include <scene.hpp>
 #include <iostream>
-#include <imgui.h>
+#include <imgui.hpp>
 #include <glm/gtx/euler_angles.hpp>
 
 Scene::Scene()

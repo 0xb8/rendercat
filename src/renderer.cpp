@@ -3,7 +3,7 @@
 #include <iostream>
 #include <cstdio>
 #include <string>
-#include <imgui.h>
+#include <imgui.hpp>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>

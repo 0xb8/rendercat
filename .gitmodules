@@ -11,7 +11,7 @@
 	path = third_party/glfw
 	url = ssh://git@bitbucket.org/catgirl/glfw.git
 	branch = mouse-delta
-[submodule "third_party/imgui"]
-	path = third_party/imgui
-	url = ssh://git@bitbucket.org/catgirl/imgui.git
-	branch = develop
+
+[submodule "third_party/imgui_integration"]
+	path = third_party/imgui_integration
+	url = ssh://git@bitbucket.org/catgirl/imgui_integration.git
