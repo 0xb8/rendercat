@@ -1,6 +1,6 @@
 #pragma once
+#include <rendercat/common.hpp>
 #include <GL/glew.h>
-#include <common.hpp>
 #include <string_view>
 
 namespace unif {

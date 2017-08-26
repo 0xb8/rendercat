@@ -1,28 +1,16 @@
 #pragma once
 
-#include <common.hpp>
-#include <glm/gtx/hash.hpp>
-#include <vector>
+#include <rendercat/common.hpp>
+#include <rendercat/AABB.hpp>
+#include <rendercat/material.hpp>
 #include <string_view>
-#include <AABB.hpp>
-#include <material.hpp>
+#include <vector>
 
 namespace model {
 
+	struct vertex;
 	struct mesh
 	{
-		struct vertex {
-			glm::vec3 position;
-			glm::vec3 normal;
-			glm::vec3 tangent;
-			glm::vec3 bitangent;
-			glm::vec2 texcoords;
-
-			bool operator==(const vertex& other) const noexcept {
-				return position == other.position && normal == other.normal && texcoords == other.texcoords;
-			}
-		};
-
 		std::string name;
 		uint32_t ebo = 0;
 		uint32_t mut_vbo = 0;
@@ -33,9 +21,7 @@ namespace model {
 		GLenum   index_type = 0;
 		AABB aabb;
 
-		mesh(const std::string & name_,
-		     std::vector<vertex>&& verts,
-		     std::vector<uint32_t>&& indices);
+		mesh(const std::string & name_, std::vector<vertex>&& verts);
 
 		~mesh();
 
@@ -65,8 +51,8 @@ namespace model {
 	struct data
 	{
 		std::vector<Material> materials;
-		std::vector<mesh> submeshes;
-		std::vector<int> submesh_material;
+		std::vector<mesh>     submeshes;
+		std::vector<int>      submesh_material;
 	};
 
 

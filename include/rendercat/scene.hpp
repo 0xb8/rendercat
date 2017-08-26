@@ -1,14 +1,16 @@
 #pragma once
 
-#include <common.hpp>
-#include <string_view>
-#include <map>
-#include <mesh.hpp>
-#include <camera.hpp>
-#include <material.hpp>
-#include <point_light.hpp>
-#include <cubemap.hpp>
+#include <rendercat/common.hpp>
+#include <rendercat/mesh.hpp>
+#include <rendercat/camera.hpp>
+#include <rendercat/material.hpp>
+#include <rendercat/texture_cache.hpp>
+#include <rendercat/point_light.hpp>
+#include <rendercat/cubemap.hpp>
+
 #include <memory>
+#include <string_view>
+#include <glm/gtx/euler_angles.hpp>
 
 struct DirectionalLight
 {
@@ -30,6 +32,14 @@ struct Model
 
 	glm::mat4 transform;
 	glm::mat4 inv_transform;
+
+	void update_transform()
+	{
+		transform = glm::translate(glm::mat4(), position);
+		transform *= glm::yawPitchRoll(rotation_euler.x, rotation_euler.y, rotation_euler.z);
+
+		inv_transform = glm::inverse(transform);
+	}
 };
 
 struct Scene
@@ -44,13 +54,13 @@ struct Scene
 	std::vector<Model>       models;
 	std::vector<PointLight>  point_lights;
 
-	bool window_shown = true;
+	bool  window_shown = true;
 	int   desired_msaa_level = 0;
 	float desired_render_scale = 1.0f;
 
 	void update();
 
-	void load_model(const std::string_view name, const std::string_view basedir);
+	Model* load_model(const std::string_view name, const std::string_view basedir);
 
 	Camera main_camera;
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <common.hpp>
+#include <rendercat/common.hpp>
 
 class PointLight
 {

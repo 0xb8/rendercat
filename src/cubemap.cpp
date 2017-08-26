@@ -1,6 +1,5 @@
-#include <cubemap.hpp>
-#include <GL/glew.h>
-#include <uniform.hpp>
+#include <rendercat/cubemap.hpp>
+#include <rendercat/uniform.hpp>
 #include <stb_image.h>
 #include <string>
 #include <iostream>

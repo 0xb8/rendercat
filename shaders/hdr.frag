@@ -6,6 +6,7 @@ out vec4 FragColor;
 
 uniform sampler2DMS hdrBuffer;
 uniform float exposure;
+
 uniform ivec2 texture_size;
 uniform int   sample_count;
 
@@ -22,9 +23,6 @@ vec4 textureMultisample(sampler2DMS sampler, ivec2 coord)
 	}
 	return color;
 }
-
-
-
 
 vec3 Uncharted2Tonemap(vec3 x)
 {
@@ -50,11 +48,9 @@ vec3 ACESFilm(vec3 x)
 void main()
 {
 	vec3 color = textureMultisample(hdrBuffer, ivec2(TexCoords * texture_size)).rgb;
-	vec3 curr = Uncharted2Tonemap(exposure * 2.0 * color);
 
-	const float W = 11.2; // TODO: precumpute this value on CPU
-	vec3 whiteScale = 1.0 / Uncharted2Tonemap(vec3(W));
-	vec3 res = curr * whiteScale;
+	vec3 tonemapped_color = Uncharted2Tonemap(color * exposure * 2.0);
+	vec3 W = Uncharted2Tonemap(vec3(11.2));
 
-	FragColor = vec4(res, 1.0);
+	FragColor = vec4(tonemapped_color / W, 1.0);
 }

@@ -1,7 +1,6 @@
-#include <scene.hpp>
+#include <rendercat/scene.hpp>
 #include <iostream>
 #include <imgui.hpp>
-#include <glm/gtx/euler_angles.hpp>
 
 Scene::Scene()
 {
@@ -18,40 +17,45 @@ Scene::Scene()
 		"back.hdr"
 		}, "assets/materials/cubemaps/evening_field/");
 
-	main_camera.pos = {0.0f, 3.0f, 0.6f};
+	main_camera.pos = {0.0f, 1.5f, 0.4f};
 	PointLight pl;
-	pl.position({8.0f, 2.0f, 2.0f})
+	pl.position({4.0f, 1.0f, 1.0f})
 	  .ambient({0.0f, 0.0f, 0.0f})
 	  .diffuse({1.0, 0.2, 0.1})
 	  .specular({0.3, 0.05, 0.0})
-	  .radius(14.0)
-	  .flux(250.0);
+	  .radius(7.5)
+	  .flux(150.0);
 
 	point_lights.push_back(pl);
 
-	pl.position({8.0f, 2.0f, -3.0f});
+	pl.position({4.0f, 1.0f, -1.5f});
 	point_lights.push_back(pl);
 
-	pl.position({-10.0f, 2.0f, -3.0f});;
+	pl.position({-5.0f, 1.0f, -1.5f});;
 	point_lights.push_back(pl);
 
-	pl.position({-10.0f, 2.0f, 2.0f});
+	pl.position({-5.0f, 1.0f, 1.0f});
 	point_lights.push_back(pl);
 
-	pl.position({1.5f, 2.0f, 1.5f});
+	pl.position({1.0f, 1.0f, 1.0f});
 	point_lights.push_back(pl);
 
-	pl.position({1.5f, 2.5f, -1.5f})
+	pl.position({1.0f, 1.5f, -1.0f})
 	  .diffuse({0.1, 0.2, 1.0})
 	  .specular({0.0, 0.05, 0.3});
 	point_lights.push_back(pl);
 
-	load_model("sponza.obj", "sponza_crytek/");
+	load_model("sponza_scaled.obj", "sponza_crytek/");
 	load_model("2b_rescaled.obj",     "yorha_2b/");
-	//load_model("spot_triangulated.obj", "spot/");
+	if(auto spot = load_model("spot_triangulated.obj", "spot/"); spot != nullptr)
+	{
+		spot->position = {2.0f, 0.0f, 0.0f};
+		spot->rotation_euler = glm::radians(glm::vec3{90.0f, 0.0f, 0.0f});
+		spot->update_transform();
+	}
 }
 
-void Scene::load_model(const std::string_view name, const std::string_view basedir)
+Model* Scene::load_model(const std::string_view name, const std::string_view basedir)
 {
 	model::data data;
 	if(model::load_obj_file(&data, name, basedir)) {
@@ -78,7 +82,9 @@ void Scene::load_model(const std::string_view name, const std::string_view based
 			model.submeshes[i] = submeshes.size() - 1;
 		}
 		models.emplace_back(std::move(model));
+		return &models.back();
 	}
+	return nullptr;
 }
 
 static void show_help_tooltip(const char* desc)
@@ -144,7 +150,7 @@ void Scene::update()
 					if (ImGui::Button("Remove?"))
 						ImGui::OpenPopup("RemovePopup");
 
-					ImGui::DragFloat3("Position", glm::value_ptr(pos), 0.1f);
+					ImGui::DragFloat3("Position", glm::value_ptr(pos), 0.01f);
 					ImGui::ColorEdit3("Ambient",  glm::value_ptr(amb),
 					                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
 					ImGui::ColorEdit3("Diffuse",  glm::value_ptr(diff),
@@ -240,21 +246,12 @@ void Scene::update()
 			Model& model = models[i];
 			ImGui::PushID(i);
 			if(ImGui::TreeNode("Model", "%s", model.name.data())) {
-				ImGui::DragFloat3("Position XYZ", glm::value_ptr(model.position), 0.05f);
+				ImGui::DragFloat3("Position XYZ", glm::value_ptr(model.position), 0.01f);
 				glm::vec3 rot = glm::degrees(model.rotation_euler);
 				ImGui::SliderFloat3("Yaw Pitch Roll", glm::value_ptr(rot), -180.0f, 180.0f, "%.1f\u00B0");
 				rot = glm::radians(rot);
 				model.rotation_euler = rot;
-				auto rot_matr = glm::yawPitchRoll(model.rotation_euler.x, model.rotation_euler.y, model.rotation_euler.z);
-
-				model.transform = glm::mat4();
-				model.inv_transform = glm::mat4();
-
-				model.transform = glm::translate(model.transform, model.position);
-				model.transform *= rot_matr;
-
-				model.inv_transform = glm::inverse(model.transform);
-				//model.inv_transform = glm::translate(model.inv_transform, -model.position);
+				model.update_transform();
 
 				if(ImGui::TreeNode("Submeshes", "Submeshes: %u", model.submesh_count)) {
 					for(unsigned j = 0; j < model.submesh_count; ++j) {

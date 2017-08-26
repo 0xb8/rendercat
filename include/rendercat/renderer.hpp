@@ -1,6 +1,6 @@
 #pragma once
 
-#include <shader_set.hpp>
+#include <rendercat/shader_set.hpp>
 
 class Scene;
 

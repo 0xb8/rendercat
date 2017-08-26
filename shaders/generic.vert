@@ -2,7 +2,7 @@
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec3 aNormal;
 layout (location = 2) in vec3 aTangent;
-layout (location = 3) in vec2 aTexCoords;
+layout (location = 3) in vec3 aTexCoords; // xy - UVs, z - bitangent sign
 
 out INTERFACE {
 	vec3 FragPos;
@@ -18,10 +18,10 @@ void main()
 {
 	vs_out.FragPos = vec3(model * vec4(aPos, 1.0));
 	gl_Position = proj_view * vec4(vs_out.FragPos, 1.0);
-	vs_out.TexCoords = aTexCoords;
+	vs_out.TexCoords = aTexCoords.xy;
 
 	vec3 N = normal_matrix * aNormal;
 	vec3 T = normal_matrix * aTangent;
-	vec3 B = cross(N,T);
+	vec3 B = normal_matrix * (aTexCoords.z * cross(aNormal,aTangent));
 	vs_out.TBN = mat3(T, B, N);
 }

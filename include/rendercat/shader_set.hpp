@@ -1,7 +1,6 @@
 #pragma once
 
-#include <GL/glew.h>
-#include <uniform.hpp>
+#include <rendercat/common.hpp>
 #include <string>
 
 class ShaderSet
@@ -19,7 +18,6 @@ public:
 
 private:
 	class Program;
-	std::string	m_version;
 	std::string	m_directory;
 	Program*	m_programs[max_programs];
 	int		m_program_count = 0;

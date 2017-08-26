@@ -1,5 +1,6 @@
-#include <shader_set.hpp>
+#include <rendercat/shader_set.hpp>
 #include <boost/filesystem.hpp>
+#include <GL/glew.h>
 #include <iostream>
 #include <sstream>
 #include <vector>

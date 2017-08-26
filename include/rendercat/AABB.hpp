@@ -1,6 +1,6 @@
 #pragma once
 
-#include <glm/glm.hpp>
+#include <rendercat/common.hpp>
 #include <glm/gtx/component_wise.hpp>
 
 /// Standalone axis aligned bounding box implemented built on top of GLM.

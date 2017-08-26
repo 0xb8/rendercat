@@ -1,12 +1,11 @@
-#include <renderer.hpp>
-#include <scene.hpp>
+#include <rendercat/common.hpp>
+#include <rendercat/renderer.hpp>
+#include <rendercat/scene.hpp>
+#include <rendercat/uniform.hpp>
 #include <iostream>
 #include <cstdio>
 #include <string>
 #include <imgui.hpp>
-
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 
 Renderer::Renderer(Scene * s) : m_scene(s)
 {

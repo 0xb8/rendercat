@@ -3,10 +3,11 @@
 #include <thread>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
-#include <shader_set.hpp>
 
-#include <scene.hpp>
-#include <renderer.hpp>
+#include <rendercat/shader_set.hpp>
+#include <rendercat/scene.hpp>
+#include <rendercat/renderer.hpp>
+
 #include <imgui.hpp>
 #include <imgui_impl_glfw.h>
 

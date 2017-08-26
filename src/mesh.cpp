@@ -1,21 +1,29 @@
 #include <GL/glew.h>
-#include <mesh.hpp>
+#include <glm/gtx/hash.hpp>
+#include <rendercat/mesh.hpp>
+#include <rendercat/material.hpp>
 #include <tiny_obj_loader.h>
-#include <material.hpp>
+#include <mikktspace.h>
 #include <iostream>
+#include <numeric>
 
-namespace std {
-	template<>
-	struct hash<model::mesh::vertex>
-	{
-		size_t operator()(const model::mesh::vertex& vertex) const noexcept
-		{
-			return hash<glm::vec3>()(vertex.position)
-				^ hash<glm::vec3>()(vertex.normal)
-				^ hash<glm::vec2>()(vertex.texcoords);
+
+namespace model {
+	struct vertex {
+		glm::vec3 position;
+		glm::vec3 normal;
+		glm::vec2 texcoords;
+
+		bool operator==(const vertex& other) const noexcept {
+			return position == other.position
+					&& normal == other.normal
+					&& texcoords == other.texcoords;
 		}
 	};
 }
+
+struct tangent_sign;
+static std::vector<tangent_sign> calculateMikktSpace(const std::vector<model::vertex>& verts);
 
 static Material load_obj_material(const tinyobj::material_t& mat, const std::string_view material_path)
 {
@@ -135,14 +143,11 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 			}
 		}
 
-
-		std::unordered_map<model::mesh::vertex, uint32_t> uniqueVertices;
-		std::vector<model::mesh::vertex> vertices;
-		std::vector<uint32_t> indices;
+		std::vector<vertex> vertices;
 		vertices.reserve(shape.mesh.indices.size());
-		indices.reserve(shape.mesh.indices.size());
+
 		for(const tinyobj::index_t& index : shape.mesh.indices) {
-			model::mesh::vertex vert;
+			vertex vert;
 			vert.position = {
 				attrib.vertices[3 * index.vertex_index + 0],
 				attrib.vertices[3 * index.vertex_index + 1],
@@ -160,22 +165,22 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 				attrib.texcoords[2 * index.texcoord_index + 1]
 			};
 
-			if (uniqueVertices.count(vert) == 0) {
-				uniqueVertices.emplace(std::make_pair(vert, static_cast<uint32_t>(vertices.size())));
-				vertices.push_back(vert);
-			}
 
-			indices.push_back(uniqueVertices[vert]);
+			vertices.push_back(vert);
+
 		}
 
-		vertex_cout += indices.size();
-		unique_vertex_count += vertices.size();
+		model::mesh mesh(shape.name, std::move(vertices));
 
-		scene_meshes.emplace_back(model::mesh(shape.name, std::move(vertices), std::move(indices)));
-		if(unlikely(scene_meshes.back().numverts == 0 || scene_meshes.back().vao == 0)) {
-			std::cerr << "Error loading submesh [" << shape.name << "]\n";
+		vertex_cout += mesh.numverts;
+		unique_vertex_count += mesh.numverts_unique;
+
+		if(unlikely(mesh.numverts == 0 || mesh.vao == 0)) {
+			std::cerr << "\nError loading submesh [" << shape.name << "]\n";
 			return false;
 		}
+
+		scene_meshes.emplace_back(std::move(mesh));
 
 		scene_mesh_material.push_back(shape_material_id);
 		if(unlikely(shape_material_id < 0)) {
@@ -196,76 +201,189 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 	return true;
 }
 
-model::mesh::mesh(const std::string& name_,
-                  std::vector<vertex>&& verts,
-                  std::vector<uint32_t>&& indices) : name(name_)
+
+struct tangent_sign
 {
-	if(unlikely(indices.size() % 3 != 0)) {
-		std::cerr << "Invalid index count: " << indices.size() << ", should be divisible by 3\n";
-		return;
+	glm::vec3 tangent;
+	float sign;
+
+	bool operator==(const tangent_sign& other) const noexcept
+	{
+		return tangent == other.tangent && sign == other.sign;
+	}
+};
+
+
+struct interface_data
+{
+	const model::vertex* vertices;
+	tangent_sign* tangents;
+	uint32_t numfaces;
+};
+static auto get_data(const SMikkTSpaceContext* ctx)
+{
+	return reinterpret_cast<interface_data*>(ctx->m_pUserData);
+}
+
+static std::vector<tangent_sign> calculateMikktSpace(const std::vector<model::vertex>& verts)
+{
+	assert(verts.size() % 3 == 0);
+
+	std::vector<tangent_sign> tangents;
+	tangents.resize(verts.size());
+
+	interface_data idata;
+	idata.numfaces = verts.size() / 3;
+	idata.vertices = verts.data();
+	idata.tangents = tangents.data();
+
+	SMikkTSpaceInterface interface;
+	memset(&interface, 0, sizeof(SMikkTSpaceInterface));
+
+
+
+	interface.m_getNumFaces = [](const SMikkTSpaceContext* ctx) -> int
+	{
+		return get_data(ctx)->numfaces;
+	};
+
+	interface.m_getNumVerticesOfFace = [](const SMikkTSpaceContext*, const int) -> int
+	{
+		return 3;
+	};
+
+	interface.m_getPosition = [](const SMikkTSpaceContext* ctx,
+		float* out,
+		const int face,
+		const int vert) -> void
+	{
+		auto verts = get_data(ctx)->vertices;
+		auto pos = verts[face*3+vert].position;
+
+		out[0] = pos.x;
+		out[1] = pos.y;
+		out[2] = pos.z;
+	};
+
+	interface.m_getNormal = [](const SMikkTSpaceContext* ctx,
+		float* out,
+		const int face,
+		const int vert) -> void
+	{
+		auto verts = get_data(ctx)->vertices;
+		auto norm = verts[face*3+vert].normal;
+
+		out[0] = norm.x;
+		out[1] = norm.y;
+		out[2] = norm.z;
+	};
+
+	interface.m_getTexCoord = [](const SMikkTSpaceContext* ctx,
+		float* out,
+		const int face,
+		const int vert) -> void
+	{
+		auto verts = get_data(ctx)->vertices;
+		auto uv = verts[face*3+vert].texcoords;
+
+		out[0] = uv.x;
+		out[1] = uv.y;
+	};
+
+	interface.m_setTSpaceBasic = [](const SMikkTSpaceContext* ctx,
+		const float fvTangent[],
+		const float fSign,
+		const int face,
+		const int vert) -> void
+	{
+		auto tangents = get_data(ctx)->tangents;
+		tangents[face*3+vert].tangent = glm::vec3(fvTangent[0],fvTangent[1],fvTangent[2]);
+		tangents[face*3+vert].sign = fSign;
+	};
+
+
+	SMikkTSpaceContext context;
+	context.m_pInterface = &interface;
+	context.m_pUserData = &idata;
+
+	if(!genTangSpaceDefault(&context)) {
+		throw std::runtime_error("Error calculating tangent space!");
 	}
 
-	// calculate tangents and bitangents
-	for(uint32_t i = 0; i < indices.size(); i += 3) {
-		auto& vert0 = verts[indices[i]];
-		auto& vert1 = verts[indices[i+1]];
-		auto& vert2 = verts[indices[i+2]];
+	return tangents;
+}
 
-		const auto v0 = vert0.position;
-		const auto v1 = vert1.position;
-		const auto v2 = vert2.position;
-		aabb.include(v0);
-		aabb.include(v1);
-		aabb.include(v2);
+struct vertex_tangent
+{
+	model::vertex v;
+	tangent_sign t;
 
-		const auto uv0  = vert0.texcoords;
-		const auto uv1  = vert1.texcoords;
-		const auto uv2  = vert2.texcoords;
-
-		const auto edge1 = v1 - v0;
-		const auto edge2 = v2 - v0;
-		const auto d_uv1 = uv1 - uv0;
-		const auto d_uv2 = uv2 - uv0;
-
-		// NOTE: if not clamped, some small triangles become black (not sure if upper bound is needed though)
-		const auto area = (d_uv1.x * d_uv2.y - d_uv1.y * d_uv2.x);
-		const auto sign = glm::sign(area);
-		const auto f = sign * (1.0f / glm::max(glm::abs(area), 0.001f));
-
-		glm::vec3 tangent   = f * (edge1 * d_uv2.y - edge2 * d_uv1.y);
-		glm::vec3 bitangent = f * (edge2 * d_uv1.x - edge1 * d_uv2.x);
-
-		vert0.tangent += tangent;
-		vert1.tangent += tangent;
-		vert2.tangent += tangent;
-
-		vert0.bitangent += bitangent;
-		vert0.bitangent += bitangent;
-		vert0.bitangent += bitangent;
+	bool operator==(const vertex_tangent& other) const noexcept
+	{
+		return v == other.v && t == other.t;
 	}
+};
+
+namespace std {
+	template<>
+	struct hash<vertex_tangent>
+	{
+		size_t operator()(const vertex_tangent& vt) const noexcept
+		{
+			return hash<glm::vec3>()(vt.v.position)
+				^ hash<glm::vec3>()(vt.v.normal)
+				^ hash<glm::vec2>()(vt.v.texcoords)
+				^ hash<glm::vec3>()(vt.t.tangent)
+				^ hash<float>()(vt.t.sign);
+		}
+	};
+}
+
+model::mesh::mesh(const std::string& name_, std::vector<vertex> && verts) : name(name_)
+{
+	auto tangents = calculateMikktSpace(verts);
+	assert(verts.size() == tangents.size());
+
+	// we index the
+	std::unordered_map<vertex_tangent, uint32_t> uniqueVerts;
+	std::vector<uint32_t> indices;
+	std::vector<uint16_t> small_indices;
+
+	bool use_small_indices;
+	if(verts.size() < std::numeric_limits<uint16_t>::max()) {
+		small_indices.reserve(verts.size());
+		use_small_indices = true;
+	} else {
+		indices.reserve(verts.size());
+		use_small_indices = false;
+	}
+
+	auto add_index = [use_small_indices,&indices,&small_indices](uint32_t idx)
+	{
+		if(likely(use_small_indices)) {
+			assert(idx < std::numeric_limits<uint16_t>::max());
+			small_indices.push_back(idx);
+		} else {
+			indices.push_back(idx);
+		}
+	};
+
+	std::vector<vertex_tangent> vtans;
+	vtans.reserve(verts.size() / 3);
 
 	for(uint32_t i = 0; i < verts.size(); ++i) {
-		auto& vert = verts[i];
-		const auto n = glm::normalize(vert.normal);
-		auto t = vert.tangent;
-		auto b = vert.bitangent;
+		aabb.include(verts[i].position);
 
-		if(unlikely(glm::length(t) < 1e-6f)) {
-			// attempt to fix bad tangent
-			t = glm::vec3(0.0f, 0.0f, 1.0f);
-			if(glm::length(b) > 1e-6f)
-				t = glm::normalize(t - b * glm::dot(b, t));
-		}
+		vertex_tangent vt{verts[i], tangents[i]};
 
-		// re-orthogonalize T with N
-		t = glm::normalize(t - n * glm::dot(n, t));
-		// fix sign
-		if(glm::dot(cross(n, t), b) < 0.0f) {
-			t = -t;
+		if(uniqueVerts.count(vt) == 0) {
+			uniqueVerts.emplace(std::make_pair(vt, vtans.size()));
+			vtans.push_back(vt);
 		}
-		vert.tangent = t;
-		vert.normal = n;
+		add_index(uniqueVerts[vt]);
 	}
+
+	assert(indices.size() == verts.size() || small_indices.size() == verts.size());
 
 	struct mutable_attrib
 	{
@@ -276,31 +394,18 @@ model::mesh::mesh(const std::string& name_,
 	{
 		glm::vec3 normal;
 		glm::vec3 tangent;
-		glm::vec2 texcoords;
+		glm::vec3 texcoords; // texcoords.z == bitangent sign
 	};
-
 
 	std::vector<mutable_attrib> mutable_attrs;
 	std::vector<immutable_attrib> immutable_attrs;
-	std::vector<uint16_t> small_indices;
-	bool use_small_indices = verts.size() < std::numeric_limits<uint16_t>::max();
-	if(use_small_indices) {
-		small_indices.reserve(indices.size());
-		for(auto idx : indices) {
-			if(unlikely(idx > std::numeric_limits<uint16_t>::max() || idx >= verts.size())) {
-				std::cerr << "Invalid vertex index: " << idx << ", should be less than " << verts.size() << '\n';
-				return;
-			}
-			small_indices.push_back(idx);
-		}
-	}
 
-	mutable_attrs.reserve(verts.size());
-	immutable_attrs.reserve(verts.size());
+	mutable_attrs.reserve(vtans.size());
+	immutable_attrs.reserve(vtans.size());
 
-	for(const auto& v : verts) {
-		mutable_attrs.push_back(mutable_attrib{v.position});
-		immutable_attrs.push_back(immutable_attrib{v.normal, v.tangent, v.texcoords});
+	for(auto& vt : vtans) {
+		mutable_attrs.push_back(mutable_attrib{vt.v.position});
+		immutable_attrs.push_back(immutable_attrib{vt.v.normal, vt.t.tangent, glm::vec3{vt.v.texcoords, vt.t.sign}});
 	}
 
 	glGenVertexArrays(1, &vao);
@@ -317,7 +422,7 @@ model::mesh::mesh(const std::string& name_,
 		glNamedBufferStorageEXT(ebo, small_indices.size() * sizeof(uint16_t), small_indices.data(), 0);
 		index_type = GL_UNSIGNED_SHORT;
 	} else {
-		std::cerr << "Using 32-bit indices...\n";
+		std::cerr << "   - using 32-bit indices...\n";
 		glNamedBufferStorageEXT(ebo, indices.size() * sizeof(uint32_t), indices.data(), 0);
 		index_type = GL_UNSIGNED_INT;
 	}
@@ -342,13 +447,18 @@ model::mesh::mesh(const std::string& name_,
 	glVertexArrayVertexAttribOffsetEXT(vao, imut_vbo, 2, 3,  GL_FLOAT, false, sizeof(immutable_attrib), offsetof(immutable_attrib, tangent));
 
 	glEnableVertexArrayAttribEXT(vao, 3); // NOTE: size of 2 below is very important!
-	glVertexArrayVertexAttribOffsetEXT(vao, imut_vbo, 3, /*-->*/ 2,  GL_FLOAT, false, sizeof(immutable_attrib), offsetof(immutable_attrib, texcoords));
+	glVertexArrayVertexAttribOffsetEXT(vao, imut_vbo, 3, /*-->*/ 3,  GL_FLOAT, false, sizeof(immutable_attrib), offsetof(immutable_attrib, texcoords));
 
 	if(glGetError() != GL_NO_ERROR)
 		return;
 
-	numverts = indices.size();
-	numverts_unique = verts.size();
+	if(likely(use_small_indices)) {
+		numverts = small_indices.size();
+	} else {
+		numverts = indices.size();
+	}
+
+	numverts_unique = vtans.size();
 }
 
 model::mesh::~mesh()

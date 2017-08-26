@@ -1,5 +1,6 @@
-#include <material.hpp>
-#include <uniform.hpp>
+#include <rendercat/material.hpp>
+#include <rendercat/texture_cache.hpp>
+#include <rendercat/uniform.hpp>
 #include <stb_image.h>
 #include <iostream>
 

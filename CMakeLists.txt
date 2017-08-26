@@ -3,7 +3,7 @@ project(rendercat VERSION 0.1)
 
 find_package(Boost COMPONENTS filesystem REQUIRED)
 find_package(glew 2 REQUIRED)
-find_package(glm 0.9 REQUIRED)
+find_package(glm REQUIRED)
 find_package(OpenGL REQUIRED)
 
 add_subdirectory(third_party)
@@ -28,8 +28,6 @@ set_target_properties(rendercat
 target_include_directories(rendercat
 	PUBLIC
 		"${PROJECT_SOURCE_DIR}/include"
-	PRIVATE
-		"${PROJECT_SOURCE_DIR}/include/rendercat"
 )
 
 target_link_libraries(rendercat
@@ -40,6 +38,7 @@ target_link_libraries(rendercat
 		glfw
 		glm
 		imgui
+		mikktspace
 		${GLEW_LIBRARIES}
 		${OPENGL_gl_LIBRARY}
 )
