@@ -6,7 +6,7 @@ class TextureCache;
 struct Material
 {
 	friend class Scene;
-	enum Type
+	enum Flags
 	{
 		Opaque          = 1 << 1,
 		Masked          = 1 << 2,
@@ -15,7 +15,9 @@ struct Material
 		NormalMapped    = 1 << 8,
 		SpecularMapped  = 1 << 9,
 		RoughnessMapped = 1 << 10,
-		MetallicMapped  = 1 << 11
+		MetallicMapped  = 1 << 11,
+
+		FaceCullingDisabled = 1 << 24
 	};
 
 	static void set_texture_cache(TextureCache* c);
@@ -36,7 +38,7 @@ struct Material
 	{
 		m_specular_color = o.m_specular_color;
 		m_shininess      = o.m_shininess;
-		m_type           = o.m_type;
+		flags            = o.flags;
 
 		name = std::move(o.name);
 		std::swap(m_diffuse_map, o.m_diffuse_map);
@@ -44,11 +46,6 @@ struct Material
 		std::swap(m_specular_map, o.m_specular_map);
 
 		return *this;
-	}
-
-	Type type() const noexcept
-	{
-		return (Type)m_type;
 	}
 
 	void bind(GLuint s) const noexcept;
@@ -65,6 +62,7 @@ struct Material
 
 
 	std::string name;
+	Flags       flags = Flags::Opaque;
 
 private:
 	static TextureCache* cache;
@@ -74,8 +72,27 @@ private:
 	glm::vec3 m_specular_color = {0.0f, 0.0f, 0.0f};
 	float     m_shininess      = 0.0f;
 
-	int  m_type         = Type::Opaque;
 	uint32_t  m_diffuse_map  = 0;
 	uint32_t  m_normal_map   = 0;
 	uint32_t  m_specular_map = 0;
 };
+
+
+inline constexpr Material::Flags operator|(Material::Flags a, Material::Flags b) noexcept
+{
+	return static_cast<Material::Flags>(+a | +b);
+}
+inline constexpr void operator|=(Material::Flags& a, Material::Flags b) noexcept
+{
+	a = static_cast<Material::Flags>(+a | +b);
+}
+
+inline constexpr Material::Flags operator&(Material::Flags a, Material::Flags b) noexcept
+{
+	return static_cast<Material::Flags>(+a & +b);
+}
+
+inline constexpr void clear(Material::Flags& a, Material::Flags b) noexcept
+{
+	a = static_cast<Material::Flags>(+a & ~(+b));
+}

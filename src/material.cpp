@@ -80,7 +80,7 @@ void Material::bind(GLuint s) const noexcept
 {
 	unif::v3(s,  "material.specular",  m_specular_color);
 	unif::f1(s,  "material.shininess", m_shininess);
-	unif::i1(s,  "material.type",      m_type);
+	unif::i1(s,  "material.type",      flags);
 
 	if(m_diffuse_map) {
 		glBindMultiTextureEXT(GL_TEXTURE0, GL_TEXTURE_2D,  m_diffuse_map);
@@ -118,20 +118,19 @@ void Material::addDiffuseMap(const std::string_view name, const std::string_view
 
 	auto set_type = [this, alpha_masked](int nrChannels)
 	{
-		m_type &= (~(Type::Opaque | Type::Masked | Type::Blended));
+		clear(flags, Opaque | Masked | Blended);
 		if(nrChannels == 3) {
 			if(alpha_masked)
 				std::cerr << "specified alpha masked, but texture does not have alpha channel!";
-			m_type |= Type::Opaque;
+			flags |= Opaque;
 		}
 		if(nrChannels == 4) {
 			if(alpha_masked)
-				m_type |= Type::Masked;
+				flags |= Masked;
 			else
-				m_type |= Type::Blended;
+				flags |= Blended;
 		}
 	};
-
 
 	if(auto res = cache->get(diffuse_path); res.to) {
 		m_diffuse_map = res.to;
@@ -163,7 +162,7 @@ void Material::addNormalMap(const std::string_view name, const std::string_view 
 
 	if(auto res = cache->get(normal_path); res.to) {
 		m_normal_map = res.to;
-		m_type |= NormalMapped;
+		flags |= NormalMapped;
 		return;
 	}
 
@@ -171,7 +170,7 @@ void Material::addNormalMap(const std::string_view name, const std::string_view 
 	auto res = load_texture(normal_path, true, 3, &num_channels);
 	if(res) {
 		m_normal_map = res;
-		m_type |= NormalMapped;
+		flags |= NormalMapped;
 		cache->add(std::move(normal_path), res, num_channels);
 	} else {
 		std::cerr << " failed!";
@@ -190,7 +189,7 @@ void Material::addSpecularMap(const std::string_view name, const std::string_vie
 
 	if(auto res = cache->get(specular_path); res.to) {
 		m_specular_map = res.to;
-		m_type |= SpecularMapped;
+		flags |= SpecularMapped;
 		return;
 	}
 
@@ -198,7 +197,7 @@ void Material::addSpecularMap(const std::string_view name, const std::string_vie
 	auto res = load_texture(specular_path, true, 0, &num_channels);
 	if(res) {
 		m_specular_map = res;
-		m_type |= SpecularMapped;
+		flags |= SpecularMapped;
 		cache->add(std::move(specular_path), res, num_channels);
 	} else {
 		std::cerr << " failed!";

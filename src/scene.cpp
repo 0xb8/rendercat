@@ -46,7 +46,7 @@ Scene::Scene()
 	point_lights.push_back(pl);
 
 	load_model("sponza_scaled.obj", "sponza_crytek/");
-	load_model("2b_rescaled.obj",     "yorha_2b/");
+	load_model("yorha_2b.obj",      "yorha_2b/");
 	if(auto spot = load_model("spot_triangulated.obj", "spot/"); spot != nullptr)
 	{
 		spot->position = {2.0f, 0.0f, 0.0f};
@@ -188,7 +188,7 @@ void Scene::update()
 			ImGui::PushID(i);
 			if(ImGui::TreeNode("Material", "%s", materials[i].name.data())) {
 
-				auto type = materials[i].type();
+				auto type = materials[i].flags;
 				if(type & Material::Opaque) {
 					ImGui::TextUnformatted("Opaque "); ImGui::SameLine();
 				}
@@ -205,6 +205,8 @@ void Scene::update()
 					ImGui::TextUnformatted("Specular mapped "); ImGui::SameLine();
 				}
 				ImGui::NewLine();
+				if(type & Material::FaceCullingDisabled)
+					ImGui::TextUnformatted("Face Culling Disabled ");
 
 
 				ImGui::ColorEdit3("Specular Color", glm::value_ptr(materials[i].m_specular_color),
@@ -212,9 +214,9 @@ void Scene::update()
 				ImGui::DragFloat("Shininess", &(materials[i].m_shininess), 0.1f, 0.01f, 128.0f);
 
 				int texture_count = 1;
-				if(materials[i].type() & Material::SpecularMapped)
+				if(type & Material::SpecularMapped)
 					++texture_count;
-				if(materials[i].type() & Material::NormalMapped)
+				if(type & Material::NormalMapped)
 					++texture_count;
 
 

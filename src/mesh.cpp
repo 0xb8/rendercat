@@ -61,6 +61,15 @@ static Material load_obj_material(const tinyobj::material_t& mat, const std::str
 		// TODO
 	}
 
+	static const std::string cull("cullface");
+	if(mat.unknown_parameter.find(cull) != mat.unknown_parameter.end()) {
+		const auto val = mat.unknown_parameter.at(cull);
+		if(val == "0") {
+			material.flags |= Material::FaceCullingDisabled;
+		}
+		std::cerr << "   - no face culling\n";
+	}
+
 	return std::move(material);
 }
 

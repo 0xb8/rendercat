@@ -211,6 +211,13 @@ void Renderer::draw()
 		for(unsigned submesh_idx = 0; submesh_idx < model.submesh_count; ++submesh_idx) {
 			const model::mesh& submesh = m_scene->submeshes[model.submeshes[submesh_idx]];
 			const Material& material = m_scene->materials[model.materials[submesh_idx]];
+
+			if(material.flags & Material::FaceCullingDisabled) {
+				glDisable(GL_CULL_FACE);
+			} else {
+				glEnable(GL_CULL_FACE);
+			}
+
 			auto submesh_aabb = submesh.aabb;
 			submesh_aabb.translate(model.transform[3]);
 
@@ -236,6 +243,8 @@ void Renderer::draw()
 			glDrawElements(GL_TRIANGLES, submesh.numverts, submesh.index_type, nullptr);
 		}
 	}
+
+	glEnable(GL_CULL_FACE);
 
 	draw_skybox();
 
