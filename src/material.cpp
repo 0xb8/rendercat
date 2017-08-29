@@ -3,6 +3,7 @@
 #include <rendercat/uniform.hpp>
 #include <stb_image.h>
 #include <iostream>
+#include <cmath>
 
 uint32_t Material::default_diffuse = 0;
 TextureCache* Material::cache = nullptr;
@@ -10,6 +11,7 @@ TextureCache* Material::cache = nullptr;
 GLuint load_texture(const std::string& path, bool linear, int desired_channels = 0, int* num_channels = nullptr)
 {
 	static const float max_aniso = 16.0f;
+	static const int   max_levels = 14;
 
 	static float maxAnisotropy = 0.0f;
 	if(maxAnisotropy == 0.0f)
@@ -19,26 +21,34 @@ GLuint load_texture(const std::string& path, bool linear, int desired_channels =
 	int width, height, nrChannels;
 	auto data = stbi_load(path.data(), &width, &height, &nrChannels, desired_channels);
 	if (data) {
-		glGenTextures(1, &tex);
-		glTextureParameteriEXT(tex, GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-		glTextureParameteriEXT(tex, GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-		glTextureParameteriEXT(tex, GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-		glTextureParameteriEXT(tex, GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTextureParameterfEXT(tex, GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, std::min(maxAnisotropy, max_aniso));
+		int nr_levels = std::min((int)std::round(std::log2(std::min(width, height))), max_levels);
+
+		glCreateTextures(GL_TEXTURE_2D, 1, &tex);
+		glTextureParameteri(tex, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTextureParameteri(tex, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		glTextureParameteri(tex, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+		glTextureParameteri(tex, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTextureParameterf(tex, GL_TEXTURE_MAX_ANISOTROPY_EXT, std::min(maxAnisotropy, max_aniso));
 
 		if(desired_channels == 0) desired_channels = 1000;
+
+		auto format = (linear ? GL_RGB : GL_SRGB8);
 
 		switch (std::min(nrChannels, desired_channels)) {
 		case 1:
 			static const GLint swizzleMask[] = {GL_RED, GL_RED, GL_RED, GL_ONE};
-			glTextureParameterivEXT(tex, GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
-			glTextureImage2DEXT(tex, GL_TEXTURE_2D, 0, (linear ? GL_RGB : GL_SRGB8), width, height, 0, GL_RED, GL_UNSIGNED_BYTE, data);
+			glTextureParameteriv(tex, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
+			glTextureStorage2D(tex, nr_levels, format, width, height);
+			glTextureSubImage2D(tex, 0, 0, 0, width, height, GL_RED, GL_UNSIGNED_BYTE, data);
 			break;
 		case 3:
-			glTextureImage2DEXT(tex, GL_TEXTURE_2D, 0, (linear ? GL_RGB : GL_SRGB8), width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+			glTextureStorage2D(tex, nr_levels, format, width, height);
+			glTextureSubImage2D(tex, 0, 0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, data);
 			break;
 		case 4:
-			glTextureImage2DEXT(tex, GL_TEXTURE_2D, 0, (linear ? GL_RGBA : GL_SRGB8_ALPHA8), width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+
+			glTextureStorage2D(tex, nr_levels, (linear ? GL_RGBA : GL_SRGB8_ALPHA8), width, height);
+			glTextureSubImage2D(tex, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data);
 			break;
 		default:
 			std::cerr << "[material] invalid channel count: " << nrChannels << " in " << path << '\n';
@@ -46,7 +56,7 @@ GLuint load_texture(const std::string& path, bool linear, int desired_channels =
 			break;
 		}
 
-		glGenerateTextureMipmapEXT(tex, GL_TEXTURE_2D);
+		glGenerateTextureMipmap(tex);
 		stbi_image_free(data);
 
 		if(num_channels)
@@ -83,22 +93,22 @@ void Material::bind(GLuint s) const noexcept
 	unif::i1(s,  "material.type",      flags);
 
 	if(m_diffuse_map) {
-		glBindMultiTextureEXT(GL_TEXTURE0, GL_TEXTURE_2D,  m_diffuse_map);
-		unif::i1(s, "material.diffuse", 0);
+		glBindTextureUnit(0, m_diffuse_map);
+		//unif::i1(s, "material.diffuse", 0);
 	} else {
-		glBindMultiTextureEXT(GL_TEXTURE0, GL_TEXTURE_2D,  0);
+		glBindTextureUnit(0,  0);
 	}
 	if(m_normal_map) {
-		glBindMultiTextureEXT(GL_TEXTURE1, GL_TEXTURE_2D, m_normal_map);
-		unif::i1(s, "material.normal", 1);
+		glBindTextureUnit(1,  m_normal_map);
+		//unif::i1(s, "material.normal", 1);
 	} else {
-		glBindMultiTextureEXT(GL_TEXTURE1, GL_TEXTURE_2D, 0);
+		glBindTextureUnit(1, 0);
 	}
 	if(m_specular_map) {
-		glBindMultiTextureEXT(GL_TEXTURE2, GL_TEXTURE_2D, m_specular_map);
-		unif::i1(s, "material.specular_map", 2);
+		glBindTextureUnit(2, m_specular_map);
+		//unif::i1(s, "material.specular_map", 2);
 	} else {
-		glBindMultiTextureEXT(GL_TEXTURE2, GL_TEXTURE_2D, 0);
+		glBindTextureUnit(2, 0);
 	}
 }
 

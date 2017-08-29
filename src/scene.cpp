@@ -5,8 +5,8 @@
 Scene::Scene()
 {
 	Material::set_default_diffuse();
-	Material::set_texture_cache(&m_texture_cache);
 	materials.emplace_back(Material{"missing"});
+	Material::set_texture_cache(&m_texture_cache);
 
 	cubemap.load_textures({
 		"right.hdr",

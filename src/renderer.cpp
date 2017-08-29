@@ -17,33 +17,14 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 
 	glEnable(GL_FRAMEBUFFER_SRGB);
 
-	GLuint depthMapFBO;
-	glGenFramebuffers(1, &depthMapFBO);
-
-	GLuint depthMap;
-	glGenTextures(1, &depthMap);
-
-	glTextureParameteriEXT(depthMap, GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTextureParameteriEXT(depthMap, GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTextureParameteriEXT(depthMap, GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTextureParameteriEXT(depthMap, GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTextureImage2DEXT(depthMap,    GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, ShadowMapWidth, ShadowMapHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-
-
-	glNamedFramebufferTexture2DEXT(depthMapFBO, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
-	//glDrawBuffer(GL_NONE);
-	//glReadBuffer(GL_NONE);
-
 	glGetIntegerv(GL_MAX_SAMPLES, &MSAASampleCountMax);
 	std::cerr << "[renderer] max MSAA samples: " << MSAASampleCountMax << '\n';
 
-	glGenQueries(1, &m_gpu_time_query);
+	glCreateQueries(GL_TIME_ELAPSED, 1, &m_gpu_time_query);
 }
 
 Renderer::~Renderer()
 {
-	glDeleteTextures(1, &m_shadowmap_to);
-	glDeleteFramebuffers(1, &m_shadowmap_fbo);
 	glDeleteTextures(1, &m_backbuffer_color_to);
 	glDeleteTextures(1, &m_backbuffer_depth_to);
 	glDeleteFramebuffers(1, &m_backbuffer_fbo);
@@ -71,65 +52,60 @@ void Renderer::resize(uint32_t width, uint32_t height, bool force)
 
 	// reinitialize multisampled color texture object
 	glDeleteTextures(1, &m_backbuffer_color_to);
-	glGenTextures(1,    &m_backbuffer_color_to);
+	glCreateTextures(GL_TEXTURE_2D_MULTISAMPLE, 1, &m_backbuffer_color_to);
 
-	glTextureStorage2DMultisampleEXT(m_backbuffer_color_to,
-	                                 GL_TEXTURE_2D_MULTISAMPLE,
-	                                 MSAASampleCount,
-	                                 GL_RGBA16F,
-	                                 m_backbuffer_width,
-	                                 m_backbuffer_height,
-	                                 GL_FALSE);
+	glTextureStorage2DMultisample(m_backbuffer_color_to,
+	                              MSAASampleCount,
+	                              GL_RGBA16F,
+	                              m_backbuffer_width,
+	                              m_backbuffer_height,
+	                              GL_FALSE);
 
-	glTextureParameteriEXT(m_backbuffer_color_to, GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTextureParameteriEXT(m_backbuffer_color_to, GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTextureParameteri(m_backbuffer_color_to, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTextureParameteri(m_backbuffer_color_to, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 
 	// reinitialize multisampled depth texture object
 	glDeleteTextures(1, &m_backbuffer_depth_to);
-	glGenTextures(1,    &m_backbuffer_depth_to);
+	glCreateTextures(GL_TEXTURE_2D_MULTISAMPLE, 1, &m_backbuffer_depth_to);
 
 	// TODO: research if GL_DEPTH24_STENCIL8 is viable here
-	glTextureStorage2DMultisampleEXT(m_backbuffer_depth_to,
-	                                 GL_TEXTURE_2D_MULTISAMPLE,
-	                                 MSAASampleCount,
-	                                 GL_DEPTH_COMPONENT32F,
-	                                 m_backbuffer_width,
-	                                 m_backbuffer_height,
-	                                 GL_FALSE);
+	glTextureStorage2DMultisample(m_backbuffer_depth_to,
+	                              MSAASampleCount,
+	                              GL_DEPTH_COMPONENT32F,
+	                              m_backbuffer_width,
+	                              m_backbuffer_height,
+	                              GL_FALSE);
 
 
 	// reinitialize framebuffer
 	glDeleteFramebuffers(1, &m_backbuffer_fbo);
-	glGenFramebuffers(1,    &m_backbuffer_fbo);
+	glCreateFramebuffers(1, &m_backbuffer_fbo);
 
 	// attach texture objects
-	glNamedFramebufferTexture2DEXT(m_backbuffer_fbo,
-	                               GL_COLOR_ATTACHMENT0,
-	                               GL_TEXTURE_2D_MULTISAMPLE,
-	                               m_backbuffer_color_to,
-	                               0);
-	glNamedFramebufferTexture2DEXT(m_backbuffer_fbo,
-	                               GL_DEPTH_ATTACHMENT,
-	                               GL_TEXTURE_2D_MULTISAMPLE,
-	                               m_backbuffer_depth_to,
-	                               0);
+	glNamedFramebufferTexture(m_backbuffer_fbo,
+	                          GL_COLOR_ATTACHMENT0,
+	                          m_backbuffer_color_to,
+	                          0);
+	glNamedFramebufferTexture(m_backbuffer_fbo,
+	                          GL_DEPTH_ATTACHMENT,
+	                          m_backbuffer_depth_to,
+	                          0);
 
 
-	GLenum fboStatus = glCheckNamedFramebufferStatusEXT(m_backbuffer_fbo, GL_FRAMEBUFFER);
+	GLenum fboStatus = glCheckNamedFramebufferStatus(m_backbuffer_fbo, GL_FRAMEBUFFER);
 	if (fboStatus != GL_FRAMEBUFFER_COMPLETE) {
 		throw std::runtime_error("[renderer] could not resize backbuffer!");
 	}
 
 	m_scene->main_camera.update_projection(float(m_backbuffer_width) / (float)m_backbuffer_height);
 	std::cerr << "[renderer] framebuffer resized to " << m_backbuffer_width << " x " << m_backbuffer_height << '\n';
-
 }
 
 static void renderQuad()
 {
-	static GLuint vao = 0;
-	static GLuint vbo = 0;
+	static GLuint vao;
+	static GLuint vbo;
 	if (unlikely(vao == 0)) {
 		float quadVertices[] = {
 			// positions        // texture Coords
@@ -138,14 +114,24 @@ static void renderQuad()
 			 1.0f,  1.0f, 1.0f, 1.0f, 1.0f,
 			 1.0f, -1.0f, 1.0f, 1.0f, 0.0f,
 		};
-		glGenVertexArrays(1, &vao);
-		glGenBuffers(1, &vbo);
-		assert(vao && vbo);
-		glNamedBufferStorageEXT(vbo, sizeof(quadVertices), &quadVertices, 0);
-		glEnableVertexArrayAttribEXT(vao, 0);
-		glVertexArrayVertexAttribOffsetEXT(vao, vbo, 0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 0);
-		glEnableVertexArrayAttribEXT(vao, 1);
-		glVertexArrayVertexAttribOffsetEXT(vao, vbo, 1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (3 * sizeof(float)));
+		glCreateVertexArrays(1, &vao);
+		glCreateBuffers(1, &vbo);
+
+		glNamedBufferStorage(vbo, sizeof(quadVertices), &quadVertices, 0);
+
+		// set up VBO: binding index, vbo, offset, stride
+		glVertexArrayVertexBuffer(vao, 0, vbo, 0, 5*sizeof(float));
+
+		glEnableVertexArrayAttrib(vao, 0);
+		glEnableVertexArrayAttrib(vao, 1);
+
+		// specify attrib format: attrib idx, element count, format, normalized, relative offset
+		glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
+		glVertexArrayAttribFormat(vao, 1, 2, GL_FLOAT, GL_FALSE, 3*sizeof(float));
+
+		// assign VBOs to attributes
+		glVertexArrayAttribBinding(vao, 0, 0);
+		glVertexArrayAttribBinding(vao, 1, 0);
 	}
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -252,7 +238,7 @@ void Renderer::draw()
 	glViewport(0, 0, m_window_width, m_window_height);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glUseProgram(*m_hdr_shader);
-	glBindMultiTextureEXT(GL_TEXTURE0, GL_TEXTURE_2D_MULTISAMPLE, m_backbuffer_color_to);
+	glBindTextureUnit(0, m_backbuffer_color_to);
 	unif::f1(*m_hdr_shader, "exposure", m_scene->main_camera.exposure);
 	unif::i2(*m_hdr_shader, "texture_size", m_backbuffer_width, m_backbuffer_height);
 	unif::i1(*m_hdr_shader, "sample_count", MSAASampleCount);

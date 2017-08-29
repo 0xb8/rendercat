@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
 project(rendercat VERSION 0.1)
 
 find_package(Boost COMPONENTS filesystem REQUIRED)
-find_package(glew 2 REQUIRED)
+find_package(GLEW 2 REQUIRED)
 find_package(glm REQUIRED)
 find_package(OpenGL REQUIRED)
 

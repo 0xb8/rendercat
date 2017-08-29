@@ -24,9 +24,6 @@ class Renderer
 	GLuint m_backbuffer_color_to = 0;
 	GLuint m_backbuffer_depth_to = 0;
 
-	GLuint m_shadowmap_fbo = 0;
-	GLuint m_shadowmap_to = 0;
-
 	GLuint m_gpu_time_query = 0;
 
 	void set_uniforms(GLuint shader);

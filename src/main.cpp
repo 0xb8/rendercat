@@ -1,4 +1,5 @@
 #include <iostream>
+#include <sstream>
 #include <chrono>
 #include <thread>
 #include <GL/glew.h>
@@ -10,6 +11,7 @@
 
 #include <imgui.hpp>
 #include <imgui_impl_glfw.h>
+
 
 namespace globals {
 
@@ -52,39 +54,42 @@ namespace consts {
 // ---------------------------------- helpers  ---------------------------------
 void GLAPIENTRY gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei /*length*/, const GLchar *message, const void */*userParam*/)
 {
-	std::cerr << "[GL] ";
+
+	std::stringstream ss;
+	ss << "[GL] ";
 	switch (source)
 	{
-		case GL_DEBUG_SOURCE_API:             std::cerr << "API "; break;
-		case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   std::cerr << "Window System "; break;
-		case GL_DEBUG_SOURCE_SHADER_COMPILER: std::cerr << "Shader Compiler "; break;
-		case GL_DEBUG_SOURCE_THIRD_PARTY:     std::cerr << "Third Party "; break;
-		case GL_DEBUG_SOURCE_APPLICATION:     std::cerr << "Application "; break;
-		case GL_DEBUG_SOURCE_OTHER:           std::cerr << "Other "; break;
+		case GL_DEBUG_SOURCE_API:             ss<< "API "; break;
+		case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   ss << "Window System "; break;
+		case GL_DEBUG_SOURCE_SHADER_COMPILER: ss << "Shader Compiler "; break;
+		case GL_DEBUG_SOURCE_THIRD_PARTY:     ss << "Third Party "; break;
+		case GL_DEBUG_SOURCE_APPLICATION:     ss << "Application "; break;
+		case GL_DEBUG_SOURCE_OTHER:           ss << "Other "; break;
 	}
 
 	switch (type)
 	{
-		case GL_DEBUG_TYPE_ERROR:               std::cerr << "error "; break;
-		case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: std::cerr << "Deprecated Behaviour "; break;
-		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  std::cerr << "Undefined Behaviour "; break;
-		case GL_DEBUG_TYPE_PORTABILITY:         std::cerr << "Portability "; break;
-		case GL_DEBUG_TYPE_PERFORMANCE:         std::cerr << "Performance "; break;
-		case GL_DEBUG_TYPE_MARKER:              std::cerr << "Marker "; break;
-		case GL_DEBUG_TYPE_PUSH_GROUP:          std::cerr << "Push Group "; break;
-		case GL_DEBUG_TYPE_POP_GROUP:           std::cerr << "Pop Group "; break;
-		case GL_DEBUG_TYPE_OTHER:               std::cerr << "Other "; break;
+		case GL_DEBUG_TYPE_ERROR:               ss << "error "; break;
+		case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: ss << "Deprecated Behaviour "; break;
+		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  ss << "Undefined Behaviour "; break;
+		case GL_DEBUG_TYPE_PORTABILITY:         ss << "Portability "; break;
+		case GL_DEBUG_TYPE_PERFORMANCE:         ss << "Performance "; break;
+		case GL_DEBUG_TYPE_MARKER:              ss << "Marker "; break;
+		case GL_DEBUG_TYPE_PUSH_GROUP:          ss << "Push Group "; break;
+		case GL_DEBUG_TYPE_POP_GROUP:           ss << "Pop Group "; break;
+		case GL_DEBUG_TYPE_OTHER:               ss << "Other "; break;
 	}
 
 	switch (severity)
 	{
-		case GL_DEBUG_SEVERITY_HIGH:         std::cerr << "(high) "; break;
-		case GL_DEBUG_SEVERITY_MEDIUM:       std::cerr << "(med)  "; break;
-		case GL_DEBUG_SEVERITY_LOW:          std::cerr << "(low)  "; break;
-		case GL_DEBUG_SEVERITY_NOTIFICATION: std::cerr << "(info) "; break;
+		case GL_DEBUG_SEVERITY_HIGH:         ss << "(high) "; break;
+		case GL_DEBUG_SEVERITY_MEDIUM:       ss << "(med)  "; break;
+		case GL_DEBUG_SEVERITY_LOW:          ss << "(low)  "; break;
+		case GL_DEBUG_SEVERITY_NOTIFICATION: ss<< "(info) "; break;
 	}
 
-	std::cerr << "[" << id << "]:\t" << message << '\n';
+	ss << "[" << id << "]:\t" << message << '\n';
+	std::cerr << ss.rdbuf();
 }
 
 
@@ -221,20 +226,15 @@ static void glfw_framebuffer_resized_callback(GLFWwindow* /*window*/, int width,
 
 static void enable_gl_clip_control()
 {
-	GLint major, minor;
-	glGetIntegerv(GL_MAJOR_VERSION, &major);
-	glGetIntegerv(GL_MINOR_VERSION, &minor);
-	if ((major > 4 || (major == 4 && minor >= 5)) || glfwExtensionSupported("GL_ARB_clip_control"))
-	{
-		glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
-	}
-	else throw std::runtime_error("required opengl extension missing: GL_ARB_clip_control\n");
+	glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
 }
 
 static void enable_gl_debug_callback()
 {
 #ifndef NDEBUG
-	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+	if(!glfwExtensionSupported("GL_KHR_debug") && !glfwExtensionSupported("GL_ARB_debug_output"))
+		return;
+	//glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 	glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, 0, GL_FALSE);
 	glDebugMessageCallback(gl_debug_callback, 0);
 #endif
@@ -248,6 +248,20 @@ static void assert_gl_default_framebuffer_is_srgb()
 	if(param != GL_SRGB)
 		throw std::runtime_error("Default framebuffer is not SRGB!");
 
+}
+
+static void check_required_extensions()
+{
+	const char* extensions[] = {"GL_ARB_direct_state_access",
+	                            "GL_ARB_clip_control"};
+
+	for(unsigned i = 0; i < std::size(extensions); ++i) {
+		if(!glfwExtensionSupported(extensions[i])) {
+			std::string err{"required opengl extension missing: "};
+			err.append(extensions[i]);
+			throw std::runtime_error(err);
+		}
+	}
 }
 
 static void print_all_extensions()
@@ -273,15 +287,16 @@ static void init_glfw_callbacks(GLFWwindow* window)
 //------------------------------------------------------------------------------
 int main() try
 {
+	std::ios::sync_with_stdio(false);
 	glfwInit();
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
 #ifndef NDEBUG
 	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 #endif
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+	glfwWindowHint(GLFW_RESIZABLE,    GLFW_TRUE);
 	glfwWindowHint(GLFW_SRGB_CAPABLE, GLFW_TRUE);
 
 	auto window = glfwCreateWindow(globals::glfw_framebuffer_width,
@@ -302,6 +317,7 @@ int main() try
 	}
 
 	//print_all_extensions();
+	check_required_extensions();
 	enable_gl_debug_callback();
 	enable_gl_clip_control();
 	assert_gl_default_framebuffer_is_srgb();

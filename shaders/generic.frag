@@ -1,14 +1,15 @@
 #version 440 core
 layout(early_fragment_tests) in;
 
+// cannot put samplers into material because we need explicit texture unit binding
+layout(binding=0) uniform sampler2D material_diffuse;
+layout(binding=1) uniform sampler2D material_normal;
+layout(binding=2) uniform sampler2D material_specular_map;
+
 struct Material {
-	sampler2D diffuse;
-	sampler2D normal;
-	sampler2D specular_map;
 	vec3      specular;
 	float     shininess;
 	int       type;
-
 };
 
 struct DirectionalLight {
@@ -50,7 +51,7 @@ const int MATERIAL_SPECULAR_MAPPED = 1 << 9;
 vec3 getMaterialSpecular()
 {
 	if((material.type & MATERIAL_SPECULAR_MAPPED) != 0) {
-		return texture(material.specular_map, fs_in.TexCoords).rgb;
+		return texture(material_specular_map, fs_in.TexCoords).rgb;
 	} else {
 		return material.specular;
 	}
@@ -59,7 +60,7 @@ vec3 getMaterialSpecular()
 vec3 getNormal()
 {
 	if((material.type & MATERIAL_NORMAL_MAPPED) != 0) {
-		vec3 normal = texture(material.normal, fs_in.TexCoords).rgb;
+		vec3 normal = texture(material_normal, fs_in.TexCoords).rgb;
 		//vec3 normal = vec3(0.5, 0.5, 1.0);
 		// NOTE: texture conversion could be normalized, but doesn't affect the quality much
 		return normalize(fs_in.TBN * (normal * 2.0 - 1.0));
@@ -123,7 +124,7 @@ void main()
 	vec3 viewDir = normalize(viewPos - fs_in.FragPos);
 	vec3 normal = getNormal();
 	vec3 materialSpecular = getMaterialSpecular();
-	vec3 materialDiffuse = texture(material.diffuse, fs_in.TexCoords).rgb;
+	vec3 materialDiffuse = texture(material_diffuse, fs_in.TexCoords).rgb;
 	mat3 materialParams = mat3(materialDiffuse, materialSpecular, normal);
 
 	vec3 directional = calcDirectionalLight(directional_light, viewDir, materialParams);

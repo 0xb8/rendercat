@@ -7,7 +7,6 @@
 #include <iostream>
 #include <numeric>
 
-
 namespace model {
 	struct vertex {
 		glm::vec3 position;
@@ -21,9 +20,6 @@ namespace model {
 		}
 	};
 }
-
-struct tangent_sign;
-static std::vector<tangent_sign> calculateMikktSpace(const std::vector<model::vertex>& verts);
 
 static Material load_obj_material(const tinyobj::material_t& mat, const std::string_view material_path)
 {
@@ -184,7 +180,7 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 		vertex_cout += mesh.numverts;
 		unique_vertex_count += mesh.numverts_unique;
 
-		if(unlikely(mesh.numverts == 0 || mesh.vao == 0)) {
+		if(unlikely(!mesh.valid())) {
 			std::cerr << "\nError loading submesh [" << shape.name << "]\n";
 			return false;
 		}
@@ -198,11 +194,12 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 	}
 	std::cerr << " ~ final vertex count: "
 		  << vertex_cout << ", unique: " << unique_vertex_count
-		  << " (" << 100-m::percent(unique_vertex_count, vertex_cout) << "% saved)";
-	std::cerr << "\n--- model \'" << name <<"\' loaded -------------------------------\n" << std::endl;
+		  << " (" << 100-m::percent(unique_vertex_count, vertex_cout) << "% saved)"
+		  << "\n--- model \'" << name <<"\' loaded -------------------------------\n" << std::endl;
 
-	for(auto& m : scene_materials)
+	for(auto& m : scene_materials) {
 		m.name.insert(0, basedir);
+	}
 	res->materials = std::move(scene_materials);
 	res->submeshes = std::move(scene_meshes);
 	res->submesh_material = std::move(scene_mesh_material);
@@ -210,6 +207,7 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 	return true;
 }
 
+namespace {
 
 struct tangent_sign
 {
@@ -222,6 +220,16 @@ struct tangent_sign
 	}
 };
 
+struct vertex_tangent
+{
+	model::vertex vertex;
+	tangent_sign tangent;
+
+	bool operator==(const vertex_tangent& other) const noexcept
+	{
+		return vertex == other.vertex && tangent == other.tangent;
+	}
+};
 
 struct interface_data
 {
@@ -229,12 +237,13 @@ struct interface_data
 	tangent_sign* tangents;
 	uint32_t numfaces;
 };
-static auto get_data(const SMikkTSpaceContext* ctx)
+
+auto get_data(const SMikkTSpaceContext* ctx)
 {
 	return reinterpret_cast<interface_data*>(ctx->m_pUserData);
 }
 
-static std::vector<tangent_sign> calculateMikktSpace(const std::vector<model::vertex>& verts)
+std::vector<tangent_sign> calculateMikktSpace(const std::vector<model::vertex>& verts)
 {
 	assert(verts.size() % 3 == 0);
 
@@ -322,16 +331,7 @@ static std::vector<tangent_sign> calculateMikktSpace(const std::vector<model::ve
 	return tangents;
 }
 
-struct vertex_tangent
-{
-	model::vertex v;
-	tangent_sign t;
-
-	bool operator==(const vertex_tangent& other) const noexcept
-	{
-		return v == other.v && t == other.t;
-	}
-};
+} // anon namespace
 
 namespace std {
 	template<>
@@ -339,11 +339,11 @@ namespace std {
 	{
 		size_t operator()(const vertex_tangent& vt) const noexcept
 		{
-			return hash<glm::vec3>()(vt.v.position)
-				^ hash<glm::vec3>()(vt.v.normal)
-				^ hash<glm::vec2>()(vt.v.texcoords)
-				^ hash<glm::vec3>()(vt.t.tangent)
-				^ hash<float>()(vt.t.sign);
+			return hash<glm::vec3>()(vt.vertex.position)
+				^ hash<glm::vec3>()(vt.vertex.normal)
+				^ hash<glm::vec2>()(vt.vertex.texcoords)
+				^ hash<glm::vec3>()(vt.tangent.tangent)
+				^ hash<float>()(vt.tangent.sign);
 		}
 	};
 }
@@ -353,7 +353,7 @@ model::mesh::mesh(const std::string& name_, std::vector<vertex> && verts) : name
 	auto tangents = calculateMikktSpace(verts);
 	assert(verts.size() == tangents.size());
 
-	// we index the
+	// index the mesh ------------------------------------------------------
 	std::unordered_map<vertex_tangent, uint32_t> uniqueVerts;
 	std::vector<uint32_t> indices;
 	std::vector<uint16_t> small_indices;
@@ -391,76 +391,94 @@ model::mesh::mesh(const std::string& name_, std::vector<vertex> && verts) : name
 		}
 		add_index(uniqueVerts[vt]);
 	}
+	verts.clear();
+	tangents.clear();
 
 	assert(indices.size() == verts.size() || small_indices.size() == verts.size());
 
-	struct mutable_attrib
+
+	// prepare data for submission to the GPU ------------------------------
+	struct dynamic_attrib
 	{
 		glm::vec3 position;
 	};
 
-	struct immutable_attrib
+	struct static_attrib
 	{
 		glm::vec3 normal;
 		glm::vec3 tangent;
 		glm::vec3 texcoords; // texcoords.z == bitangent sign
 	};
 
-	std::vector<mutable_attrib> mutable_attrs;
-	std::vector<immutable_attrib> immutable_attrs;
+	std::vector<dynamic_attrib> dynamic_attribs;
+	std::vector<static_attrib> static_attribs;
 
-	mutable_attrs.reserve(vtans.size());
-	immutable_attrs.reserve(vtans.size());
+	dynamic_attribs.reserve(vtans.size());
+	static_attribs.reserve(vtans.size());
 
-	for(auto& vt : vtans) {
-		mutable_attrs.push_back(mutable_attrib{vt.v.position});
-		immutable_attrs.push_back(immutable_attrib{vt.v.normal, vt.t.tangent, glm::vec3{vt.v.texcoords, vt.t.sign}});
+	for(const auto& vt : vtans) {
+		const auto& position  = vt.vertex.position;
+		const auto& normal    = vt.vertex.normal;
+		const auto& tangent   = vt.tangent.tangent;
+		const auto& sign      = vt.tangent.sign;
+		const auto& texcoords = vt.vertex.texcoords;
+		auto texcoord_sign    = glm::vec3(texcoords, sign);
+
+		dynamic_attribs.emplace_back(dynamic_attrib{position});
+		static_attribs.emplace_back(static_attrib{normal, tangent, texcoord_sign});
 	}
+	assert(dynamic_attribs.size() == vtans.size() && static_attribs.size() == vtans.size());
+	vtans.clear();
 
-	glGenVertexArrays(1, &vao);
-	glGenBuffers(1, &ebo);
 
-	// BUG: for some reason EXT_DSA does not provide VertexArrayElementBuffer(), only GL 4.5 ARB_DSA does.
-	//----------------------------------------------------------------------
-	GLint old_ebo = 0, old_vao = 0;
-	glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &old_vao);
-	glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &old_ebo);
-	glBindVertexArray(vao);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-	if(likely(use_small_indices)) {
-		glNamedBufferStorageEXT(ebo, small_indices.size() * sizeof(uint16_t), small_indices.data(), 0);
+	// set up GPU objects --------------------------------------------------
+	glCreateVertexArrays(1, &vao);
+
+	glCreateBuffers(1, &ebo);
+	if(likely(use_small_indices)) { // reduces index memory usage by 2x for most of the meshes
+		glNamedBufferStorage(ebo, small_indices.size() * sizeof(uint16_t), small_indices.data(), 0);
 		index_type = GL_UNSIGNED_SHORT;
 	} else {
 		std::cerr << "   - using 32-bit indices...\n";
-		glNamedBufferStorageEXT(ebo, indices.size() * sizeof(uint32_t), indices.data(), 0);
+		glNamedBufferStorage(ebo, indices.size() * sizeof(uint32_t), indices.data(), 0);
 		index_type = GL_UNSIGNED_INT;
 	}
-	glBindVertexArray(old_vao);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, old_ebo);
-	//----------------------------------------------------------------------
+	glVertexArrayElementBuffer(vao, ebo);
 
+	glCreateBuffers(1, &dynamic_vbo);
+	glNamedBufferStorage(dynamic_vbo, dynamic_attribs.size() * sizeof(dynamic_attrib), dynamic_attribs.data(), 0);
 
-	glGenBuffers(1, &mut_vbo);
-	glNamedBufferStorageEXT(mut_vbo, mutable_attrs.size() * sizeof(mutable_attrib), mutable_attrs.data(), 0);
+	glCreateBuffers(1, &static_vbo);
+	glNamedBufferStorage(static_vbo, static_attribs.size() * sizeof(static_attrib), static_attribs.data(), 0);
 
-	glGenBuffers(1, &imut_vbo);
-	glNamedBufferStorageEXT(imut_vbo, immutable_attrs.size() * sizeof(immutable_attrib), immutable_attrs.data(), 0);
+	const GLuint dynamic_vbo_id = 0;
+	const GLuint static_vbo_id  = 1;
 
-	glEnableVertexArrayAttribEXT(vao, 0);
-	glVertexArrayVertexAttribOffsetEXT(vao, mut_vbo, 0, 3,  GL_FLOAT, false, sizeof(mutable_attrib),    offsetof(mutable_attrib, position));
+	// set up VBO: binding index, vbo, offset, stride
+	glVertexArrayVertexBuffer(vao, dynamic_vbo_id, dynamic_vbo,  0, sizeof(dynamic_attrib));
+	glVertexArrayVertexBuffer(vao, static_vbo_id,  static_vbo,   0, sizeof(static_attrib));
 
-	glEnableVertexArrayAttribEXT(vao, 1);
-	glVertexArrayVertexAttribOffsetEXT(vao, imut_vbo, 1, 3,  GL_FLOAT, false, sizeof(immutable_attrib), offsetof(immutable_attrib, normal));
+	glEnableVertexArrayAttrib(vao, 0);
+	glEnableVertexArrayAttrib(vao, 1);
+	glEnableVertexArrayAttrib(vao, 2);
+	glEnableVertexArrayAttrib(vao, 3);
 
-	glEnableVertexArrayAttribEXT(vao, 2);
-	glVertexArrayVertexAttribOffsetEXT(vao, imut_vbo, 2, 3,  GL_FLOAT, false, sizeof(immutable_attrib), offsetof(immutable_attrib, tangent));
+	// specify attrib format: attrib idx, element count, format, normalized, relative offset
+	glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, GL_FALSE, offsetof(dynamic_attrib,   position));
+	glVertexArrayAttribFormat(vao, 1, 3, GL_FLOAT, GL_FALSE, offsetof(static_attrib, normal));
+	glVertexArrayAttribFormat(vao, 2, 3, GL_FLOAT, GL_FALSE, offsetof(static_attrib, tangent));
+	glVertexArrayAttribFormat(vao, 3, 3, GL_FLOAT, GL_FALSE, offsetof(static_attrib, texcoords));
 
-	glEnableVertexArrayAttribEXT(vao, 3); // NOTE: size of 2 below is very important!
-	glVertexArrayVertexAttribOffsetEXT(vao, imut_vbo, 3, /*-->*/ 3,  GL_FLOAT, false, sizeof(immutable_attrib), offsetof(immutable_attrib, texcoords));
+	// assign VBOs to attributes
+	glVertexArrayAttribBinding(vao, 0, dynamic_vbo_id);
+	glVertexArrayAttribBinding(vao, 1, static_vbo_id);
+	glVertexArrayAttribBinding(vao, 2, static_vbo_id);
+	glVertexArrayAttribBinding(vao, 3, static_vbo_id);
 
 	if(glGetError() != GL_NO_ERROR)
 		return;
 
+	// mark submesh as valid -----------------------------------------------
 	if(likely(use_small_indices)) {
 		numverts = small_indices.size();
 	} else {
@@ -472,8 +490,8 @@ model::mesh::mesh(const std::string& name_, std::vector<vertex> && verts) : name
 
 model::mesh::~mesh()
 {
-	glDeleteBuffers(1, &mut_vbo);
-	glDeleteBuffers(1, &imut_vbo);
+	glDeleteBuffers(1, &dynamic_vbo);
+	glDeleteBuffers(1, &static_vbo);
 	glDeleteBuffers(1, &ebo);
 	glDeleteVertexArrays(1, &vao);
 }

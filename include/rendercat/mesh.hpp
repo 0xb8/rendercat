@@ -13,16 +13,20 @@ namespace model {
 	{
 		std::string name;
 		uint32_t ebo = 0;
-		uint32_t mut_vbo = 0;
-		uint32_t imut_vbo = 0;
+		uint32_t dynamic_vbo = 0;
+		uint32_t static_vbo = 0;
 		uint32_t vao = 0;
 		uint32_t numverts = 0;
 		uint32_t numverts_unique = 0;
 		GLenum   index_type = 0;
 		AABB aabb;
 
-		mesh(const std::string & name_, std::vector<vertex>&& verts);
+		bool valid() const noexcept
+		{
+			return numverts != 0 && vao != 0;
+		}
 
+		mesh(const std::string & name_, std::vector<vertex>&& verts);
 		~mesh();
 
 		mesh(const mesh&) = delete;
@@ -37,8 +41,8 @@ namespace model {
 		{
 			name = std::move(o.name);
 			std::swap(ebo, o.ebo);
-			std::swap(mut_vbo, o.mut_vbo);
-			std::swap(imut_vbo, o.imut_vbo);
+			std::swap(dynamic_vbo, o.dynamic_vbo);
+			std::swap(static_vbo, o.static_vbo);
 			std::swap(vao, o.vao);
 			numverts = o.numverts;
 			numverts_unique = o.numverts_unique;

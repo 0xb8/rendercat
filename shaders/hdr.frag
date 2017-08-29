@@ -1,10 +1,10 @@
-#version 330 core
+#version 440 core
 
 in vec2 TexCoords;
 
 out vec4 FragColor;
 
-uniform sampler2DMS hdrBuffer;
+layout(binding=0) uniform sampler2DMS hdrBuffer;
 uniform float exposure;
 
 uniform ivec2 texture_size;
