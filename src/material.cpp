@@ -32,22 +32,19 @@ GLuint load_texture(const std::string& path, bool linear, int desired_channels =
 
 		if(desired_channels == 0) desired_channels = 1000;
 
-		auto format = (linear ? GL_RGB : GL_SRGB8);
-
 		switch (std::min(nrChannels, desired_channels)) {
 		case 1:
 			static const GLint swizzleMask[] = {GL_RED, GL_RED, GL_RED, GL_ONE};
 			glTextureParameteriv(tex, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
-			glTextureStorage2D(tex, nr_levels, format, width, height);
+			glTextureStorage2D(tex, nr_levels, GL_R8, width, height); // always linear
 			glTextureSubImage2D(tex, 0, 0, 0, width, height, GL_RED, GL_UNSIGNED_BYTE, data);
 			break;
 		case 3:
-			glTextureStorage2D(tex, nr_levels, format, width, height);
+			glTextureStorage2D(tex, nr_levels, (linear ? GL_RGB8 : GL_SRGB8), width, height);
 			glTextureSubImage2D(tex, 0, 0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, data);
 			break;
 		case 4:
-
-			glTextureStorage2D(tex, nr_levels, (linear ? GL_RGBA : GL_SRGB8_ALPHA8), width, height);
+			glTextureStorage2D(tex, nr_levels, (linear ? GL_RGBA8 : GL_SRGB8_ALPHA8), width, height);
 			glTextureSubImage2D(tex, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data);
 			break;
 		default:

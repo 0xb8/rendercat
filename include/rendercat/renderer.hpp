@@ -41,7 +41,7 @@ public:
 	// BUG: when MSAA sample count is >0, specular mapping induces random white dots on some meshes.
 	// This is partially mitigated in shader, but still present when fragment is lit by several light sources.
 	int msaa_level = 0;
-	int MSAASampleCount = 0;
+	int MSAASampleCount = 1;
 	int MSAASampleCountMax = 4;
 	static constexpr int MaxLights = 16;
 

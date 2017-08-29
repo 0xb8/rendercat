@@ -40,9 +40,9 @@ void Renderer::resize(uint32_t width, uint32_t height, bool force)
 
 	m_backbuffer_scale = m_scene->desired_render_scale;
 	msaa_level = m_scene->desired_msaa_level;
-	MSAASampleCount = msaa_level ? std::exp2(msaa_level) : 0;
 
-	MSAASampleCount = std::min(MSAASampleCount, MSAASampleCountMax);
+	// NOTE: for some reason AMD driver accepts 0 samples, but it's wrong
+	MSAASampleCount = glm::clamp((int)std::exp2(msaa_level), 1, MSAASampleCountMax);
 
 	m_window_width = width;
 	m_window_height = height;
@@ -60,9 +60,6 @@ void Renderer::resize(uint32_t width, uint32_t height, bool force)
 	                              m_backbuffer_width,
 	                              m_backbuffer_height,
 	                              GL_FALSE);
-
-	glTextureParameteri(m_backbuffer_color_to, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTextureParameteri(m_backbuffer_color_to, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 
 	// reinitialize multisampled depth texture object
