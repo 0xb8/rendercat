@@ -352,6 +352,8 @@ model::mesh::mesh(const std::string& name_, std::vector<vertex> && verts) : name
 {
 	auto tangents = calculateMikktSpace(verts);
 	assert(verts.size() == tangents.size());
+	uint32_t initial_vertex_count = verts.size();
+	uint32_t unique_vertex_count = verts.size();
 
 	// index the mesh ------------------------------------------------------
 	std::unordered_map<vertex_tangent, uint32_t> uniqueVerts;
@@ -385,16 +387,19 @@ model::mesh::mesh(const std::string& name_, std::vector<vertex> && verts) : name
 
 		vertex_tangent vt{verts[i], tangents[i]};
 
-		if(uniqueVerts.count(vt) == 0) {
-			uniqueVerts.emplace(std::make_pair(vt, vtans.size()));
+		auto pos = uniqueVerts.find(vt);
+		if(pos == uniqueVerts.end()) {
+			auto res = uniqueVerts.insert(std::make_pair(vt, vtans.size()));
 			vtans.push_back(vt);
+			pos = res.first;
 		}
-		add_index(uniqueVerts[vt]);
+		add_index(pos->second);
 	}
+	uniqueVerts.clear();
 	verts.clear();
 	tangents.clear();
-
-	assert(indices.size() == verts.size() || small_indices.size() == verts.size());
+	assert(indices.size() == initial_vertex_count || small_indices.size() == initial_vertex_count);
+	unique_vertex_count = vtans.size();
 
 
 	// prepare data for submission to the GPU ------------------------------
@@ -413,8 +418,8 @@ model::mesh::mesh(const std::string& name_, std::vector<vertex> && verts) : name
 	std::vector<dynamic_attrib> dynamic_attribs;
 	std::vector<static_attrib> static_attribs;
 
-	dynamic_attribs.reserve(vtans.size());
-	static_attribs.reserve(vtans.size());
+	dynamic_attribs.reserve(unique_vertex_count);
+	static_attribs.reserve(unique_vertex_count);
 
 	for(const auto& vt : vtans) {
 		const auto& position  = vt.vertex.position;
@@ -427,7 +432,7 @@ model::mesh::mesh(const std::string& name_, std::vector<vertex> && verts) : name
 		dynamic_attribs.emplace_back(dynamic_attrib{position});
 		static_attribs.emplace_back(static_attrib{normal, tangent, texcoord_sign});
 	}
-	assert(dynamic_attribs.size() == vtans.size() && static_attribs.size() == vtans.size());
+	assert(dynamic_attribs.size() == unique_vertex_count && static_attribs.size() == unique_vertex_count);
 	vtans.clear();
 
 
@@ -479,13 +484,8 @@ model::mesh::mesh(const std::string& name_, std::vector<vertex> && verts) : name
 		return;
 
 	// mark submesh as valid -----------------------------------------------
-	if(likely(use_small_indices)) {
-		numverts = small_indices.size();
-	} else {
-		numverts = indices.size();
-	}
-
-	numverts_unique = vtans.size();
+	numverts = initial_vertex_count;
+	numverts_unique = unique_vertex_count;
 }
 
 model::mesh::~mesh()

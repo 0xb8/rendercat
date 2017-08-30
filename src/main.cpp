@@ -326,7 +326,9 @@ int main() try
 		ImGui_ImplGlfwGL3_Init(window);
 		ImGuiStyle& st = ImGui::GetStyle();
 
-		st.WindowRounding = 3.0f;
+		st.GrabRounding = 0.0f;
+		st.WindowRounding = 0.0f;
+		st.ChildWindowRounding = 0.0f;
 		st.ScrollbarRounding = 0.0f;
 	}
 

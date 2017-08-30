@@ -91,7 +91,7 @@ static void show_help_tooltip(const char* desc)
 {
 	if(ImGui::IsItemHovered()) {
 		ImGui::BeginTooltip();
-		ImGui::PushTextWrapPos(450.0f);
+		ImGui::PushTextWrapPos(300.0f);
 		ImGui::TextUnformatted(desc);
 		ImGui::PopTextWrapPos();
 		ImGui::EndTooltip();
@@ -230,6 +230,7 @@ void Scene::update()
 				if(materials[i].m_normal_map) {
 					ImGui::SameLine();
 					ImGui::Image((ImTextureID)(uintptr_t)materials[i].m_normal_map, ImVec2(width,width), uv0, uv1);
+					show_help_tooltip("This texture looks brighter than it should because it's linear RGB, only displayed here as SRGB.");
 				}
 				if(materials[i].m_specular_map) {
 					ImGui::SameLine();
