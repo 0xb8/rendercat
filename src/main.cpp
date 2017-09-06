@@ -241,12 +241,13 @@ static void enable_gl_debug_callback()
 }
 
 
-static void assert_gl_default_framebuffer_is_srgb()
+static void check_gl_default_framebuffer_is_srgb()
 {
 	GLint param;
 	glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_FRONT_LEFT, GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING, &param);
-	if(param != GL_SRGB)
-		throw std::runtime_error("Default framebuffer is not SRGB!");
+	if(param != GL_SRGB) {
+		std::cerr << "[renderer] default framebuffer is not SRGB! Possible driver bug, check colors manually.\n";
+	}
 
 }
 
@@ -318,9 +319,9 @@ int main() try
 
 	//print_all_extensions();
 	check_required_extensions();
+	check_gl_default_framebuffer_is_srgb();
 	enable_gl_debug_callback();
 	enable_gl_clip_control();
-	assert_gl_default_framebuffer_is_srgb();
 
 	{
 		ImGui_ImplGlfwGL3_Init(window);

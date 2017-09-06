@@ -356,7 +356,6 @@ model::mesh::mesh(const std::string& name_, std::vector<vertex> && verts) : name
 	uint32_t unique_vertex_count = verts.size();
 
 	// index the mesh ------------------------------------------------------
-	std::unordered_map<vertex_tangent, uint32_t> uniqueVerts;
 	std::vector<uint32_t> indices;
 	std::vector<uint16_t> small_indices;
 
@@ -380,7 +379,9 @@ model::mesh::mesh(const std::string& name_, std::vector<vertex> && verts) : name
 	};
 
 	std::vector<vertex_tangent> vtans;
+	std::unordered_map<vertex_tangent, uint32_t> uniqueVerts;
 	vtans.reserve(verts.size() / 3);
+	uniqueVerts.reserve(vtans.capacity());
 
 	for(uint32_t i = 0; i < verts.size(); ++i) {
 		aabb.include(verts[i].position);
