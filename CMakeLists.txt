@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
 project(rendercat VERSION 0.1)
 
+find_program(CCACHE_FOUND ccache)
+if(CCACHE_FOUND)
+	set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
+	set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK    ccache)
+endif()
+
 find_package(Boost COMPONENTS filesystem REQUIRED)
 find_package(GLEW 2 REQUIRED)
 find_package(glm REQUIRED)
