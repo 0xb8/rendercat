@@ -1,4 +1,4 @@
-add_subdirectory(stb)
+add_subdirectory(stb_integration)
 add_subdirectory(tiny_obj)
 add_subdirectory(mikktspace)
 

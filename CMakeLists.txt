@@ -39,7 +39,7 @@ target_include_directories(rendercat
 target_link_libraries(rendercat
 	PRIVATE
 		Boost::filesystem
-		Stb::Stb
+		stb-image
 		tinyobjloader
 		glfw
 		glm
