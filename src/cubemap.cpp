@@ -103,27 +103,27 @@ void Cubemap::load_textures(const std::initializer_list<std::string_view> & text
 	// because madness
 	stb_guard guard;
 
-	int face = 0;
-	bool allocated = false;
-	int prevwidth, prevheight;
+	bool texture_storage_allocated{false};
+	int face{0};
+	int prev_face_width{0}, prev_face_height{0};
 	for(const auto& texture : textures) {
 		path.clear();
 		path.append(basedir);
 		path.append(texture);
 
-		int width, height, chan;
-		auto data = stbi_loadf(path.data(), &width, &height, &chan, 3);
-		if(data) {
-			if(!allocated) {
-				glTextureStorage3D(tex, 1, GL_RGB16F, width, height, 6);
-				allocated = true;
-				prevwidth = width;
-				prevheight = height;
+		int face_width, face_height, chan;
+		auto data = stbi_loadf(path.data(), &face_width, &face_height, &chan, 3);
+		if(data && chan == 3) {
+			if(!texture_storage_allocated) {
+				glTextureStorage3D(tex, 1, GL_RGB16F, face_width, face_height, 6);
+				texture_storage_allocated = true;
+				prev_face_width = face_width;
+				prev_face_height = face_height;
 			} else {
-				if(width != prevwidth || height != prevheight) {
-					std::cerr << "cubemap face dimensions have to match!\n"
-					          << "face [" << texture << "] " << width << 'x' << height << "\n"
-					          << "but should be " << prevwidth << 'x' << prevheight << '\n';
+				if(face_width != prev_face_width || face_height != prev_face_height) {
+					std::cerr << "could not open cubemap face [" << texture << "] from \'" << basedir << "\'"
+					          << ": face size does not match: current: " << face_width << 'x' << face_height
+					          << "  previous: " << prev_face_width << 'x' << prev_face_height << std::endl;
 
 					stbi_image_free(data);
 					glDeleteTextures(1, &tex);
@@ -131,12 +131,16 @@ void Cubemap::load_textures(const std::initializer_list<std::string_view> & text
 				}
 			}
 
-			glTextureSubImage3D(tex, 0, 0, 0, face, width, height, 1, GL_RGB, GL_FLOAT, data);
+			glTextureSubImage3D(tex, 0, 0, 0, face, face_width, face_height, 1, GL_RGB, GL_FLOAT, data);
 			++face;
 
 			stbi_image_free(data);
 		} else {
-			std::cerr << "could not open cubemap face \'" << texture << "\' from \'" << basedir << "\'\n";
+			std::cerr << "could not open cubemap face [" << texture << "] from \'" << basedir << "\'";
+			if(chan != 3) {
+				std::cerr << ": invalid channel count (should be 3): " << chan;
+			}
+			std::cerr << std::endl;
 		}
 	}
 

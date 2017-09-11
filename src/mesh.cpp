@@ -470,10 +470,10 @@ model::mesh::mesh(const std::string& name_, std::vector<vertex> && verts) : name
 	glEnableVertexArrayAttrib(vao, 3);
 
 	// specify attrib format: attrib idx, element count, format, normalized, relative offset
-	glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, GL_FALSE, offsetof(dynamic_attrib,   position));
-	glVertexArrayAttribFormat(vao, 1, 3, GL_FLOAT, GL_FALSE, offsetof(static_attrib, normal));
-	glVertexArrayAttribFormat(vao, 2, 3, GL_FLOAT, GL_FALSE, offsetof(static_attrib, tangent));
-	glVertexArrayAttribFormat(vao, 3, 3, GL_FLOAT, GL_FALSE, offsetof(static_attrib, texcoords));
+	glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, GL_FALSE, offsetof(dynamic_attrib, position));
+	glVertexArrayAttribFormat(vao, 1, 3, GL_FLOAT, GL_FALSE, offsetof(static_attrib,  normal));
+	glVertexArrayAttribFormat(vao, 2, 3, GL_FLOAT, GL_FALSE, offsetof(static_attrib,  tangent));
+	glVertexArrayAttribFormat(vao, 3, 3, GL_FLOAT, GL_FALSE, offsetof(static_attrib,  texcoords));
 
 	// assign VBOs to attributes
 	glVertexArrayAttribBinding(vao, 0, dynamic_vbo_id);
