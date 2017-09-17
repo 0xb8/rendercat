@@ -10,9 +10,9 @@ class Renderer
 	ShaderSet m_shader_set;
 	Scene*  m_scene;
 
-	GLuint* m_shader = nullptr;
-	GLuint* m_cubemap_shader = nullptr;
-	GLuint* m_hdr_shader = nullptr;
+	gl::GLuint* m_shader = nullptr;
+	gl::GLuint* m_cubemap_shader = nullptr;
+	gl::GLuint* m_hdr_shader = nullptr;
 
 	uint32_t m_backbuffer_width  = 0;
 	uint32_t m_backbuffer_height = 0;
@@ -20,13 +20,13 @@ class Renderer
 	uint32_t m_window_height = 0;
 	float    m_backbuffer_scale  = 1.0f;
 
-	GLuint m_backbuffer_fbo = 0;
-	GLuint m_backbuffer_color_to = 0;
-	GLuint m_backbuffer_depth_to = 0;
+	gl::GLuint m_backbuffer_fbo = 0;
+	gl::GLuint m_backbuffer_color_to = 0;
+	gl::GLuint m_backbuffer_depth_to = 0;
 
-	GLuint m_gpu_time_query = 0;
+	gl::GLuint m_gpu_time_query = 0;
 
-	void set_uniforms(GLuint shader);
+	void set_uniforms(gl::GLuint shader);
 	void draw_skybox();
 
 	float gpu_times[64] = {0.0f};

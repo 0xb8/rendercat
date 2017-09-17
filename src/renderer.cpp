@@ -7,6 +7,14 @@
 #include <string>
 #include <imgui.hpp>
 
+#include <glbinding/gl45core/boolean.h>
+#include <glbinding/gl45core/bitfield.h>
+#include <glbinding/gl45core/types.h>
+#include <glbinding/gl45core/enum.h>
+#include <glbinding/gl45core/functions.h>
+
+using namespace gl45core;
+
 Renderer::Renderer(Scene * s) : m_scene(s)
 {
 	assert(s != nullptr);
@@ -18,7 +26,7 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 	glEnable(GL_FRAMEBUFFER_SRGB);
 
 	glGetIntegerv(GL_MAX_SAMPLES, &MSAASampleCountMax);
-	std::cerr << "[renderer] max MSAA samples: " << MSAASampleCountMax << '\n';
+	std::cout << "[renderer] max MSAA samples: " << MSAASampleCountMax << '\n';
 
 	glCreateQueries(GL_TIME_ELAPSED, 1, &m_gpu_time_query);
 }
@@ -96,7 +104,7 @@ void Renderer::resize(uint32_t width, uint32_t height, bool force)
 	}
 
 	m_scene->main_camera.update_projection(float(m_backbuffer_width) / (float)m_backbuffer_height);
-	std::cerr << "[renderer] framebuffer resized to " << m_backbuffer_width << " x " << m_backbuffer_height << '\n';
+	std::cout << "[renderer] framebuffer resized to " << m_backbuffer_width << " x " << m_backbuffer_height << std::endl;
 }
 
 static void renderQuad()
@@ -114,7 +122,7 @@ static void renderQuad()
 		glCreateVertexArrays(1, &vao);
 		glCreateBuffers(1, &vbo);
 
-		glNamedBufferStorage(vbo, sizeof(quadVertices), &quadVertices, 0);
+		glNamedBufferStorage(vbo, sizeof(quadVertices), &quadVertices, GL_NONE_BIT);
 
 		// set up VBO: binding index, vbo, offset, stride
 		glVertexArrayVertexBuffer(vao, 0, vbo, 0, 5*sizeof(float));

@@ -4,6 +4,14 @@
 #include <string>
 #include <iostream>
 
+#include <glbinding/gl45core/boolean.h>
+#include <glbinding/gl45core/bitfield.h>
+#include <glbinding/gl45core/types.h>
+#include <glbinding/gl45core/enum.h>
+#include <glbinding/gl45core/functions.h>
+
+using namespace gl45core;
+
 Cubemap::Cubemap() noexcept
 {
 	static const float cubemap_vertices[] = {
@@ -54,7 +62,7 @@ Cubemap::Cubemap() noexcept
 
 	glCreateVertexArrays(1, &vao);
 	glCreateBuffers(1, &vbo);
-	glNamedBufferStorage(vbo, sizeof(cubemap_vertices), &cubemap_vertices, 0);
+	glNamedBufferStorage(vbo, sizeof(cubemap_vertices), &cubemap_vertices, GL_NONE_BIT);
 
 	glEnableVertexArrayAttrib(vao, 0);
 	glVertexArrayVertexBuffer(vao, 0, vbo, 0, 3*sizeof(float));

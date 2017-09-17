@@ -23,6 +23,7 @@ public:
 
 	Cubemap& operator=(Cubemap&& o) noexcept
 	{
+		assert(this != &o);
 		std::swap(m_vbo, o.m_vbo);
 		std::swap(m_vao, o.m_vao);
 		std::swap(m_cubemap, o.m_cubemap);

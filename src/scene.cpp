@@ -112,8 +112,9 @@ void Scene::update()
 	}
 	if(ImGui::CollapsingHeader("Renderer")) {
 		const char* labels[] = {"Disabled", "2x", "4x", "8x", "16x"};
+
 		ImGui::Combo("MSAA", &desired_msaa_level, labels, 5);
-		show_help_tooltip("Values bigger than 4x may be unsupported by some GPUs and drivers.");
+		show_help_tooltip("Multi-Sample Antialiasing\n\nValues > 4x may be unsupported on some setups.");
 		ImGui::SliderFloat("Resolution scale", &desired_render_scale, 0.1f, 1.0f, "%.1f");
 	}
 	if(ImGui::CollapsingHeader("Lighting")) {

@@ -1,5 +1,6 @@
 #pragma once
 #include <rendercat/common.hpp>
+#include <glbinding/gl/types.h>
 
 class TextureCache;
 
@@ -21,7 +22,6 @@ struct Material
 	};
 
 	static void set_texture_cache(TextureCache* c);
-
 	static void set_default_diffuse() noexcept;
 
 	Material(const std::string& name_) noexcept : name(name_), m_diffuse_map(default_diffuse){}
@@ -36,6 +36,7 @@ struct Material
 	}
 	Material& operator =(Material&& o) noexcept
 	{
+		assert(this != &o);
 		m_specular_color = o.m_specular_color;
 		m_shininess      = o.m_shininess;
 		flags            = o.flags;
@@ -48,7 +49,7 @@ struct Material
 		return *this;
 	}
 
-	void bind(GLuint s) const noexcept;
+	void bind(gl::GLuint s) const noexcept;
 
 	void specularColorShininess(glm::vec3 color, float shininess = 8.0f) noexcept
 	{
@@ -66,15 +67,14 @@ struct Material
 
 private:
 	static TextureCache* cache;
-	static uint32_t default_diffuse;
-
+	static gl::GLuint default_diffuse;
 
 	glm::vec3 m_specular_color = {0.0f, 0.0f, 0.0f};
 	float     m_shininess      = 0.0f;
 
-	uint32_t  m_diffuse_map  = 0;
-	uint32_t  m_normal_map   = 0;
-	uint32_t  m_specular_map = 0;
+	gl::GLuint  m_diffuse_map  = 0;
+	gl::GLuint  m_normal_map   = 0;
+	gl::GLuint  m_specular_map = 0;
 };
 
 

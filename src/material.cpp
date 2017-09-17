@@ -5,17 +5,27 @@
 #include <iostream>
 #include <cmath>
 
-uint32_t Material::default_diffuse = 0;
+#include <glbinding/gl45core/boolean.h>
+#include <glbinding/gl45core/types.h>
+#include <glbinding/gl45core/enum.h>
+#include <glbinding/gl45core/functions.h>
+#include <glbinding/gl45ext/enum.h>
+
+using namespace gl45core;
+static constexpr auto GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT = gl45ext::GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT;
+static constexpr auto GL_TEXTURE_MAX_ANISOTROPY_EXT = gl45ext::GL_TEXTURE_MAX_ANISOTROPY_EXT;
+static float max_anisotropic_filtering_samples = 2.0f; // required by spec
+
+GLuint        Material::default_diffuse = 0;
 TextureCache* Material::cache = nullptr;
 
-GLuint load_texture(const std::string& path, bool linear, int desired_channels = 0, int* num_channels = nullptr)
+static GLuint load_texture(const std::string& path, bool linear, int desired_channels = 0, int* num_channels = nullptr)
 {
-	static const float max_aniso = 16.0f;
 	static const int   max_levels = 14;
-
-	static float maxAnisotropy = 0.0f;
-	if(maxAnisotropy == 0.0f)
-		glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAnisotropy);
+	if(max_anisotropic_filtering_samples == 2.0f) {
+		glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &max_anisotropic_filtering_samples);
+		std::cout << "[material] max anisotropic filtering samples: " << max_anisotropic_filtering_samples << std::endl;
+	}
 
 	GLuint tex = 0;
 	int width, height, nrChannels;
@@ -24,17 +34,17 @@ GLuint load_texture(const std::string& path, bool linear, int desired_channels =
 		int nr_levels = std::min((int)std::round(std::log2(std::min(width, height))), max_levels);
 
 		glCreateTextures(GL_TEXTURE_2D, 1, &tex);
-		glTextureParameteri(tex, GL_TEXTURE_WRAP_S, GL_REPEAT);
-		glTextureParameteri(tex, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		glTextureParameteri(tex, GL_TEXTURE_WRAP_S,     GL_REPEAT);
+		glTextureParameteri(tex, GL_TEXTURE_WRAP_T,     GL_REPEAT);
 		glTextureParameteri(tex, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		glTextureParameteri(tex, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTextureParameterf(tex, GL_TEXTURE_MAX_ANISOTROPY_EXT, std::min(maxAnisotropy, max_aniso));
+		glTextureParameterf(tex, GL_TEXTURE_MAX_ANISOTROPY_EXT, max_anisotropic_filtering_samples);
 
 		if(desired_channels == 0) desired_channels = 1000;
 
 		switch (std::min(nrChannels, desired_channels)) {
 		case 1:
-			static const GLint swizzleMask[] = {GL_RED, GL_RED, GL_RED, GL_ONE};
+			static const GLenum swizzleMask[] = {GL_RED, GL_RED, GL_RED, GL_ONE};
 			glTextureParameteriv(tex, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
 			glTextureStorage2D(tex, nr_levels, GL_R8, width, height); // always linear
 			glTextureSubImage2D(tex, 0, 0, 0, width, height, GL_RED, GL_UNSIGNED_BYTE, data);
@@ -89,24 +99,9 @@ void Material::bind(GLuint s) const noexcept
 	unif::f1(s,  "material.shininess", m_shininess);
 	unif::i1(s,  "material.type",      flags);
 
-	if(m_diffuse_map) {
-		glBindTextureUnit(0, m_diffuse_map);
-		//unif::i1(s, "material.diffuse", 0);
-	} else {
-		glBindTextureUnit(0,  0);
-	}
-	if(m_normal_map) {
-		glBindTextureUnit(1,  m_normal_map);
-		//unif::i1(s, "material.normal", 1);
-	} else {
-		glBindTextureUnit(1, 0);
-	}
-	if(m_specular_map) {
-		glBindTextureUnit(2, m_specular_map);
-		//unif::i1(s, "material.specular_map", 2);
-	} else {
-		glBindTextureUnit(2, 0);
-	}
+	glBindTextureUnit(0, m_diffuse_map);
+	glBindTextureUnit(1, m_normal_map);
+	glBindTextureUnit(2, m_specular_map);
 }
 
 void Material::addDiffuseMap(const std::string_view name, const std::string_view basedir, bool alpha_masked)

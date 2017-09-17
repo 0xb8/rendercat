@@ -1,4 +1,3 @@
-#include <GL/glew.h>
 #include <glm/gtx/hash.hpp>
 #include <rendercat/mesh.hpp>
 #include <rendercat/material.hpp>
@@ -6,6 +5,14 @@
 #include <mikktspace.h>
 #include <iostream>
 #include <numeric>
+
+#include <glbinding/gl45core/boolean.h>
+#include <glbinding/gl45core/bitfield.h>
+#include <glbinding/gl45core/types.h>
+#include <glbinding/gl45core/enum.h>
+#include <glbinding/gl45core/functions.h>
+
+using namespace gl45core;
 
 namespace model {
 	struct vertex {
@@ -442,20 +449,20 @@ model::mesh::mesh(const std::string& name_, std::vector<vertex> && verts) : name
 
 	glCreateBuffers(1, &ebo);
 	if(likely(use_small_indices)) { // reduces index memory usage by 2x for most of the meshes
-		glNamedBufferStorage(ebo, small_indices.size() * sizeof(uint16_t), small_indices.data(), 0);
+		glNamedBufferStorage(ebo, small_indices.size() * sizeof(uint16_t), small_indices.data(), GL_NONE_BIT);
 		index_type = GL_UNSIGNED_SHORT;
 	} else {
 		std::cerr << "   - using 32-bit indices...\n";
-		glNamedBufferStorage(ebo, indices.size() * sizeof(uint32_t), indices.data(), 0);
+		glNamedBufferStorage(ebo, indices.size() * sizeof(uint32_t), indices.data(), GL_NONE_BIT);
 		index_type = GL_UNSIGNED_INT;
 	}
 	glVertexArrayElementBuffer(vao, ebo);
 
 	glCreateBuffers(1, &dynamic_vbo);
-	glNamedBufferStorage(dynamic_vbo, dynamic_attribs.size() * sizeof(dynamic_attrib), dynamic_attribs.data(), 0);
+	glNamedBufferStorage(dynamic_vbo, dynamic_attribs.size() * sizeof(dynamic_attrib), dynamic_attribs.data(), GL_NONE_BIT);
 
 	glCreateBuffers(1, &static_vbo);
-	glNamedBufferStorage(static_vbo, static_attribs.size() * sizeof(static_attrib), static_attribs.data(), 0);
+	glNamedBufferStorage(static_vbo, static_attribs.size() * sizeof(static_attrib), static_attribs.data(), GL_NONE_BIT);
 
 	const GLuint dynamic_vbo_id = 0;
 	const GLuint static_vbo_id  = 1;

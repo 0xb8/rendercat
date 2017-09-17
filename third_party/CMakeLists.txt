@@ -2,6 +2,17 @@ add_subdirectory(stb_integration)
 add_subdirectory(tiny_obj)
 add_subdirectory(mikktspace)
 
+set(OPTION_BUILD_TESTS      OFF CACHE BOOL "Build tests.")
+set(OPTION_BUILD_GPU_TESTS  OFF CACHE BOOL "Build tests that require an OpenGL context")
+set(OPTION_BUILD_DOCS       OFF CACHE BOOL "Build documentation")
+set(OPTION_BUILD_TOOLS      OFF CACHE BOOL "Build tools.")
+set(OPTION_BUILD_EXAMPLES   OFF CACHE BOOL "Build examples.")
+add_subdirectory(glbinding)
+
+if(CMAKE_COMPILER_IS_GNUCXX)
+	target_compile_options(glbinding PRIVATE -O3 -g0)
+endif()
+
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "Build the GLFW example programs" FORCE)
 set(GLFW_BUILD_TESTS    OFF CACHE BOOL "Build the GLFW test programs" FORCE)
 set(GLFW_BUILD_DOCS     OFF CACHE BOOL "Build the GLFW documentation" FORCE)

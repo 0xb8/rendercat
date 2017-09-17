@@ -1,9 +1,15 @@
 #include <rendercat/shader_set.hpp>
 #include <boost/filesystem.hpp>
-#include <GL/glew.h>
 #include <iostream>
 #include <sstream>
 #include <vector>
+
+#include <glbinding/gl45core/boolean.h>
+#include <glbinding/gl45core/types.h>
+#include <glbinding/gl45core/enum.h>
+#include <glbinding/gl45core/functions.h>
+
+using namespace gl45core;
 
 #define VERT_SHADER_EXT ".vert"
 #define FRAG_SHADER_EXT ".frag"
@@ -61,7 +67,7 @@ struct Shader
 		}
 		auto ext = filename.substr(ext_pos);
 
-		int shader_type = 0;
+		GLenum shader_type{};
 		if(ext == VERT_SHADER_EXT) {
 			shader_type = GL_VERTEX_SHADER;
 		}
@@ -248,7 +254,7 @@ void ShaderSet::check_updates()
 }
 
 
-GLuint * ShaderSet::load_program(std::initializer_list<std::string_view> names)
+gl::GLuint * ShaderSet::load_program(std::initializer_list<std::string_view> names)
 {
 	Program program;
 

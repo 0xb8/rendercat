@@ -12,13 +12,13 @@ namespace model {
 	struct mesh
 	{
 		std::string name;
-		uint32_t ebo = 0;
-		uint32_t dynamic_vbo = 0;
-		uint32_t static_vbo = 0;
-		uint32_t vao = 0;
-		uint32_t numverts = 0;
-		uint32_t numverts_unique = 0;
-		GLenum   index_type = 0;
+		gl::GLuint ebo = 0;
+		gl::GLuint dynamic_vbo = 0;
+		gl::GLuint static_vbo = 0;
+		gl::GLuint vao = 0;
+		gl::GLuint numverts = 0;
+		gl::GLuint numverts_unique = 0;
+		gl::GLenum   index_type{};
 		AABB aabb;
 
 		bool valid() const noexcept
@@ -39,6 +39,7 @@ namespace model {
 
 		mesh& operator=(mesh&& o) noexcept
 		{
+			assert(this != &o);
 			name = std::move(o.name);
 			std::swap(ebo, o.ebo);
 			std::swap(dynamic_vbo, o.dynamic_vbo);

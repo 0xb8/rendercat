@@ -1,6 +1,7 @@
 #pragma once
 
 #include <rendercat/common.hpp>
+#include <glbinding/gl/types.h>
 #include <string>
 
 class ShaderSet
@@ -12,7 +13,7 @@ public:
 
 	void check_updates();
 
-	GLuint* load_program(std::initializer_list<std::string_view>);
+	gl::GLuint* load_program(std::initializer_list<std::string_view>);
 
 	static constexpr size_t max_programs = 16;
 

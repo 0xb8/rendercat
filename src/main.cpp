@@ -2,7 +2,14 @@
 #include <sstream>
 #include <chrono>
 #include <thread>
-#include <GL/glew.h>
+
+#include <glbinding/gl45core/boolean.h>
+#include <glbinding/gl45core/types.h>
+#include <glbinding/gl45core/enum.h>
+#include <glbinding/gl45core/functions.h>
+#include <glbinding/Binding.h>
+
+#define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
 #include <rendercat/shader_set.hpp>
@@ -12,6 +19,7 @@
 #include <imgui.hpp>
 #include <imgui_impl_glfw.h>
 
+using namespace gl45core;
 
 namespace globals {
 
@@ -65,6 +73,7 @@ void GLAPIENTRY gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum 
 		case GL_DEBUG_SOURCE_THIRD_PARTY:     ss << "Third Party "; break;
 		case GL_DEBUG_SOURCE_APPLICATION:     ss << "Application "; break;
 		case GL_DEBUG_SOURCE_OTHER:           ss << "Other "; break;
+		default: break;
 	}
 
 	switch (type)
@@ -78,6 +87,7 @@ void GLAPIENTRY gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum 
 		case GL_DEBUG_TYPE_PUSH_GROUP:          ss << "Push Group "; break;
 		case GL_DEBUG_TYPE_POP_GROUP:           ss << "Pop Group "; break;
 		case GL_DEBUG_TYPE_OTHER:               ss << "Other "; break;
+		default: break;
 	}
 
 	switch (severity)
@@ -86,6 +96,7 @@ void GLAPIENTRY gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum 
 		case GL_DEBUG_SEVERITY_MEDIUM:       ss << "(med)  "; break;
 		case GL_DEBUG_SEVERITY_LOW:          ss << "(low)  "; break;
 		case GL_DEBUG_SEVERITY_NOTIFICATION: ss<< "(info) "; break;
+		default: break;
 	}
 
 	ss << "[" << id << "]:\t" << message << '\n';
@@ -312,10 +323,7 @@ int main() try
 
 	glfwMakeContextCurrent(window);
 
-	glewExperimental = GL_TRUE;
-	if (glewInit() != GLEW_OK) {
-		throw std::runtime_error("Failed to initialize GLEW.");
-	}
+	glbinding::Binding::initialize(false);
 
 	//print_all_extensions();
 	check_required_extensions();

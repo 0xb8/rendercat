@@ -1,70 +1,72 @@
 #pragma once
 #include <rendercat/common.hpp>
-#include <GL/glew.h>
+#include <glbinding/gl45core/types.h>
+#include <glbinding/gl45core/boolean.h>
+#include <glbinding/gl45core/functions.h>
 #include <string_view>
 
 namespace unif {
 
-inline void b1(GLuint shader, const std::string_view name, bool value)
+inline void b1(gl45core::GLuint shader, const std::string_view name, bool value)
 {
-	glProgramUniform1i(shader, glGetUniformLocation(shader, name.data()), (int)value);
+	gl45core::glProgramUniform1i(shader, gl45core::glGetUniformLocation(shader, name.data()), (int)value);
 }
 
-inline void i1(GLuint shader, const std::string_view name, int value)
+inline void i1(gl45core::GLuint shader, const std::string_view name, int value)
 {
-	glProgramUniform1i(shader, glGetUniformLocation(shader, name.data()), value);
+	gl45core::glProgramUniform1i(shader, gl45core::glGetUniformLocation(shader, name.data()), value);
 }
 
-inline void i2(GLuint shader, const std::string_view name, int x, int y)
+inline void i2(gl45core::GLuint shader, const std::string_view name, int x, int y)
 {
-	glProgramUniform2i(shader, glGetUniformLocation(shader, name.data()), x, y);
+	gl45core::glProgramUniform2i(shader, gl45core::glGetUniformLocation(shader, name.data()), x, y);
 }
 
-inline void f1(GLuint shader, const std::string_view name, float value)
+inline void f1(gl45core::GLuint shader, const std::string_view name, float value)
 {
-	glProgramUniform1f(shader, glGetUniformLocation(shader, name.data()), value);
+	gl45core::glProgramUniform1f(shader, gl45core::glGetUniformLocation(shader, name.data()), value);
 }
 
-inline void v2(GLuint shader, const std::string_view name, const glm::vec2 &value)
+inline void v2(gl45core::GLuint shader, const std::string_view name, const glm::vec2 &value)
 {
-	glProgramUniform2fv(shader, glGetUniformLocation(shader, name.data()), 1, &value[0]);
+	gl45core::glProgramUniform2fv(shader, gl45core::glGetUniformLocation(shader, name.data()), 1, &value[0]);
 }
-inline void v2(GLuint shader, const std::string_view name, float x, float y)
+inline void v2(gl45core::GLuint shader, const std::string_view name, float x, float y)
 {
-	glProgramUniform2f(shader, glGetUniformLocation(shader, name.data()), x, y);
-}
-
-inline void v3(GLuint shader, const std::string_view name, const glm::vec3 &value)
-{
-	glProgramUniform3fv(shader, glGetUniformLocation(shader, name.data()), 1, &value[0]);
-}
-inline void v3(GLuint shader, const std::string_view name, float x, float y, float z)
-{
-	glProgramUniform3f(shader, glGetUniformLocation(shader, name.data()), x, y, z);
+	gl45core::glProgramUniform2f(shader, gl45core::glGetUniformLocation(shader, name.data()), x, y);
 }
 
-inline void v4(GLuint shader, const std::string_view name, const glm::vec4 &value)
+inline void v3(gl45core::GLuint shader, const std::string_view name, const glm::vec3 &value)
 {
-	glProgramUniform4fv(shader, glGetUniformLocation(shader, name.data()), 1, &value[0]);
+	gl45core::glProgramUniform3fv(shader, gl45core::glGetUniformLocation(shader, name.data()), 1, &value[0]);
 }
-inline void v4(GLuint shader, const std::string_view name, float x, float y, float z, float w)
+inline void v3(gl45core::GLuint shader, const std::string_view name, float x, float y, float z)
 {
-	glProgramUniform4f(shader, glGetUniformLocation(shader, name.data()), x, y, z, w);
-}
-
-inline void m2(GLuint shader, const std::string_view name, const glm::mat2 &mat)
-{
-	glProgramUniformMatrix2fv(shader, glGetUniformLocation(shader, name.data()), 1, GL_FALSE, &mat[0][0]);
+	gl45core::glProgramUniform3f(shader, gl45core::glGetUniformLocation(shader, name.data()), x, y, z);
 }
 
-inline void m3(GLuint shader, const std::string_view name, const glm::mat3 &mat)
+inline void v4(gl45core::GLuint shader, const std::string_view name, const glm::vec4 &value)
 {
-	glProgramUniformMatrix3fv(shader, glGetUniformLocation(shader, name.data()), 1, GL_FALSE, &mat[0][0]);
+	gl45core::glProgramUniform4fv(shader, gl45core::glGetUniformLocation(shader, name.data()), 1, &value[0]);
+}
+inline void v4(gl45core::GLuint shader, const std::string_view name, float x, float y, float z, float w)
+{
+	gl45core::glProgramUniform4f(shader, gl45core::glGetUniformLocation(shader, name.data()), x, y, z, w);
 }
 
-inline void m4(GLuint shader, const std::string_view name, const glm::mat4 &mat)
+inline void m2(gl45core::GLuint shader, const std::string_view name, const glm::mat2 &mat)
 {
-	glProgramUniformMatrix4fv(shader, glGetUniformLocation(shader, name.data()), 1, GL_FALSE, &mat[0][0]);
+	gl45core::glProgramUniformMatrix2fv(shader, gl45core::glGetUniformLocation(shader, name.data()), 1, gl45core::GL_FALSE, &mat[0][0]);
+}
+
+inline void m3(gl45core::GLuint shader, const std::string_view name, const glm::mat3 &mat)
+{
+	gl45core::glProgramUniformMatrix3fv(shader, gl45core::glGetUniformLocation(shader, name.data()), 1, gl45core::GL_FALSE, &mat[0][0]);
+}
+
+inline void m4(gl45core::GLuint shader, const std::string_view name, const glm::mat4 &mat)
+{
+	gl45core::glProgramUniformMatrix4fv(shader, gl45core::glGetUniformLocation(shader, name.data()), 1, gl45core::GL_FALSE, &mat[0][0]);
 }
 
 }

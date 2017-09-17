@@ -13,3 +13,6 @@
 [submodule "third_party/stb_integration/stb"]
 	path = third_party/stb_integration/stb
 	url = https://github.com/nothings/stb.git
+[submodule "third_party/glbinding"]
+	path = third_party/glbinding
+	url = https://github.com/cginternals/glbinding.git

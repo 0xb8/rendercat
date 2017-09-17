@@ -8,7 +8,6 @@ if(CCACHE_FOUND)
 endif()
 
 find_package(Boost COMPONENTS filesystem REQUIRED)
-find_package(GLEW 2 REQUIRED)
 find_package(glm REQUIRED)
 find_package(OpenGL REQUIRED)
 
@@ -45,7 +44,7 @@ target_link_libraries(rendercat
 		glm
 		imgui
 		mikktspace
-		${GLEW_LIBRARIES}
+		glbinding::glbinding
 		${OPENGL_gl_LIBRARY}
 )
 
