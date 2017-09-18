@@ -7,6 +7,8 @@ if(CCACHE_FOUND)
 	set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK    ccache)
 endif()
 
+SET(BUILD_SHARED_LIBS OFF)
+
 find_package(Boost COMPONENTS filesystem REQUIRED)
 find_package(glm REQUIRED)
 find_package(OpenGL REQUIRED)
