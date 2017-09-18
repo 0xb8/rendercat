@@ -31,6 +31,7 @@ static GLFWwindow*  g_Window = NULL;
 static double       g_Time = 0.0f;
 static bool         g_MousePressed[3] = { false, false, false };
 static float        g_MouseWheel = 0.0f;
+static double       g_CursorPos[2] = {0.0, 0.0};
 static GLuint       g_FontTexture = 0;
 static int          g_ShaderHandle = 0, g_VertHandle = 0, g_FragHandle = 0;
 static int          g_AttribLocationProjMtx = 0;
@@ -141,6 +142,17 @@ static const char* ImGui_ImplGlfwGL3_GetClipboardText(void* user_data)
 static void ImGui_ImplGlfwGL3_SetClipboardText(void* user_data, const char* text)
 {
     glfwSetClipboardString((GLFWwindow*)user_data, text);
+}
+
+void ImGui_ImplGlfwGL3_CursorPosCallback(GLFWwindow * window, double x, double y)
+{
+	if(glfwGetWindowAttrib(window, GLFW_FOCUSED)) {
+		g_CursorPos[0] = x;
+		g_CursorPos[1] = y;
+	} else {
+		g_CursorPos[0] = -1.0;
+		g_CursorPos[1] = -1.0;
+	}
 }
 
 void ImGui_ImplGlfwGL3_MouseButtonCallback(GLFWwindow*, int button, int action, int /*mods*/)
@@ -362,9 +374,7 @@ void ImGui_ImplGlfwGL3_NewFrame()
     // (we already got mouse wheel, keyboard keys & characters from glfw callbacks polled in glfwPollEvents())
     if (glfwGetWindowAttrib(g_Window, GLFW_FOCUSED))
     {
-        double mouse_x, mouse_y;
-        glfwGetCursorPos(g_Window, &mouse_x, &mouse_y);
-        io.MousePos = ImVec2((float)mouse_x, (float)mouse_y);   // Mouse position in screen coordinates (set to -1,-1 if no mouse / on another screen, etc.)
+        io.MousePos = ImVec2((float)g_CursorPos[0], (float)g_CursorPos[1]);   // Mouse position in screen coordinates (set to -1,-1 if no mouse / on another screen, etc.)
     }
     else
     {
@@ -386,3 +396,5 @@ void ImGui_ImplGlfwGL3_NewFrame()
     // Start the frame
     ImGui::NewFrame();
 }
+
+

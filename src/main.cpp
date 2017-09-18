@@ -38,8 +38,6 @@ namespace input {
 
 	static float xoffset = 0.0f;
 	static float yoffset = 0.0f;
-	static int lastX =  globals::glfw_framebuffer_width / 2.0;
-	static int lastY =  globals::glfw_framebuffer_height / 2.0;
 	static float fov   = 90.0f;
 	static const float minfov = 10.0f;
 	static const float maxfov = 110.0f;
@@ -106,7 +104,7 @@ void GLAPIENTRY gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum 
 
 // ------------------------------- declarations --------------------------------
 
-static void gflw_mouse_motion_callback(GLFWwindow* window, double dx, double dy);
+static void glfw_mouse_motion_callback(GLFWwindow* window, double dx, double dy);
 static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 static void glfw_mouse_click_callback(GLFWwindow* window, int button, int action, int mods);
 static void glfw_scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
@@ -120,12 +118,14 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 		if(input::captured) {
 			input::mouse_init = true;
 			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-			glfwSetCursorDeltaCallback(window, gflw_mouse_motion_callback);
+			glfwSetCursorDeltaCallback(window, glfw_mouse_motion_callback);
+			glfwSetCursorPosCallback(window, nullptr);
 			glfwSetCharCallback(window, nullptr);
 		} else {
 			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 			glfwSetCharCallback(window, ImGui_ImplGlfwGL3_CharCallback);
 			glfwSetCursorDeltaCallback(window, nullptr);
+			glfwSetCursorPosCallback(window, ImGui_ImplGlfwGL3_CursorPosCallback);
 		}
 	}
 
@@ -167,7 +167,6 @@ static void glfw_mouse_click_callback(GLFWwindow* window, int button, int action
 
 			return;
 		}
-
 		ImGui_ImplGlfwGL3_MouseButtonCallback(window, button, action, mods);
 		return;
 	}
@@ -201,16 +200,13 @@ static void glfw_process_input(Scene* s)
 	input::yoffset = 0.0f;
 }
 
-void gflw_mouse_motion_callback(GLFWwindow* /*window*/, double dx, double dy)
+void glfw_mouse_motion_callback(GLFWwindow* /*window*/, double dx, double dy)
 {
 	if(unlikely(input::mouse_init)) // this bool variable is initially set to true
 	{
-		input::lastX = dx;
-		input::lastY = dy;
 		input::mouse_init = false;
 		return;
 	}
-
 
 	input::xoffset += dx * input::sensitivity;
 	input::yoffset += -dy * input::sensitivity;
@@ -290,7 +286,7 @@ static void init_glfw_callbacks(GLFWwindow* window)
 {
 	glfwSetKeyCallback(window, glfw_key_callback);
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-	glfwSetCursorDeltaCallback(window, gflw_mouse_motion_callback);
+	glfwSetCursorDeltaCallback(window, glfw_mouse_motion_callback);
 	glfwSetMouseButtonCallback(window, glfw_mouse_click_callback);
 	glfwSetScrollCallback(window, glfw_scroll_callback);
 	glfwSetFramebufferSizeCallback(window, glfw_framebuffer_resized_callback);
