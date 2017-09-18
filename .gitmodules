@@ -7,9 +7,6 @@
 	url = ssh://git@bitbucket.org/catgirl/glfw.git
 	branch = mouse-delta
 
-[submodule "third_party/imgui_integration"]
-	path = third_party/imgui_integration
-	url = ssh://git@bitbucket.org/catgirl/imgui_integration.git
 [submodule "third_party/stb_integration/stb"]
 	path = third_party/stb_integration/stb
 	url = https://github.com/nothings/stb.git
