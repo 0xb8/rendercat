@@ -1,6 +1,9 @@
 
 A simple OpenGL 4.5 renderer used to teach myself various realtime graphics techniques.
 
+## Sponza scene screenshot
+[![Screenshot](https://user-images.githubusercontent.com/12952180/31048847-c29714f4-a63f-11e7-83cd-f7da8709ade0.jpg)](https://user-images.githubusercontent.com/12952180/31048845-a65bc758-a63f-11e7-9679-0c319d453dfd.jpg)
+
 ## Features
 * Basic forward rendering: no depth prepass (yet), no alpha blending (yet), no animations, etc.
 * SRGB textures
