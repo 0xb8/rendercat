@@ -71,7 +71,6 @@ Model* Scene::load_model(const std::string_view name, const std::string_view bas
 		model.materials = std::unique_ptr<uint32_t[]>(new uint32_t[model.submesh_count]);
 		model.submeshes = std::unique_ptr<uint32_t[]>(new uint32_t[model.submesh_count]);
 
-
 		for(size_t i = 0; i < data.submeshes.size(); ++i) {
 			if(data.submesh_material[i] >= 0 && (unsigned)data.submesh_material[i] < data.materials.size())	{
 				model.materials[i] =  data.submesh_material[i] + base_material;

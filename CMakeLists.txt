@@ -40,14 +40,15 @@ target_include_directories(rendercat
 target_link_libraries(rendercat
 	PRIVATE
 		Boost::filesystem
-		stb-image
-		tinyobjloader
+		stb::image
+		stb::image_write
+		imgui::imgui
+		glbinding::glbinding
+		OpenGL::GL
 		glfw
 		glm
-		imgui
+		tinyobjloader
 		mikktspace
-		glbinding::glbinding
-		${OPENGL_gl_LIBRARY}
 )
 
 if(CMAKE_COMPILER_IS_GNUCC)
@@ -59,20 +60,6 @@ if(CMAKE_COMPILER_IS_GNUCC)
 
 endif()
 
-set(SHADERS_SOURCES
-	"shaders/generic.frag"
-	"shaders/generic.vert"
-	"shaders/cubemap.vert"
-	"shaders/cubemap.frag"
-	"shaders/hdr.vert"
-	"shaders/hdr.frag"
-	"shaders/shadow_mapping.vert"
-	"shaders/shadow_mapping.frag"
-)
+add_subdirectory(shaders)
+add_dependencies(rendercat shaders)
 
-add_custom_target(shaders
-	SOURCES
-		${SHADERS_SOURCES}
-	DEPENDS
-		rendercat
-)
