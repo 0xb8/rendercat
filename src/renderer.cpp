@@ -160,12 +160,27 @@ void Renderer::set_uniforms(GLuint shader)
 	unif::v3(shader, "directional_light.specular",  m_scene->directional_light.specular);
 
 	for(unsigned i = 0; i < m_scene->point_lights.size() && i < MaxLights;++i) {
-		unif::v3(shader, indexed_uniform("point_light", ".position",  i),  m_scene->point_lights[i].position());
-		unif::v3(shader, indexed_uniform("point_light", ".ambient",   i),  m_scene->point_lights[i].ambient());
-		unif::v3(shader, indexed_uniform("point_light", ".diffuse",   i),  m_scene->point_lights[i].diffuse());
-		unif::v3(shader, indexed_uniform("point_light", ".specular",  i),  m_scene->point_lights[i].specular());
-		unif::f1(shader, indexed_uniform("point_light", ".radius",    i),  m_scene->point_lights[i].radius());
-		unif::f1(shader, indexed_uniform("point_light", ".intensity", i),  m_scene->point_lights[i].intensity());
+		const auto& light = m_scene->point_lights[i];
+		unif::v3(shader, indexed_uniform("point_light", ".position",  i),  light.position());
+		unif::v3(shader, indexed_uniform("point_light", ".ambient",   i),  light.ambient());
+		unif::v3(shader, indexed_uniform("point_light", ".diffuse",   i),  light.diffuse());
+		unif::v3(shader, indexed_uniform("point_light", ".specular",  i),  light.specular());
+		unif::f1(shader, indexed_uniform("point_light", ".radius",    i),  light.radius());
+		unif::f1(shader, indexed_uniform("point_light", ".intensity", i),  light.intensity());
+	}
+
+	for(unsigned i = 0; i < m_scene->spot_lights.size() && i < MaxLights;++i) {
+		const auto& light = m_scene->spot_lights[i];
+		unif::v3(shader, indexed_uniform("spot_light", ".direction", i),  light.direction());
+		unif::v3(shader, indexed_uniform("spot_light", ".position",  i),  light.position());
+		unif::v3(shader, indexed_uniform("spot_light", ".ambient",   i),  light.ambient());
+		unif::v3(shader, indexed_uniform("spot_light", ".diffuse",   i),  light.diffuse());
+		unif::v3(shader, indexed_uniform("spot_light", ".specular",  i),  light.specular());
+		unif::f1(shader, indexed_uniform("spot_light", ".radius",    i),  light.radius());
+		unif::f1(shader, indexed_uniform("spot_light", ".intensity", i),  light.intensity());
+		auto ang_sc = light.angle_scale_offset();
+		unif::f1(shader, indexed_uniform("spot_light", ".angle_scale", i), ang_sc.first);
+		unif::f1(shader, indexed_uniform("spot_light", ".angle_offset",i), ang_sc.second);
 	}
 }
 
@@ -211,8 +226,7 @@ void Renderer::draw()
 
 			auto submesh_aabb = submesh.aabb;
 			submesh_aabb.translate(model.transform[3]);
-
-			int light_count = 0;
+			int point_light_count = 0;
 			for(unsigned i = 0; i < m_scene->point_lights.size() && i < MaxLights; ++i) {
 				const auto& light = m_scene->point_lights[i];
 				if(!light.enabled)
@@ -221,13 +235,29 @@ void Renderer::draw()
 				// TODO: implement per-light AABB cutoff to prevent light leaking
 				if(submesh_aabb.intersects_sphere(light.position(), light.radius())) {
 					auto dist = glm::length(light.position() - submesh_aabb.closest_point(light.position()));
-					if(light.falloff(dist) > 0.0001f) {
-						unif::i1(*m_shader, indexed_uniform("active_light_indices", "", light_count++), i);
+					if(light.distance_attenuation(dist) > 0.0001f) {
+						unif::i1(*m_shader, indexed_uniform("point_light_indices", "", point_light_count++), i);
 					}
 				}
-
 			}
-			unif::i1(*m_shader, "num_active_lights", light_count);
+			unif::i1(*m_shader, "num_point_lights", point_light_count);
+
+			int spot_light_count = 0;
+			for(unsigned i = 0; i < m_scene->spot_lights.size() && i < MaxLights; ++i) {
+				const auto& light = m_scene->spot_lights[i];
+				if(!light.enabled)
+					continue;
+
+				// TODO: implement cone-AABB collision check
+				if(submesh_aabb.intersects_sphere(light.position(), light.radius())) {
+					auto dist = glm::length(light.position() - submesh_aabb.closest_point(light.position()));
+					if(light.distance_attenuation(dist) > 0.0001f) {
+						unif::i1(*m_shader, indexed_uniform("spot_light_indices", "", spot_light_count++), i);
+					}
+				}
+			}
+			unif::i1(*m_shader, "num_spot_lights", spot_light_count);
+
 			material.bind(*m_shader);
 			glBindVertexArray(submesh.vao);
 			assert(submesh.index_type == GL_UNSIGNED_INT || submesh.index_type == GL_UNSIGNED_SHORT);

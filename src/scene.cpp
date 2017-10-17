@@ -45,14 +45,26 @@ Scene::Scene()
 	  .specular({0.0, 0.05, 0.3});
 	point_lights.push_back(pl);
 
+	SpotLight spot;
+	spot.direction({0.538f, 0.45f, -0.713f})
+		.angle_outer(glm::radians(30.0f))
+		.angle_inner(glm::radians(25.0f))
+		.position({-9.05f, 2.75f, -3.48f})
+		.ambient({0.0f, 0.0f, 0.0f})
+		.diffuse({0.9, 0.85, 0.8})
+		.specular({0.35, 0.35, 0.3})
+		.radius(9)
+		.flux(300.0);
+
+	spot_lights.push_back(spot);
+
+	spot.direction({-0.46, 0.29f, 0.84f})
+		.position({7.62f, 2.18f, 3.98f});
+
+	spot_lights.push_back(spot);
+
 	load_model("sponza_scaled.obj", "sponza_crytek/");
 	load_model("yorha_2b.obj",      "yorha_2b/");
-	if(auto spot = load_model("spot_triangulated.obj", "spot/"); spot != nullptr)
-	{
-		spot->position = {2.0f, 0.0f, 0.0f};
-		spot->rotation_euler = glm::radians(glm::vec3{90.0f, 0.0f, 0.0f});
-		spot->update_transform();
-	}
 }
 
 Model* Scene::load_model(const std::string_view name, const std::string_view basedir)
@@ -97,6 +109,11 @@ static void show_help_tooltip(const char* desc)
 	}
 }
 
+static void show_flux_help()
+{
+	show_help_tooltip("Luminous Power in Lumens");
+}
+
 void Scene::update()
 {
 	if(!ImGui::Begin("Scene", &window_shown)) {
@@ -129,9 +146,86 @@ void Scene::update()
 			ImGui::TreePop();
 		}
 
+		if(ImGui::TreeNode("Spot Lights")) {
+			if(ImGui::Button("Add light")) {
+				SpotLight sp;
+				sp.direction(-main_camera.front).position(main_camera.pos);
+				spot_lights.push_back(sp);
+			}
+			for(unsigned i = 0; i < spot_lights.size(); ++i) {
+				ImGui::PushID(i);
+				if(ImGui::TreeNode("SpotLight", "Spot light #%d", i)) {
+					auto& light = spot_lights[i];
+					auto dir = light.direction();
+					auto pos = light.position();
+					auto amb = light.ambient();
+					auto diff = light.diffuse();
+					auto spec = light.specular();
+					float power = light.flux();
+					float radius = light.radius();
+					float angle_o = light.angle_outer();
+					float angle_i = light.angle_inner();
+
+					bool flashlight = (i == flashlight_idx);
+
+					ImGui::Checkbox("Enabled", &light.enabled);
+					ImGui::SameLine();
+					if (ImGui::Button("Remove?"))
+						ImGui::OpenPopup("RemovePopup");
+
+					ImGui::Checkbox("Flashlight", &flashlight);
+
+					ImGui::DragFloat3("Direction", glm::value_ptr(dir), 0.01f);
+					ImGui::DragFloat3("Position", glm::value_ptr(pos), 0.01f);
+					ImGui::ColorEdit3("Ambient",  glm::value_ptr(amb),
+					                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
+					ImGui::ColorEdit3("Diffuse",  glm::value_ptr(diff),
+					                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
+					ImGui::ColorEdit3("Specular", glm::value_ptr(spec),
+					                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
+					ImGui::DragFloat("Flux (lm)", &power,  1.0f, 1.0f, 100000.0f);
+					show_flux_help();
+
+					ImGui::DragFloat("Radius",    &radius, 0.1f, 0.5f, 1000.0f);
+					ImGui::SliderAngle("Angle Outer",  &angle_o, 0.0f, 89.0f);
+					ImGui::SliderAngle("Angle Inner",  &angle_i, 0.0f, 89.0f); // TODO: add slider for softness
+
+					if(flashlight) {
+						flashlight_idx = i;
+						dir = -main_camera.front;
+						pos = main_camera.pos;
+					} else if(flashlight_idx == i) {
+						flashlight_idx = std::numeric_limits<size_t>::max();
+					}
+
+					light.direction(dir)
+					     .angle_outer(angle_o)
+					     .angle_inner(angle_i)
+					     .radius(radius)
+					     .flux(power)
+					     .position(pos)
+					     .ambient(amb)
+					     .diffuse(diff)
+					     .specular(spec);
+
+					if (ImGui::BeginPopup("RemovePopup")) {
+						if(ImGui::Button("Confirm"))
+							spot_lights.erase(std::next(spot_lights.begin(), i));
+						ImGui::EndPopup();
+					}
+
+					ImGui::TreePop();
+				} // Tree Node (Spot Light #)
+				ImGui::PopID();
+			} // for each spot light
+			ImGui::TreePop();
+		} // TreeNode(Spot Lights)
+
 		if(ImGui::TreeNode("Point Lights")) {
 			if(ImGui::Button("Add light")) {
-				point_lights.push_back(PointLight{});
+				PointLight pl;
+				pl.position(main_camera.pos);
+				point_lights.push_back(pl);
 			}
 			for(unsigned i = 0; i < point_lights.size(); ++i) {
 				ImGui::PushID(i);
@@ -154,19 +248,20 @@ void Scene::update()
 					ImGui::ColorEdit3("Ambient",  glm::value_ptr(amb),
 					                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
 					ImGui::ColorEdit3("Diffuse",  glm::value_ptr(diff),
-					                    ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
+					                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
 					ImGui::ColorEdit3("Specular", glm::value_ptr(spec),
-					                    ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
+					                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
 					ImGui::DragFloat("Flux (lm)", &power,  1.0f, 1.0f, 100000.0f);
+					show_flux_help();
+
 					ImGui::DragFloat("Radius",    &radius, 0.1f, 0.5f, 1000.0f);
 
-					light
-					  .radius(radius)
-					  .flux(power)
-					  .position(pos)
-					  .ambient(amb)
-					  .diffuse(diff)
-					  .specular(spec);
+					light.radius(radius)
+					     .flux(power)
+					     .position(pos)
+					     .ambient(amb)
+					     .diffuse(diff)
+					     .specular(spec);
 
 					if (ImGui::BeginPopup("RemovePopup")) {
 						if(ImGui::Button("Confirm"))
@@ -175,12 +270,12 @@ void Scene::update()
 					}
 
 					ImGui::TreePop();
-				}
+				} // TreeNode(Point Light #)
 				ImGui::PopID();
-			}
+			} // for each point light
 			ImGui::TreePop();
-		} // TreeNode("Point Lights")
-	} // CollapsingHeader("Lighting")
+		} // TreeNode(Point Lights)
+	} // CollapsingHeader(Lighting)
 
 
 	if(ImGui::CollapsingHeader("Materials")) {

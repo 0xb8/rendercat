@@ -30,14 +30,12 @@ inline std::ostream& operator<<(std::ostream& out, const glm::vec4 g)
 }
 
 namespace m {
-	inline bool between(float f, float min, float max)
+	inline constexpr bool between(float f, float min, float max)
 	{
-		assert(min != max);
 		return f >= min && f <= max;
 	}
-	inline bool between(double f, double min, double max)
+	inline constexpr bool between(double f, double min, double max)
 	{
-		assert(min != max);
 		return f >= min && f <= max;
 	}
 	inline bool between(glm::vec2 v, glm::vec2 min, glm::vec2 max)

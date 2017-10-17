@@ -28,6 +28,18 @@ struct PointLight {
 	float intensity; // luminous intensity (candela)
 };
 
+struct SpotLight {
+	vec3 direction;
+	vec3 position;
+	vec3 ambient;
+	vec3 diffuse;
+	vec3 specular;
+	float radius;
+	float intensity; // luminous intensity (candela)
+	float angle_scale;
+	float angle_offset;
+};
+
 in INTERFACE {
 	vec3 FragPos;
 	mat3 TBN;
@@ -36,17 +48,23 @@ in INTERFACE {
 
 out	vec4 FragColor;
 
+const int MAX_LIGHTS = 16;
+const int MATERIAL_NORMAL_MAPPED = 1 << 8;
+const int MATERIAL_SPECULAR_MAPPED = 1 << 9;
+
 uniform vec3 viewPos;
+
 uniform Material material;
 uniform DirectionalLight directional_light;
 
-const   int MAX_LIGHTS = 16;
-uniform int num_active_lights;
 uniform PointLight point_light[MAX_LIGHTS];
-uniform int active_light_indices[MAX_LIGHTS];
+uniform SpotLight  spot_light[MAX_LIGHTS];
 
-const int MATERIAL_NORMAL_MAPPED = 1 << 8;
-const int MATERIAL_SPECULAR_MAPPED = 1 << 9;
+uniform int point_light_indices[MAX_LIGHTS];
+uniform int spot_light_indices[MAX_LIGHTS];
+
+uniform int num_point_lights;
+uniform int num_spot_lights;
 
 vec3 getMaterialSpecular()
 {
@@ -70,6 +88,23 @@ vec3 getNormal()
 	}
 }
 
+float distance_attenuation(const in float dist, const in float radius)
+{
+	const float decay = 2.0f;
+
+	// ref: equation (26) from https://seblagarde.files.wordpress.com/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
+	// @ https://seblagarde.wordpress.com/2015/07/14/siggraph-2014-moving-frostbite-to-physically-based-rendering/
+	return pow(clamp(1.0 - pow(dist/radius, 4.0), 0.0, 1.0), decay) / max(pow(dist, decay), 0.01);
+}
+
+float direction_attenuation(const in vec3 lightDir, const in vec3 spotDir, const in float angleScale, const in float angleOffset)
+{
+	// ref: listing (4) from https://seblagarde.files.wordpress.com/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
+	// @ https://seblagarde.wordpress.com/2015/07/14/siggraph-2014-moving-frostbite-to-physically-based-rendering/
+	float att = clamp(dot(spotDir, lightDir) * angleScale + angleOffset, 0.0, 1.0);
+	return att * att;
+}
+
 vec3 calcDirectionalLight(const in DirectionalLight light,  const in vec3 viewDir, const in mat3 materialParams)
 {
 	vec3 lightDir = normalize(light.direction);
@@ -89,15 +124,6 @@ vec3 calcDirectionalLight(const in DirectionalLight light,  const in vec3 viewDi
 	return ambient + diffuse + specular;
 }
 
-float point_light_falloff(const in float dist, const in float radius)
-{
-	const float decay = 2.0f;
-
-	// ref: equation (26) from https://seblagarde.files.wordpress.com/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
-	// @ https://seblagarde.wordpress.com/2015/07/14/siggraph-2014-moving-frostbite-to-physically-based-rendering/
-	return pow(clamp(1.0 - pow(dist/radius, 4.0), 0.0, 1.0), decay) / max(pow(dist, decay), 0.01);
-}
-
 vec3 calcPointLight(const in PointLight light, const in vec3 viewDir, const in mat3 materialParams)
 {
 	vec3 lightv = light.position - fs_in.FragPos;
@@ -114,9 +140,29 @@ vec3 calcPointLight(const in PointLight light, const in vec3 viewDir, const in m
 
 	// attenuation
 	float dist = length(lightv);
-	float attenuation = point_light_falloff(dist, light.radius);
+	float att = distance_attenuation(dist, light.radius);
+	return att * (ambient + diffuse + specular);
+}
 
-	return attenuation * (ambient + diffuse + specular);
+vec3 calcSpotLight(const in SpotLight light, const in vec3 viewDir, const in mat3 materialParams)
+{
+	vec3 lightv = light.position - fs_in.FragPos;
+	vec3 lightDir = normalize(lightv);
+	vec3 color = materialParams[0];
+	vec3 normal = materialParams[2];
+	vec3 diffuse = color * light.intensity * light.diffuse * max(dot(normal, lightDir), 0.0);
+	vec3 ambient = color * light.intensity * light.ambient;
+
+	// specular (blinn-phong)
+	vec3 halfwayDir = normalize(lightDir + viewDir);
+	float spec = pow(clamp(dot(normal, halfwayDir), 0.0, 1.0), material.shininess);
+	vec3 specular = light.intensity * light.specular * spec * materialParams[1];
+
+	// attenuation
+	float dist = length(lightv);
+	float att = distance_attenuation(dist, light.radius);
+	att *= direction_attenuation(lightDir, light.direction, light.angle_scale, light.angle_offset);
+	return att * (ambient + diffuse + specular);
 }
 
 void main()
@@ -128,11 +174,14 @@ void main()
 	mat3 materialParams = mat3(materialDiffuse, materialSpecular, normal);
 
 	vec3 directional = calcDirectionalLight(directional_light, viewDir, materialParams);
-
 	vec3 point = vec3(0.0);
-	for(int i = 0; i < num_active_lights; ++i)
-		point += calcPointLight(point_light[active_light_indices[i]], viewDir, materialParams);
+	vec3 spot = vec3(0.0);
+	for(int i = 0; i < num_point_lights; ++i)
+		point += calcPointLight(point_light[point_light_indices[i]], viewDir, materialParams);
 
-	FragColor = vec4(directional + point, 1.0);
+	for(int i = 0; i < num_spot_lights; ++i)
+		spot += calcSpotLight(spot_light[spot_light_indices[i]], viewDir, materialParams);
+
+	FragColor = vec4(directional + point + spot, 1.0);
 }
 

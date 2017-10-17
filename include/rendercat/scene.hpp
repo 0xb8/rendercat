@@ -53,6 +53,8 @@ struct Scene
 	std::vector<model::mesh> submeshes;
 	std::vector<Model>       models;
 	std::vector<PointLight>  point_lights;
+	std::vector<SpotLight>   spot_lights;
+	size_t flashlight_idx =  std::numeric_limits<size_t>::max();
 
 	bool  window_shown = true;
 	int   desired_msaa_level = 0;
