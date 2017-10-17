@@ -21,6 +21,7 @@ add_executable(rendercat
 	src/mesh.cpp
 	src/renderer.cpp
 	src/gl_perfquery.cpp
+	src/gl_screenshot.cpp
 	src/scene.cpp
 	src/shader_set.cpp
 	src/cubemap.cpp

@@ -15,6 +15,7 @@
 #include <rendercat/shader_set.hpp>
 #include <rendercat/scene.hpp>
 #include <rendercat/renderer.hpp>
+#include <rendercat/gl_screenshot.hpp>
 
 #include <imgui.hpp>
 #include <imgui_impl_glfw.h>
@@ -49,6 +50,11 @@ namespace input {
 	static bool right    = false;
 	static bool shift    = false;
 	static bool alt      = false;
+
+	static bool screenshot_requested = false;
+	static int  screenshot_timeout   = 0;
+
+
 }
 
 namespace consts {
@@ -154,6 +160,9 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 		break;
 	case GLFW_KEY_LEFT_ALT:
 		input::alt = (action != GLFW_RELEASE);
+		break;
+	case GLFW_KEY_F10:
+		input::screenshot_requested = true;
 		break;
 	default:
 		break;
@@ -292,6 +301,21 @@ static void init_glfw_callbacks(GLFWwindow* window)
 	glfwSetFramebufferSizeCallback(window, glfw_framebuffer_resized_callback);
 }
 
+static void process_screenshot()
+{
+	if(input::screenshot_requested && input::screenshot_timeout == 0) {
+		input::screenshot_requested = false;
+		input::screenshot_timeout = 200;
+		gl_screenshot(globals::glfw_framebuffer_width,
+		              globals::glfw_framebuffer_height,
+		              "screenshot.png");
+	}
+	if(input::screenshot_timeout > 0) {
+		input::screenshot_requested = false;
+		--input::screenshot_timeout;
+	}
+}
+
 //------------------------------------------------------------------------------
 int main() try
 {
@@ -345,6 +369,7 @@ int main() try
 	init_glfw_callbacks(window);
 
 	globals::last_frame_time = glfwGetTime();
+
 	while(!glfwWindowShouldClose(window))
 	{
 		glfwPollEvents();
@@ -361,8 +386,9 @@ int main() try
 		renderer.draw();
 		renderer.draw_gui();
 		ImGui::Render();
-		glfwSwapBuffers(window);
+		process_screenshot();
 
+		glfwSwapBuffers(window);
 		auto end_time = glfwGetTime();
 		globals::delta_time = end_time - globals::last_frame_time;
 		globals::last_frame_time = end_time;
