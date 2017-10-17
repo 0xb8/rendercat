@@ -20,6 +20,7 @@ add_executable(rendercat
 	src/material.cpp
 	src/mesh.cpp
 	src/renderer.cpp
+	src/gl_perfquery.cpp
 	src/scene.cpp
 	src/shader_set.cpp
 	src/cubemap.cpp

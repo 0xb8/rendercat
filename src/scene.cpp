@@ -21,10 +21,10 @@ Scene::Scene()
 	PointLight pl;
 	pl.position({4.0f, 1.0f, 1.0f})
 	  .ambient({0.0f, 0.0f, 0.0f})
-	  .diffuse({1.0, 0.2, 0.1})
-	  .specular({0.3, 0.05, 0.0})
-	  .radius(7.5)
-	  .flux(150.0);
+	  .diffuse({1.0f, 0.2f, 0.1f})
+	  .specular({0.3f, 0.05f, 0.0f})
+	  .radius(7.5f)
+	  .flux(150.0f);
 
 	point_lights.push_back(pl);
 
@@ -47,14 +47,14 @@ Scene::Scene()
 
 	SpotLight spot;
 	spot.direction({0.538f, 0.45f, -0.713f})
-		.angle_outer(glm::radians(30.0f))
-		.angle_inner(glm::radians(25.0f))
-		.position({-9.05f, 2.75f, -3.48f})
-		.ambient({0.0f, 0.0f, 0.0f})
-		.diffuse({0.9, 0.85, 0.8})
-		.specular({0.35, 0.35, 0.3})
-		.radius(9)
-		.flux(300.0);
+	    .angle_outer(glm::radians(30.0f))
+	    .angle_inner(glm::radians(25.0f))
+	    .position({-9.05f, 2.75f, -3.48f})
+	    .ambient({0.0f, 0.0f, 0.0f})
+	    .diffuse({0.9f, 0.85f, 0.8f})
+	    .specular({0.35f, 0.35f, 0.3f})
+	    .radius(10.0f)
+	    .flux(150.0f);
 
 	spot_lights.push_back(spot);
 

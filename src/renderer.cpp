@@ -27,8 +27,6 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 
 	glGetIntegerv(GL_MAX_SAMPLES, &MSAASampleCountMax);
 	std::cout << "[renderer] max MSAA samples: " << MSAASampleCountMax << '\n';
-
-	glCreateQueries(GL_TIME_ELAPSED, 1, &m_gpu_time_query);
 }
 
 Renderer::~Renderer()
@@ -192,7 +190,7 @@ void Renderer::draw()
 	if(unlikely(m_scene->desired_render_scale != m_backbuffer_scale || m_scene->desired_msaa_level != msaa_level))
 		resize(m_window_width, m_window_height, true);
 
-	glBeginQuery(GL_TIME_ELAPSED, m_gpu_time_query);
+	m_perfquery.begin();
 
 	glClearDepth(0.0f);
 	glDepthFunc(GL_GREATER);
@@ -286,7 +284,7 @@ void Renderer::draw()
 	glBindVertexArray(0);
 	glDepthFunc(GL_LESS);
 
-	glEndQuery(GL_TIME_ELAPSED);
+	m_perfquery.end();
 }
 
 void Renderer::draw_gui()
@@ -303,14 +301,17 @@ void Renderer::draw_gui()
 		|ImGuiWindowFlags_NoCollapse);
 
 	ImGui::PushItemWidth(-1.0f);
+
+	m_perfquery.collect();
+
 	char avgbuf[64];
 	snprintf(avgbuf, std::size(avgbuf),
 	         "GPU avg: %5.2f ms (%4.1f fps), last: %5.2f ms",
-	         gpu_time_avg,
-	         1000.0f / std::max(gpu_time_avg, 0.01f), getTimeElapsed());
+	         m_perfquery.time_avg,
+	         1000.0f / std::max(m_perfquery.time_avg, 0.01f), m_perfquery.time_last);
 
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.00f, 0.00f, 0.00f, 0.50f));
-	ImGui::PlotLines("", gpu_times, std::size(gpu_times), 0, avgbuf, 0.0f, 20.0f, ImVec2(0,40));
+	ImGui::PlotLines("", m_perfquery.times, std::size(m_perfquery.times), 0, avgbuf, 0.0f, 20.0f, ImVec2(0,40));
 	ImGui::PopStyleColor();
 
 	ImGui::PopItemWidth();
@@ -323,22 +324,4 @@ void Renderer::draw_skybox()
 	glDepthFunc(GL_GEQUAL);
 	m_scene->cubemap.draw(*m_cubemap_shader, m_scene->main_camera.view, m_scene->main_camera.projection);
 	glDepthFunc(GL_GREATER);
-}
-
-float Renderer::getTimeElapsed()
-{
-	uint64_t time_elapsed = 0;
-	glGetQueryObjectui64v(m_gpu_time_query, GL_QUERY_RESULT_NO_WAIT, &time_elapsed);
-	float gpu_time = (double)time_elapsed / 1000000.0;
-	gpu_time_avg = 0.0f;
-
-	for(unsigned i = 0; i < std::size(gpu_times)-1; ++i) {
-		gpu_times[i] = gpu_times[i+1];
-		gpu_time_avg += gpu_times[i+1];
-	}
-	gpu_times[std::size(gpu_times)-1] = gpu_time;
-	gpu_time_avg += gpu_time;
-	gpu_time_avg /= std::size(gpu_times);
-
-	return gpu_time;
 }
