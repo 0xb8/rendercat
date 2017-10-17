@@ -36,24 +36,16 @@ static Material load_obj_material(const tinyobj::material_t& mat, const std::str
 	material.specularColorShininess(spec_color, mat.shininess);
 
 	if(!mat.diffuse_texname.empty()) {
-		std::cerr << "   ~ loading diffuse [" << mat.diffuse_texname << "]...   ";
 		bool has_alpha_mask = !mat.alpha_texname.empty();
 		material.addDiffuseMap(mat.diffuse_texname, material_path, has_alpha_mask);
-		std::cerr << '\n';
-	} else {
-		std::cerr << "   - MISSING diffuse map\n";
 	}
 
 	if(!mat.normal_texname.empty()) {
-		std::cerr << "   ~ loading normal [" << mat.normal_texname << "]...   ";
 		material.addNormalMap(mat.normal_texname, material_path);
-		std::cerr << '\n';
 	}
 
 	if(!mat.specular_texname.empty()) {
-		std::cerr << "   ~ loading specular [" << mat.specular_texname << "]...   ";
 		material.addSpecularMap(mat.specular_texname, material_path);
-		std::cerr << '\n';
 	}
 
 	if(!mat.metallic_texname.empty()) {

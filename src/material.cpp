@@ -123,7 +123,7 @@ void Material::addDiffuseMap(const std::string_view name, const std::string_view
 		clear(flags, Opaque | Masked | Blended);
 		if(nrChannels == 3) {
 			if(alpha_masked)
-				std::cerr << "specified alpha masked, but texture does not have alpha channel!";
+				std::cerr << "[material] specified alpha masked, but texture does not have alpha channel!\n";
 			flags |= Opaque;
 		}
 		if(nrChannels == 4) {
@@ -147,8 +147,7 @@ void Material::addDiffuseMap(const std::string_view name, const std::string_view
 		set_type(num_channels);
 		cache->add(std::move(diffuse_path), res, num_channels);
 	} else {
-		std::cerr << " failed!";
-		std::cerr << " Path: [" << diffuse_path << "]";
+		std::cerr << "[material] failed to load diffuse map from: [" << diffuse_path << "]\n";
 	}
 }
 
@@ -175,7 +174,7 @@ void Material::addNormalMap(const std::string_view name, const std::string_view 
 		flags |= NormalMapped;
 		cache->add(std::move(normal_path), res, num_channels);
 	} else {
-		std::cerr << " failed!";
+		std::cerr << "[material] failed to load normal map from: [" << normal_path << "]\n";
 	}
 }
 
@@ -202,7 +201,7 @@ void Material::addSpecularMap(const std::string_view name, const std::string_vie
 		flags |= SpecularMapped;
 		cache->add(std::move(specular_path), res, num_channels);
 	} else {
-		std::cerr << " failed!";
+		std::cerr << "[material] failed to load specular map from: [" << specular_path << "]\n";
 	}
 }
 
