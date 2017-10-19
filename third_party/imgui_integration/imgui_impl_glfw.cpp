@@ -200,7 +200,7 @@ bool ImGui_ImplGlfwGL3_CreateFontsTexture()
     glCreateTextures(GL_TEXTURE_2D, 1, &g_FontTexture);
     glTextureParameteri(g_FontTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTextureParameteri(g_FontTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTextureStorage2D(g_FontTexture, 1, GL_RGBA, width, height);
+    glTextureStorage2D(g_FontTexture, 1, GL_RGBA8, width, height);
     glTextureSubImage2D(g_FontTexture, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
     // Store our identifier
