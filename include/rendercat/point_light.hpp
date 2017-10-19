@@ -117,11 +117,24 @@ struct PointLight final : public PunctualLight<PointLight>
 struct SpotLight final : public PunctualLight<SpotLight>
 {
 	glm::vec3 m_direction {0.0f, 1.0f, 0.0f};
-	float	  m_angle_out = glm::radians(25.0f);
-	float	  m_angle_inn = glm::radians(12.5f);
+	float     m_angle_out = glm::radians(30.0f);
+	float     m_angle_inn = glm::radians(15.0f);
+	float     m_angle_scale = 0.0f;
+	float     m_angle_offset = 0.0f;
+
+	void update_angle_scale_offset() noexcept
+	{
+		float cosInn = glm::cos(m_angle_inn);
+		float cosOut = glm::cos(m_angle_out);
+		m_angle_scale= 1.0f / std::max(0.001f, cosInn - cosOut);
+		m_angle_offset = (-cosOut) * m_angle_scale;
+	}
 
 public:
-	SpotLight() = default;
+	SpotLight() : PunctualLight<SpotLight>()
+	{
+		update_angle_scale_offset();
+	}
 
 	SpotLight& direction(glm::vec3 dir) noexcept
 	{
@@ -151,8 +164,8 @@ public:
 
 	SpotLight& angle_outer(float angle) noexcept
 	{
-		if(!glm::isinf(angle) && !glm::isnan(angle))
-			m_angle_out = glm::clamp(angle, 0.0f, glm::radians(90.0f));
+		m_angle_out = glm::clamp(angle, 0.0f, glm::radians(90.0f));
+		update_angle_scale_offset();
 		return *this;
 	}
 
@@ -163,8 +176,8 @@ public:
 
 	SpotLight& angle_inner(float angle) noexcept
 	{
-		if(!glm::isinf(angle) && !glm::isnan(angle))
-			m_angle_inn = glm::clamp(angle, 0.0f, m_angle_out);
+		m_angle_inn = glm::clamp(angle, 0.0f, m_angle_out);
+		update_angle_scale_offset();
 		return *this;
 	}
 
@@ -173,20 +186,20 @@ public:
 		return m_angle_inn;
 	}
 
-	std::pair<float,float> angle_scale_offset() const noexcept
+	float angle_scale() const noexcept
 	{
-		float cosInn = glm::cos(m_angle_inn);
-		float cosOut = glm::cos(m_angle_out);
-		float scale = 1.0f / std::max(0.001f, cosInn - cosOut);
-		float offset = (-cosOut) * scale;
-		return std::make_pair(scale, offset);
+		return m_angle_scale;
+	}
+
+	float angle_offset() const noexcept
+	{
+		return m_angle_offset;
 	}
 
 	float direction_attenuation(glm::vec3 pos) const noexcept
 	{
 		auto dir = glm::normalize(position() - pos);
-		auto ang_sc = angle_scale_offset();
-		float att = glm::clamp(glm::dot(m_direction, dir) * ang_sc.first + ang_sc.second, 0.0f, 1.0f);
+		float att = glm::clamp(glm::dot(m_direction, dir) * m_angle_scale + m_angle_offset, 0.0f, 1.0f);
 		return att * att;
 
 	}

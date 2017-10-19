@@ -176,9 +176,8 @@ void Renderer::set_uniforms(GLuint shader)
 		unif::v3(shader, indexed_uniform("spot_light", ".specular",  i),  light.specular());
 		unif::f1(shader, indexed_uniform("spot_light", ".radius",    i),  light.radius());
 		unif::f1(shader, indexed_uniform("spot_light", ".intensity", i),  light.intensity());
-		auto ang_sc = light.angle_scale_offset();
-		unif::f1(shader, indexed_uniform("spot_light", ".angle_scale", i), ang_sc.first);
-		unif::f1(shader, indexed_uniform("spot_light", ".angle_offset",i), ang_sc.second);
+		unif::f1(shader, indexed_uniform("spot_light", ".angle_scale", i),light.angle_scale());
+		unif::f1(shader, indexed_uniform("spot_light", ".angle_offset",i),light.angle_offset());
 	}
 }
 
@@ -233,7 +232,7 @@ void Renderer::draw()
 				// TODO: implement per-light AABB cutoff to prevent light leaking
 				if(submesh_aabb.intersects_sphere(light.position(), light.radius())) {
 					auto dist = glm::length(light.position() - submesh_aabb.closest_point(light.position()));
-					if(light.distance_attenuation(dist) > 0.0001f) {
+					if(light.distance_attenuation(dist) > 0.0f) {
 						unif::i1(*m_shader, indexed_uniform("point_light_indices", "", point_light_count++), i);
 					}
 				}
@@ -249,7 +248,7 @@ void Renderer::draw()
 				// TODO: implement cone-AABB collision check
 				if(submesh_aabb.intersects_sphere(light.position(), light.radius())) {
 					auto dist = glm::length(light.position() - submesh_aabb.closest_point(light.position()));
-					if(light.distance_attenuation(dist) > 0.0001f) {
+					if(light.distance_attenuation(dist) > 0.0f) {
 						unif::i1(*m_shader, indexed_uniform("spot_light_indices", "", spot_light_count++), i);
 					}
 				}
