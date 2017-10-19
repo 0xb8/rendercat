@@ -1,12 +1,11 @@
-#include <rendercat/gl_screenshot.hpp>
+#include <rendercat/util/gl_screenshot.hpp>
 #include <glbinding/gl45core/functions.h>
 #include <glbinding/gl45core/enum.h>
-#include <iostream>
 #include <stb_image_write.h>
 
 using namespace gl45core;
 
-void gl_screenshot(size_t w, size_t h, std::string_view filename)
+void util::gl_screenshot(unsigned w, unsigned h, const char * filename)
 {
 	struct pixel
 	{
@@ -35,7 +34,5 @@ void gl_screenshot(size_t w, size_t h, std::string_view filename)
 		}
 	}
 
-	if(stbi_write_png(filename.data(), w, h, 3, data.data(), 0)) {
-		std::cout << "saved screenshot to " << filename << std::endl;
-	}
+	stbi_write_png(filename, w, h, 3, data.data(), 0);
 }

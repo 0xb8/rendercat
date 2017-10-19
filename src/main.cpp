@@ -15,7 +15,7 @@
 #include <rendercat/shader_set.hpp>
 #include <rendercat/scene.hpp>
 #include <rendercat/renderer.hpp>
-#include <rendercat/gl_screenshot.hpp>
+#include <rendercat/util/gl_screenshot.hpp>
 
 #include <imgui.hpp>
 #include <imgui_impl_glfw.h>
@@ -53,8 +53,6 @@ namespace input {
 
 	static bool screenshot_requested = false;
 	static int  screenshot_timeout   = 0;
-
-
 }
 
 namespace consts {
@@ -306,7 +304,7 @@ static void process_screenshot()
 	if(input::screenshot_requested && input::screenshot_timeout == 0) {
 		input::screenshot_requested = false;
 		input::screenshot_timeout = 200;
-		gl_screenshot(globals::glfw_framebuffer_width,
+		util::gl_screenshot(globals::glfw_framebuffer_width,
 		              globals::glfw_framebuffer_height,
 		              "screenshot.png");
 	}

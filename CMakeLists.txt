@@ -20,11 +20,11 @@ add_executable(rendercat
 	src/material.cpp
 	src/mesh.cpp
 	src/renderer.cpp
-	src/gl_perfquery.cpp
-	src/gl_screenshot.cpp
 	src/scene.cpp
 	src/shader_set.cpp
 	src/cubemap.cpp
+	src/util/gl_perfquery.cpp
+	src/util/gl_screenshot.cpp
 )
 
 set_target_properties(rendercat

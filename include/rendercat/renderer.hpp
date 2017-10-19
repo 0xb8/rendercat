@@ -1,7 +1,7 @@
 #pragma once
 
 #include <rendercat/shader_set.hpp>
-#include <rendercat/gl_perfquery.hpp>
+#include <rendercat/util/gl_perfquery.hpp>
 
 class Scene;
 
