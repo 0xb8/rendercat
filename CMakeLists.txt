@@ -23,6 +23,7 @@ add_executable(rendercat
 	src/scene.cpp
 	src/shader_set.cpp
 	src/cubemap.cpp
+	src/util/color_temperature.cpp
 	src/util/gl_perfquery.cpp
 	src/util/gl_screenshot.cpp
 )

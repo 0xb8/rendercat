@@ -1,4 +1,5 @@
 #include <rendercat/scene.hpp>
+#include <rendercat/util/color_temperature.hpp>
 #include <iostream>
 #include <imgui.hpp>
 
@@ -181,6 +182,13 @@ void Scene::update()
 					                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
 					ImGui::ColorEdit3("Diffuse",  glm::value_ptr(diff),
 					                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
+
+					static float temp;
+					if(ImGui::SliderFloat("Color Temperature", &temp, 500.0f, 10000.0f, "%.0f K")) {
+						auto col = util::temperature_to_linear_color(temp);
+						diff = col;
+					}
+
 					ImGui::ColorEdit3("Specular", glm::value_ptr(spec),
 					                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
 					ImGui::DragFloat("Flux (lm)", &power,  1.0f, 1.0f, 100000.0f);
@@ -249,6 +257,13 @@ void Scene::update()
 					                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
 					ImGui::ColorEdit3("Diffuse",  glm::value_ptr(diff),
 					                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
+
+					static float temp;
+					if(ImGui::SliderFloat("Color Temperature", &temp, 500.0f, 10000.0f, "%.0f K")) {
+						auto col = util::temperature_to_linear_color(temp);
+						diff = col;
+					}
+
 					ImGui::ColorEdit3("Specular", glm::value_ptr(spec),
 					                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
 					ImGui::DragFloat("Flux (lm)", &power,  1.0f, 1.0f, 100000.0f);
