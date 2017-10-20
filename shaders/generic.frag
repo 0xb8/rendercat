@@ -88,6 +88,14 @@ vec3 getNormal()
 	}
 }
 
+// prevent light leaking from behind the face when normal mapped
+float check_light_side(vec3 lightDir) {
+	float x	= dot(fs_in.TBN[2], lightDir);
+	const float y = 0.0;
+	// ref: http://theorangeduck.com/page/avoiding-shader-conditionals
+	return max(sign(x - y), 0.0);
+}
+
 float distance_attenuation(const in float dist, const in float radius)
 {
 	const float decay = 2.0f;
@@ -121,7 +129,7 @@ vec3 calcDirectionalLight(const in DirectionalLight light,  const in vec3 viewDi
 	float spec = pow(clamp(dot(normal, halfwayDir), 0.0, 1.0), material.shininess);
 	vec3 specular = spec * light.specular * materialParams[1];
 
-	return ambient + diffuse + specular;
+	return ambient + (diffuse + specular) * check_light_side(lightDir);
 }
 
 vec3 calcPointLight(const in PointLight light, const in vec3 viewDir, const in mat3 materialParams)
@@ -141,6 +149,7 @@ vec3 calcPointLight(const in PointLight light, const in vec3 viewDir, const in m
 	// attenuation
 	float dist = length(lightv);
 	float att = distance_attenuation(dist, light.radius);
+	att *= check_light_side(lightDir);
 	return att * (ambient + diffuse + specular);
 }
 
@@ -162,6 +171,7 @@ vec3 calcSpotLight(const in SpotLight light, const in vec3 viewDir, const in mat
 	float dist = length(lightv);
 	float att = distance_attenuation(dist, light.radius);
 	att *= direction_attenuation(lightDir, light.direction, light.angle_scale, light.angle_offset);
+	att *= check_light_side(lightDir);
 	return att * (ambient + diffuse + specular);
 }
 
