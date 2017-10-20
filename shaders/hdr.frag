@@ -5,10 +5,10 @@ in vec2 TexCoords;
 out vec4 FragColor;
 
 layout(binding=0) uniform sampler2DMS hdrBuffer;
-uniform float exposure;
 
-uniform ivec2 texture_size;
-uniform int   sample_count;
+layout(location=0) uniform float exposure;
+layout(location=1) uniform ivec2 texture_size;
+layout(location=2) uniform int   sample_count;
 
 vec4 textureMultisample(sampler2DMS sampler, ivec2 coord)
 {

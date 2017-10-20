@@ -271,9 +271,9 @@ void Renderer::draw()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glUseProgram(*m_hdr_shader);
 	glBindTextureUnit(0, m_backbuffer_color_to);
-	unif::f1(*m_hdr_shader, "exposure", m_scene->main_camera.exposure);
-	unif::i2(*m_hdr_shader, "texture_size", m_backbuffer_width, m_backbuffer_height);
-	unif::i1(*m_hdr_shader, "sample_count", MSAASampleCount);
+	unif::f1(*m_hdr_shader, 0, m_scene->main_camera.exposure);
+	unif::i2(*m_hdr_shader, 1, m_backbuffer_width, m_backbuffer_height);
+	unif::i1(*m_hdr_shader, 2, MSAASampleCount);
 	renderQuad();
 
 	glDisable(GL_DEPTH_TEST);

@@ -25,7 +25,7 @@ Scene::Scene()
 	  .diffuse({1.0f, 0.2f, 0.1f})
 	  .specular({0.3f, 0.05f, 0.0f})
 	  .radius(7.5f)
-	  .flux(150.0f);
+	  .flux(100.0f);
 
 	point_lights.push_back(pl);
 
@@ -55,7 +55,7 @@ Scene::Scene()
 	    .diffuse({0.9f, 0.85f, 0.8f})
 	    .specular({0.35f, 0.35f, 0.3f})
 	    .radius(10.0f)
-	    .flux(150.0f);
+	    .flux(100.0f);
 
 	spot_lights.push_back(spot);
 

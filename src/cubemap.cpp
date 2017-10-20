@@ -157,14 +157,12 @@ void Cubemap::load_textures(const std::initializer_list<std::string_view> & text
 
 void Cubemap::draw(uint32_t shader, const glm::mat4 & view, const glm::mat4 & projection) noexcept
 {
+	unif::m4(shader, 0, glm::mat4(glm::mat3(view)));
+	unif::m4(shader, 1, projection);
+
 	glUseProgram(shader);
-
-	unif::m4(shader, "view", glm::mat4(glm::mat3(view)));
-	unif::m4(shader, "projection", projection);
-
 	glBindVertexArray(m_vao);
 	glBindTextureUnit(0, m_cubemap);
 	glDrawArrays(GL_TRIANGLES, 0, 36);
 	glBindVertexArray(0);
 }
-

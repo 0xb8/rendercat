@@ -11,6 +11,7 @@ class PunctualLight // CRTP base class
 	glm::vec3 m_specular = {0.1f, 0.1f, 0.1f};
 	float m_radius = 10.0f;
 	float m_luminous_intensity = 11.9366f; // in candelas, equiv. 150 lm
+	float m_dummy{}; // padding
 
 public:
 	bool enabled = true;
