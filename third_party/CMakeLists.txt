@@ -1,6 +1,8 @@
-add_subdirectory(stb_integration)
-add_subdirectory(tiny_obj)
+add_subdirectory(fmt)
 add_subdirectory(mikktspace)
+add_subdirectory(tiny_obj)
+add_subdirectory(tinyheaders_integration)
+add_subdirectory(stb_integration)
 
 set(OPTION_BUILD_TESTS      OFF CACHE BOOL "Build tests.")
 set(OPTION_BUILD_GPU_TESTS  OFF CACHE BOOL "Build tests that require an OpenGL context")

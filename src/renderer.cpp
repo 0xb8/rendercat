@@ -2,8 +2,7 @@
 #include <rendercat/renderer.hpp>
 #include <rendercat/scene.hpp>
 #include <rendercat/uniform.hpp>
-#include <iostream>
-#include <cstdio>
+#include <fmt/format.h>
 #include <string>
 #include <imgui.hpp>
 
@@ -14,6 +13,14 @@
 #include <glbinding/gl45core/functions.h>
 
 using namespace gl45core;
+
+static GLint max_elements_vertices;
+static GLint max_elements_indices;
+static GLint max_color_samples;
+static GLint max_depth_samples;
+static GLint max_framebuffer_samples;
+static GLint max_framebuffer_width;
+static GLint max_framebuffer_height;
 
 Renderer::Renderer(Scene * s) : m_scene(s)
 {
@@ -26,14 +33,27 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 	glEnable(GL_FRAMEBUFFER_SRGB);
 
 	glGetIntegerv(GL_MAX_SAMPLES, &MSAASampleCountMax);
-	std::cout << "[renderer] max MSAA samples: " << MSAASampleCountMax << '\n';
-}
-
-Renderer::~Renderer()
-{
-	glDeleteTextures(1, &m_backbuffer_color_to);
-	glDeleteTextures(1, &m_backbuffer_depth_to);
-	glDeleteFramebuffers(1, &m_backbuffer_fbo);
+	glGetIntegerv(GL_MAX_ELEMENTS_VERTICES, &max_elements_vertices);
+	glGetIntegerv(GL_MAX_ELEMENTS_INDICES,  &max_elements_indices);
+	glGetIntegerv(GL_MAX_DEPTH_TEXTURE_SAMPLES, &max_depth_samples);
+	glGetIntegerv(GL_MAX_COLOR_TEXTURE_SAMPLES, &max_color_samples);
+	glGetIntegerv(GL_MAX_FRAMEBUFFER_SAMPLES,   &max_framebuffer_samples);
+	glGetIntegerv(GL_MAX_FRAMEBUFFER_WIDTH,     &max_framebuffer_width);
+	glGetIntegerv(GL_MAX_FRAMEBUFFER_HEIGHT,    &max_framebuffer_height);
+	fmt::print("[renderer] limits:\n"
+	           "    MSAA samples: {} (color: {} depth: {} framebuf: {})\n"
+	           "    FB size:      {} x {}\n"
+	           "    Vertices:     {}\n"
+	           "    Indices:      {}\n",
+	           MSAASampleCountMax,
+	           max_depth_samples,
+	           max_color_samples,
+	           max_framebuffer_samples,
+	           max_framebuffer_width,
+	           max_framebuffer_height,
+	           max_elements_vertices,
+	           max_elements_indices);
+	std::fflush(stdout);
 }
 
 void Renderer::resize(uint32_t width, uint32_t height, bool force)
@@ -41,68 +61,67 @@ void Renderer::resize(uint32_t width, uint32_t height, bool force)
 	if(width < 2 || height < 2)
 		return;
 
-	if(!force && (width == m_window_width || height == m_window_height))
+	if(!force && (width == m_window_width && height == m_window_height))
 		return;
 
-	m_backbuffer_scale = m_scene->desired_render_scale;
-	msaa_level = m_scene->desired_msaa_level;
-
 	// NOTE: for some reason AMD driver accepts 0 samples, but it's wrong
-	MSAASampleCount = glm::clamp((int)std::exp2(msaa_level), 1, MSAASampleCountMax);
-
-	m_window_width = width;
-	m_window_height = height;
-
-	m_backbuffer_width  = width * m_backbuffer_scale;
-	m_backbuffer_height = height * m_backbuffer_scale;
+	int samples = glm::clamp((int)std::exp2(m_scene->desired_msaa_level), 1, MSAASampleCountMax);
+	uint32_t backbuffer_width = width * m_scene->desired_render_scale;
+	uint32_t backbuffer_height = height * m_scene->desired_render_scale;
 
 	// reinitialize multisampled color texture object
-	glDeleteTextures(1, &m_backbuffer_color_to);
-	glCreateTextures(GL_TEXTURE_2D_MULTISAMPLE, 1, &m_backbuffer_color_to);
-
-	glTextureStorage2DMultisample(m_backbuffer_color_to,
-	                              MSAASampleCount,
-	                              GL_RGBA16F,
-	                              m_backbuffer_width,
-	                              m_backbuffer_height,
-	                              GL_FALSE);
-
+	rc::texture_handle color_to;
+	glCreateTextures(GL_TEXTURE_2D_MULTISAMPLE, 1, color_to.get());
+	glTextureStorage2DMultisample(*color_to,
+				      samples,
+				      GL_RGBA16F,
+				      backbuffer_width,
+				      backbuffer_height,
+				      GL_FALSE);
 
 	// reinitialize multisampled depth texture object
-	glDeleteTextures(1, &m_backbuffer_depth_to);
-	glCreateTextures(GL_TEXTURE_2D_MULTISAMPLE, 1, &m_backbuffer_depth_to);
+	rc::texture_handle depth_to;
+	glCreateTextures(GL_TEXTURE_2D_MULTISAMPLE, 1, depth_to.get());
+	glTextureStorage2DMultisample(*depth_to,
+				      samples,
+				      GL_DEPTH_COMPONENT32F, // TODO: research if GL_DEPTH24_STENCIL8 is viable here
+				      backbuffer_width,
+				      backbuffer_height,
+				      GL_FALSE);
 
-	// TODO: research if GL_DEPTH24_STENCIL8 is viable here
-	glTextureStorage2DMultisample(m_backbuffer_depth_to,
-	                              MSAASampleCount,
-	                              GL_DEPTH_COMPONENT32F,
-	                              m_backbuffer_width,
-	                              m_backbuffer_height,
-	                              GL_FALSE);
-
-
-	// reinitialize framebuffer
-	glDeleteFramebuffers(1, &m_backbuffer_fbo);
-	glCreateFramebuffers(1, &m_backbuffer_fbo);
-
-	// attach texture objects
-	glNamedFramebufferTexture(m_backbuffer_fbo,
-	                          GL_COLOR_ATTACHMENT0,
-	                          m_backbuffer_color_to,
-	                          0);
-	glNamedFramebufferTexture(m_backbuffer_fbo,
-	                          GL_DEPTH_ATTACHMENT,
-	                          m_backbuffer_depth_to,
-	                          0);
-
-
-	GLenum fboStatus = glCheckNamedFramebufferStatus(m_backbuffer_fbo, GL_FRAMEBUFFER);
-	if (fboStatus != GL_FRAMEBUFFER_COMPLETE) {
-		throw std::runtime_error("[renderer] could not resize backbuffer!");
+	if(!color_to || !depth_to) {
+		fmt::print(stderr, "[renderer] backbuffer {} texture creation failed\n", color_to ? "depth" : "color");
+		std::fflush(stderr);
+		return;
 	}
 
+	// reinitialize framebuffer
+	rc::framebuffer_handle fbo;
+	glCreateFramebuffers(1, fbo.get());
+	// attach texture objects
+	glNamedFramebufferTexture(*fbo, GL_COLOR_ATTACHMENT0, *color_to, 0);
+	glNamedFramebufferTexture(*fbo, GL_DEPTH_ATTACHMENT,  *depth_to, 0);
+
+	if (glCheckNamedFramebufferStatus(*fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+		fmt::print(stderr, "[renderer] could not resize backbuffer!");
+		std::fflush(stderr);
+		return;
+	}
+
+	m_backbuffer_fbo = std::move(fbo);
+	m_backbuffer_color_to = std::move(color_to);
+	m_backbuffer_depth_to = std::move(depth_to);
+	m_backbuffer_scale = m_scene->desired_render_scale;
+	msaa_level = m_scene->desired_msaa_level;
+	MSAASampleCount = samples;
+	m_window_width = width;
+	m_window_height = height;
+	m_backbuffer_width = backbuffer_width;
+	m_backbuffer_height = backbuffer_height;
+
 	m_scene->main_camera.update_projection(float(m_backbuffer_width) / (float)m_backbuffer_height);
-	std::cout << "[renderer] framebuffer resized to " << m_backbuffer_width << " x " << m_backbuffer_height << std::endl;
+	fmt::print(stderr, "[renderer] framebuffer resized to {}x{}\n", m_backbuffer_width, m_backbuffer_height);
+	std::fflush(stderr);
 }
 
 static void renderQuad()
@@ -198,7 +217,7 @@ void Renderer::draw()
 	glCullFace(GL_BACK);
 
 	// set out framebuffer and viewport
-	glBindFramebuffer(GL_FRAMEBUFFER, m_backbuffer_fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, *m_backbuffer_fbo);
 	glViewport(0, 0, m_backbuffer_width, m_backbuffer_height);
 	glClear(GL_DEPTH_BUFFER_BIT); // NOTE: no need to clear color attachment bacause skybox will be drawn over it anyway
 
@@ -212,7 +231,7 @@ void Renderer::draw()
 		unif::m3(*m_shader, "normal_matrix", glm::transpose(model.inv_transform));
 
 		for(unsigned submesh_idx = 0; submesh_idx < model.submesh_count; ++submesh_idx) {
-			const model::mesh& submesh = m_scene->submeshes[model.submeshes[submesh_idx]];
+			model::mesh& submesh = m_scene->submeshes[model.submeshes[submesh_idx]];
 			const Material& material = m_scene->materials[model.materials[submesh_idx]];
 
 			if(material.flags & Material::FaceCullingDisabled) {
@@ -255,10 +274,13 @@ void Renderer::draw()
 			}
 			unif::i1(*m_shader, "num_spot_lights", spot_light_count);
 
+			submesh.touched_lights = point_light_count + spot_light_count;
+
 			material.bind(*m_shader);
-			glBindVertexArray(submesh.vao);
+			glBindVertexArray(*submesh.vao);
 			assert(submesh.index_type == GL_UNSIGNED_INT || submesh.index_type == GL_UNSIGNED_SHORT);
-			glDrawElements(GL_TRIANGLES, submesh.numverts, submesh.index_type, nullptr);
+			assert(submesh.index_max > submesh.index_min);
+			glDrawRangeElements(GL_TRIANGLES, submesh.index_min, submesh.index_max, submesh.numverts, submesh.index_type, nullptr);
 		}
 	}
 
@@ -270,7 +292,7 @@ void Renderer::draw()
 	glViewport(0, 0, m_window_width, m_window_height);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glUseProgram(*m_hdr_shader);
-	glBindTextureUnit(0, m_backbuffer_color_to);
+	glBindTextureUnit(0, *m_backbuffer_color_to);
 	unif::f1(*m_hdr_shader, 0, m_scene->main_camera.exposure);
 	unif::i2(*m_hdr_shader, 1, m_backbuffer_width, m_backbuffer_height);
 	unif::i1(*m_hdr_shader, 2, MSAASampleCount);
@@ -289,9 +311,11 @@ void Renderer::draw()
 void Renderer::draw_gui()
 {
 	ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiCond_Always);
+	ImGui::SetNextWindowSize(ImVec2(350, 40));
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.1f));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,ImVec2(0,0));
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding,0.0f);
-	ImGui::Begin("Profile", nullptr, ImVec2(350, 40), 0.0f,
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+	ImGui::Begin("Profile", nullptr,
 		ImGuiWindowFlags_NoMove
 		|ImGuiWindowFlags_NoResize
 		|ImGuiWindowFlags_NoSavedSettings
@@ -316,6 +340,7 @@ void Renderer::draw_gui()
 	ImGui::PopItemWidth();
 	ImGui::End();
 	ImGui::PopStyleVar(2);
+	ImGui::PopStyleColor();
 }
 
 void Renderer::draw_skybox()

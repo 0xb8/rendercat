@@ -2,7 +2,8 @@
 #include <rendercat/uniform.hpp>
 #include <stb_image.h>
 #include <string>
-#include <iostream>
+#include <utility>
+#include <fmt/format.h>
 
 #include <glbinding/gl45core/boolean.h>
 #include <glbinding/gl45core/bitfield.h>
@@ -11,6 +12,17 @@
 #include <glbinding/gl45core/functions.h>
 
 using namespace gl45core;
+
+static const char* const face_names_hdr[6] = {
+	"right.hdr",
+	"left.hdr",
+	"top.hdr",
+	"bottom.hdr",
+	"front.hdr",
+	"back.hdr"
+};
+
+static GLint max_texture_size;
 
 Cubemap::Cubemap() noexcept
 {
@@ -58,43 +70,48 @@ Cubemap::Cubemap() noexcept
 		 1.0f, -1.0f,  1.0f
 	};
 
-	GLuint vao, vbo;
+	if(!max_texture_size) {
+		glGetIntegerv(GL_MAX_CUBE_MAP_TEXTURE_SIZE, &max_texture_size);
+		fmt::print("[cubemap] limits:\n"
+		           "    Texture size: {}\n", max_texture_size);
+	}
 
-	glCreateVertexArrays(1, &vao);
-	glCreateBuffers(1, &vbo);
-	glNamedBufferStorage(vbo, sizeof(cubemap_vertices), &cubemap_vertices, GL_NONE_BIT);
+	if(!m_vao && !m_vbo) {
+		GLuint vao, vbo;
 
-	glEnableVertexArrayAttrib(vao, 0);
-	glVertexArrayVertexBuffer(vao, 0, vbo, 0, 3*sizeof(float));
-	glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
-	glVertexArrayAttribBinding(vao, 0, 0);
-	m_vao = vao;
-	m_vbo = vbo;
+		glCreateVertexArrays(1, &vao);
+		glCreateBuffers(1, &vbo);
+		glNamedBufferStorage(vbo, sizeof(cubemap_vertices), &cubemap_vertices, GL_NONE_BIT);
+
+		glEnableVertexArrayAttrib(vao, 0);
+		glVertexArrayVertexBuffer(vao, 0, vbo, 0, 3*sizeof(float));
+		glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
+		glVertexArrayAttribBinding(vao, 0, 0);
+		m_vao.reset(vao);
+		m_vbo.reset(vbo);
+	}
 }
 
-Cubemap::~Cubemap() noexcept
+void Cubemap::load_textures(std::string_view basedir)
 {
-	glDeleteBuffers(1, &m_vbo);
-	glDeleteVertexArrays(1, &m_vao);
-	glDeleteTextures(1, &m_cubemap);
-	glDeleteTextures(1, &m_envmap);
-}
-
-void Cubemap::load_textures(const std::initializer_list<std::string_view> & textures, std::string_view basedir)
-{
-	assert(textures.size() == 6);
-
+	assert(basedir.length() > 0);
 	std::string path;
 	path.reserve(basedir.size() + 20);
+	path.append(basedir);
+	std::replace(path.begin(), path.end(),'\\', '/');
+	if(path.back() != '/') {
+		path.push_back('/');
+	}
+	size_t dirlen = path.length();
 
-	GLuint tex;
+	rc::texture_handle tex;
 	// BUG: AMD driver cannot upload faces of single cubemap, only cubemap array (size of 1 still works)
-	glCreateTextures(GL_TEXTURE_CUBE_MAP_ARRAY, 1, &tex);
-	glTextureParameteri(tex, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTextureParameteri(tex, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTextureParameteri(tex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTextureParameteri(tex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTextureParameteri(tex, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glCreateTextures(GL_TEXTURE_CUBE_MAP_ARRAY, 1, tex.get());
+	glTextureParameteri(*tex, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTextureParameteri(*tex, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTextureParameteri(*tex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTextureParameteri(*tex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTextureParameteri(*tex, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
 	struct stb_guard
 	{
@@ -114,45 +131,46 @@ void Cubemap::load_textures(const std::initializer_list<std::string_view> & text
 	bool texture_storage_allocated{false};
 	int face{0};
 	int prev_face_width{0}, prev_face_height{0};
-	for(const auto& texture : textures) {
-		path.clear();
-		path.append(basedir);
-		path.append(texture);
+	for(int i = 0; i < 6; ++i) {
+		path.resize(dirlen);
+		path.append(face_names_hdr[i]);
 
 		int face_width, face_height, chan;
 		auto data = stbi_loadf(path.data(), &face_width, &face_height, &chan, 3);
 		if(data && chan == 3) {
 			if(!texture_storage_allocated) {
-				glTextureStorage3D(tex, 1, GL_RGB16F, face_width, face_height, 6);
+				glTextureStorage3D(*tex, 1, GL_RGB16F, face_width, face_height, 6);
 				texture_storage_allocated = true;
 				prev_face_width = face_width;
 				prev_face_height = face_height;
 			} else {
 				if(face_width != prev_face_width || face_height != prev_face_height) {
-					std::cerr << "could not open cubemap face [" << texture << "] from \'" << basedir << "\'"
-					          << ": face size does not match: current: " << face_width << 'x' << face_height
-					          << "  previous: " << prev_face_width << 'x' << prev_face_height << std::endl;
+					fmt::print(stderr, "[cubemap] bad face '{}': "
+					           "face size does not match (current {}x{}, previous {}x{})\n",
+					           path,
+					           face_width,
+					           face_height,
+					           prev_face_width,
+					           prev_face_height);
 
 					stbi_image_free(data);
-					glDeleteTextures(1, &tex);
 					return;
 				}
 			}
 
-			glTextureSubImage3D(tex, 0, 0, 0, face, face_width, face_height, 1, GL_RGB, GL_FLOAT, data);
+			glTextureSubImage3D(*tex, 0, 0, 0, face, face_width, face_height, 1, GL_RGB, GL_FLOAT, data);
 			++face;
 
 			stbi_image_free(data);
 		} else {
-			std::cerr << "could not open cubemap face [" << texture << "] from \'" << basedir << "\'";
+			fmt::print(stderr, "[cubemap] could not open cubemap face '{}'\n", path);
 			if(chan != 3) {
-				std::cerr << ": invalid channel count (should be 3): " << chan;
+				fmt::print(stderr, "[cubemap] invalid channel count: {}\n", chan);
 			}
-			std::cerr << std::endl;
+			return;
 		}
 	}
-
-	m_cubemap = tex;
+	m_cubemap = std::move(tex);
 }
 
 void Cubemap::draw(uint32_t shader, const glm::mat4 & view, const glm::mat4 & projection) noexcept
@@ -161,8 +179,8 @@ void Cubemap::draw(uint32_t shader, const glm::mat4 & view, const glm::mat4 & pr
 	unif::m4(shader, 1, projection);
 
 	glUseProgram(shader);
-	glBindVertexArray(m_vao);
-	glBindTextureUnit(0, m_cubemap);
+	glBindVertexArray(*m_vao);
+	glBindTextureUnit(0, *m_cubemap);
 	glDrawArrays(GL_TRIANGLES, 0, 36);
 	glBindVertexArray(0);
 }

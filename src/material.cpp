@@ -2,8 +2,9 @@
 #include <rendercat/texture_cache.hpp>
 #include <rendercat/uniform.hpp>
 #include <stb_image.h>
-#include <iostream>
 #include <cmath>
+#include <utility>
+#include <fmt/format.h>
 
 #include <glbinding/gl45core/boolean.h>
 #include <glbinding/gl45core/types.h>
@@ -24,7 +25,16 @@ static GLuint load_texture(const std::string& path, bool linear, int desired_cha
 	static const int   max_levels = 14;
 	if(max_anisotropic_filtering_samples == 2.0f) {
 		glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &max_anisotropic_filtering_samples);
-		std::cout << "[material] max anisotropic filtering samples: " << max_anisotropic_filtering_samples << std::endl;
+		GLint max_tex_size{}, max_buffer_size;
+		glGetIntegerv(GL_MAX_RECTANGLE_TEXTURE_SIZE, &max_tex_size);
+		glGetIntegerv(GL_MAX_TEXTURE_BUFFER_SIZE, &max_buffer_size);
+		fmt::print("[material] limits:\n"
+		           "    AF samples:   {}\n"
+		           "    Texture size: {}\n"
+		           "    Texture buf:  {}\n",
+		           max_anisotropic_filtering_samples,
+		           max_tex_size,
+		           max_buffer_size);
 	}
 
 	GLuint tex = 0;
@@ -58,7 +68,7 @@ static GLuint load_texture(const std::string& path, bool linear, int desired_cha
 			glTextureSubImage2D(tex, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data);
 			break;
 		default:
-			std::cerr << "[material] invalid channel count: " << nrChannels << " in " << path << '\n';
+			fmt::print(stderr, "[material] invalid channel count: {} in [{}]\n", nrChannels, path);
 			assert(false);
 			break;
 		}
@@ -93,6 +103,33 @@ Material::~Material() {
 	glDeleteTextures(1, &m_specular_map);
 }
 
+Material &Material::operator =(Material&& o) noexcept
+{
+	assert(this != &o);
+	m_specular_color = o.m_specular_color;
+	m_shininess      = o.m_shininess;
+	flags            = o.flags;
+
+	name = std::move(o.name);
+	glDeleteTextures(1, &m_diffuse_map);
+	glDeleteTextures(1, &m_normal_map);
+	glDeleteTextures(1, &m_specular_map);
+	m_diffuse_map = std::exchange(o.m_diffuse_map, 0);
+	m_normal_map = std::exchange(o.m_normal_map, 0);
+	m_specular_map = std::exchange(o.m_specular_map, 0);
+
+	return *this;
+}
+
+Material::Material(Material&& o) noexcept :
+	name(std::move(o.name)),
+	flags(o.flags),
+	m_specular_color(o.m_specular_color),
+	m_shininess(o.m_shininess),
+	m_diffuse_map(std::exchange(o.m_diffuse_map, 0)),
+	m_normal_map(std::exchange(o.m_normal_map, 0)),
+	m_specular_map(std::exchange(o.m_specular_map, 0)) { }
+
 void Material::bind(GLuint s) const noexcept
 {
 	unif::v3(s,  "material.specular",  m_specular_color);
@@ -123,7 +160,7 @@ void Material::addDiffuseMap(const std::string_view name, const std::string_view
 		clear(flags, Opaque | Masked | Blended);
 		if(nrChannels == 3) {
 			if(alpha_masked)
-				std::cerr << "[material] specified alpha masked, but texture does not have alpha channel!\n";
+				fmt::print(stderr, "[material] specified alpha masked, but texture does not have alpha channel!\n");
 			flags |= Opaque;
 		}
 		if(nrChannels == 4) {
@@ -147,7 +184,7 @@ void Material::addDiffuseMap(const std::string_view name, const std::string_view
 		set_type(num_channels);
 		cache->add(std::move(diffuse_path), res, num_channels);
 	} else {
-		std::cerr << "[material] failed to load diffuse map from: [" << diffuse_path << "]\n";
+		fmt::print(stderr, "[material] failed to load diffuse map from: [{}]\n", diffuse_path);
 	}
 }
 
@@ -174,7 +211,7 @@ void Material::addNormalMap(const std::string_view name, const std::string_view 
 		flags |= NormalMapped;
 		cache->add(std::move(normal_path), res, num_channels);
 	} else {
-		std::cerr << "[material] failed to load normal map from: [" << normal_path << "]\n";
+		fmt::print(stderr, "[material] failed to load normal map from: [{}]\n", normal_path);
 	}
 }
 
@@ -201,7 +238,7 @@ void Material::addSpecularMap(const std::string_view name, const std::string_vie
 		flags |= SpecularMapped;
 		cache->add(std::move(specular_path), res, num_channels);
 	} else {
-		std::cerr << "[material] failed to load specular map from: [" << specular_path << "]\n";
+		fmt::print(stderr,"[material] failed to load specular map from: [{}]\n", specular_path);
 	}
 }
 

@@ -34,7 +34,7 @@ public:
 	}
 	T& ambient(glm::vec3 amb) noexcept
 	{
-		if(m::between(amb, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}))
+		if(rc::math::between(amb, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}))
 			m_ambient = amb;
 		return *static_cast<T*>(this);
 	}
@@ -45,7 +45,7 @@ public:
 	}
 	T& diffuse(glm::vec3 dif) noexcept
 	{
-		if(m::between(dif, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}))
+		if(rc::math::between(dif, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}))
 			m_diffuse = dif;
 		return *static_cast<T*>(this);
 	}
@@ -56,7 +56,7 @@ public:
 	}
 	T& specular(glm::vec3 spec) noexcept
 	{
-		if(m::between(spec, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}))
+		if(rc::math::between(spec, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}))
 			m_specular = spec;
 		return *static_cast<T*>(this);
 	}
@@ -89,13 +89,13 @@ public:
 	{
 		// ref: equation (15) from https://seblagarde.files.wordpress.com/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
 		// @ https://seblagarde.wordpress.com/2015/07/14/siggraph-2014-moving-frostbite-to-physically-based-rendering/
-		return m_luminous_intensity * 4.0 * mc::pi;
+		return m_luminous_intensity * 4.0 * rc::mathconst::pi;
 	}
 
 	T& flux(float luminous_flux) noexcept // in lumens
 	{
 		if(luminous_flux > 0.0f && luminous_flux < 20000.0f)
-			m_luminous_intensity = luminous_flux / (4.0 * mc::pi);
+			m_luminous_intensity = luminous_flux / (4.0 * rc::mathconst::pi);
 		return *static_cast<T*>(this);
 	}
 
@@ -152,13 +152,13 @@ public:
 	{
 		// ref: equation (17) from https://seblagarde.files.wordpress.com/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
 		// @ https://seblagarde.wordpress.com/2015/07/14/siggraph-2014-moving-frostbite-to-physically-based-rendering/
-		return intensity() * mc::pi;
+		return intensity() * rc::mathconst::pi;
 	}
 
 	SpotLight& flux(float luminous_flux) noexcept // in lumens
 	{
 		if(luminous_flux > 0.0f && luminous_flux < 20000.0f) {
-			intensity(luminous_flux /  mc::pi);
+			intensity(luminous_flux /  rc::mathconst::pi);
 		}
 		return *(this);
 	}

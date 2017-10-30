@@ -16,6 +16,14 @@
 #define unlikely(x) (x)
 #endif
 
+#define RC_DISABLE_COPY(Class) \
+	Class(const Class &) = delete;\
+	Class &operator=(const Class &) = delete;
+
+#define RC_DISABLE_MOVE(Class) \
+	Class(Class &&) = delete;\
+	Class &operator=(Class &&) = delete;
+
 inline std::ostream& operator<<(std::ostream& out, const glm::vec2 g)
 {
     return out << glm::to_string(g);
@@ -29,7 +37,8 @@ inline std::ostream& operator<<(std::ostream& out, const glm::vec4 g)
     return out << glm::to_string(g);
 }
 
-namespace m {
+namespace rc {
+namespace math {
 	inline constexpr bool between(float f, float min, float max)
 	{
 		return f >= min && f <= max;
@@ -61,18 +70,19 @@ namespace m {
 			&& between(v[3], min[3], max[3]);
 	}
 
-	inline std::int64_t percent(std::int64_t value, std::int64_t max, std::int64_t min = 0ll)
+	template<typename T>
+	inline T percent(T value, T max, T min = T{})
 	{
-		if(value == 0 || max == 0 || max == min) return 0;
+		static_assert(std::is_fundamental_v<T>, "T must be fundamental type");
+		if(value == T{} || max == T{} || max == min) return T{};
 		return static_cast<double>(value-min) * 100.0 / max - min;
 	}
 }
 
-namespace mc {
-
+namespace mathconst {
 	inline constexpr double e	= 2.7182818284590452354;
 	inline constexpr double log2e	= 1.4426950408889634074;
-	inline constexpr double log10e= 0.43429448190325182765;
+	inline constexpr double log10e	= 0.43429448190325182765;
 	inline constexpr double ln2	= 0.69314718055994530942;
 	inline constexpr double ln10	= 2.30258509299404568402;
 	inline constexpr double pi	= 3.14159265358979323846;
@@ -84,3 +94,15 @@ namespace mc {
 	inline constexpr double sqrt2	= 1.41421356237309504880;
 	inline constexpr double sqrt_1_2 = 0.70710678118654752440;
 }
+
+namespace path {
+	constexpr char shader[] = "shaders/";
+	namespace asset {
+		constexpr char cubemap[] = "assets/materials/cubemaps/";
+		constexpr char model[] = "assets/models/";
+		constexpr char model_material[] = "assets/materials/models/";
+	}
+}
+}
+
+

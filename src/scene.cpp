@@ -1,6 +1,5 @@
 #include <rendercat/scene.hpp>
 #include <rendercat/util/color_temperature.hpp>
-#include <iostream>
 #include <imgui.hpp>
 
 Scene::Scene()
@@ -9,14 +8,7 @@ Scene::Scene()
 	materials.emplace_back(Material{"missing"});
 	Material::set_texture_cache(&m_texture_cache);
 
-	cubemap.load_textures({
-		"right.hdr",
-		"left.hdr",
-		"top.hdr",
-		"bottom.hdr",
-		"front.hdr",
-		"back.hdr"
-		}, "assets/materials/cubemaps/evening_field/");
+	cubemap.load_textures("assets/materials/cubemaps/field_evening");
 
 	main_camera.pos = {0.0f, 1.5f, 0.4f};
 	PointLight pl;
@@ -24,15 +16,15 @@ Scene::Scene()
 	  .ambient({0.0f, 0.0f, 0.0f})
 	  .diffuse({1.0f, 0.2f, 0.1f})
 	  .specular({0.3f, 0.05f, 0.0f})
-	  .radius(7.5f)
-	  .flux(100.0f);
+	  .radius(4.5f)
+	  .flux(75.0f);
 
 	point_lights.push_back(pl);
 
 	pl.position({4.0f, 1.0f, -1.5f});
 	point_lights.push_back(pl);
 
-	pl.position({-5.0f, 1.0f, -1.5f});;
+	pl.position({-5.0f, 1.0f, -1.5f});
 	point_lights.push_back(pl);
 
 	pl.position({-5.0f, 1.0f, 1.0f});
@@ -46,23 +38,24 @@ Scene::Scene()
 	  .specular({0.0, 0.05, 0.3});
 	point_lights.push_back(pl);
 
-	SpotLight spot;
-	spot.direction({0.538f, 0.45f, -0.713f})
-	    .angle_outer(glm::radians(30.0f))
-	    .angle_inner(glm::radians(25.0f))
-	    .position({-9.05f, 2.75f, -3.48f})
-	    .ambient({0.0f, 0.0f, 0.0f})
-	    .diffuse({0.9f, 0.85f, 0.8f})
-	    .specular({0.35f, 0.35f, 0.3f})
-	    .radius(10.0f)
-	    .flux(100.0f);
+	SpotLight sp;
+	sp.diffuse({0.9f, 0.86f, 0.88f})
+	  .specular({0.4f, 0.395f, 0.395f})
+	  .direction({0.0f, 1.0f, 0.0f})
+	  .radius(4.0f)
+	  .flux(60.0f);
 
-	spot_lights.push_back(spot);
+	sp.position({-10.0f, 3.3f, -3.8f});
+	spot_lights.push_back(sp);
 
-	spot.direction({-0.46, 0.29f, 0.84f})
-		.position({7.62f, 2.18f, 3.98f});
+	sp.position({-10.0f, 3.3f, 3.4f});
+	spot_lights.push_back(sp);
 
-	spot_lights.push_back(spot);
+	sp.position({9.3f, 3.3f, -3.8f});
+	spot_lights.push_back(sp);
+
+	sp.position({9.3f, 3.3f, 3.4f});
+	spot_lights.push_back(sp);
 
 	load_model("sponza_scaled.obj", "sponza_crytek/");
 	load_model("yorha_2b.obj",      "yorha_2b/");
@@ -121,12 +114,7 @@ void Scene::update()
 		ImGui::End();
 		return;
 	}
-	if(ImGui::CollapsingHeader("Camera")) {
-		ImGui::InputFloat3("Position", glm::value_ptr(main_camera.pos));
-		ImGui::SliderFloat("FOV", &main_camera.fov, 30.0f, 120.0f);
-		ImGui::SliderFloat("Near Z", &main_camera.znear, 0.001f, 10.0f);
-		ImGui::SliderFloat("Exposure", &main_camera.exposure, 0.001f, 10.0f);
-	}
+
 	if(ImGui::CollapsingHeader("Renderer")) {
 		const char* labels[] = {"Disabled", "2x", "4x", "8x", "16x"};
 
@@ -134,6 +122,14 @@ void Scene::update()
 		show_help_tooltip("Multi-Sample Antialiasing\n\nValues > 4x may be unsupported on some setups.");
 		ImGui::SliderFloat("Resolution scale", &desired_render_scale, 0.1f, 1.0f, "%.1f");
 	}
+
+	if(ImGui::CollapsingHeader("Camera")) {
+		ImGui::InputFloat3("Position", glm::value_ptr(main_camera.pos));
+		ImGui::SliderFloat("FOV", &main_camera.fov, 30.0f, 120.0f);
+		ImGui::SliderFloat("Near Z", &main_camera.znear, 0.001f, 10.0f);
+		ImGui::SliderFloat("Exposure", &main_camera.exposure, 0.001f, 10.0f);
+	}
+
 	if(ImGui::CollapsingHeader("Lighting")) {
 		if(ImGui::TreeNode("Directional")) {
 
@@ -185,7 +181,7 @@ void Scene::update()
 
 					static float temp;
 					if(ImGui::SliderFloat("Color Temperature", &temp, 500.0f, 10000.0f, "%.0f K")) {
-						auto col = util::temperature_to_linear_color(temp);
+						auto col = rc::util::temperature_to_linear_color(temp);
 						diff = col;
 					}
 
@@ -260,7 +256,7 @@ void Scene::update()
 
 					static float temp;
 					if(ImGui::SliderFloat("Color Temperature", &temp, 500.0f, 10000.0f, "%.0f K")) {
-						auto col = util::temperature_to_linear_color(temp);
+						auto col = rc::util::temperature_to_linear_color(temp);
 						diff = col;
 					}
 
@@ -367,19 +363,20 @@ void Scene::update()
 				model.update_transform();
 
 				if(ImGui::TreeNode("Submeshes", "Submeshes: %u", model.submesh_count)) {
+					ImGui::Columns(3);
+					ImGui::SetColumnOffset(2, ImGui::GetColumnOffset(3) - 65.0f);
+					ImGui::SetColumnOffset(1, ImGui::GetColumnOffset(2) - 110.0f);
+					ImGui::Text("Name");      ImGui::NextColumn();
+					ImGui::Text("Vertices");  ImGui::NextColumn();
+					ImGui::Text("Lights");    ImGui::NextColumn();
+					ImGui::Separator();
 					for(unsigned j = 0; j < model.submesh_count; ++j) {
-
-						ImGui::PushID(models.size()+j);
-						ImGui::Columns(2);
-						ImGui::Text("%s", submeshes[model.submeshes[j]].name.data());
-						ImGui::SetColumnOffset(1, ImGui::GetColumnOffset(2) - 180.0f);
-						ImGui::NextColumn();
-						ImGui::Text("%u verts (%u uniq)",
-						            submeshes[model.submeshes[j]].numverts,
-						            submeshes[model.submeshes[j]].numverts_unique);
-						ImGui::Columns();
-						ImGui::PopID();
+						const auto& submesh = submeshes[model.submeshes[j]];
+						ImGui::Text("%s", submesh.name.data());	ImGui::NextColumn();
+						ImGui::Text("%u / %u", submesh.numverts, submesh.numverts_unique); ImGui::NextColumn();
+						ImGui::Text("%u", submesh.touched_lights); ImGui::NextColumn();
 					}
+					ImGui::Columns();
 					ImGui::TreePop();
 				}
 

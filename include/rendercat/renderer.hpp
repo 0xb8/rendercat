@@ -2,12 +2,12 @@
 
 #include <rendercat/shader_set.hpp>
 #include <rendercat/util/gl_perfquery.hpp>
+#include <rendercat/util/gl_unique_handle.hpp>
 
 class Scene;
 
 class Renderer
 {
-
 	ShaderSet m_shader_set;
 	PerfQuery m_perfquery;
 	Scene*  m_scene;
@@ -22,9 +22,9 @@ class Renderer
 	uint32_t m_window_height = 0;
 	float    m_backbuffer_scale  = 1.0f;
 
-	gl::GLuint m_backbuffer_fbo = 0;
-	gl::GLuint m_backbuffer_color_to = 0;
-	gl::GLuint m_backbuffer_depth_to = 0;
+	rc::framebuffer_handle m_backbuffer_fbo;
+	rc::texture_handle     m_backbuffer_color_to;
+	rc::texture_handle     m_backbuffer_depth_to;
 
 	void set_uniforms(gl::GLuint shader);
 	void draw_skybox();
@@ -41,7 +41,7 @@ public:
 	static constexpr int MaxLights = 16;
 
 	explicit Renderer(Scene* s);
-	~Renderer();
+	~Renderer() = default;
 
 	void resize(uint32_t width, uint32_t height, bool force = false);
 	void draw();

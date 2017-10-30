@@ -68,9 +68,9 @@ struct Scene
 
 	DirectionalLight directional_light {
 		glm::vec3(0.3f, 1.0f, 0.8f),       // dir
-		glm::vec3(0.011f, 0.008f, 0.015f), // amb
-		glm::vec3(0.12f, 0.12f, 0.1f),       // diff
-		glm::vec3(0.065f, 0.055f, 0.055f)};    // spec
+		glm::vec3(0.029f, 0.034f, 0.081f), // amb
+		glm::vec3(0.109f, 0.071f, 0.042f), // diff
+		glm::vec3(0.032f, 0.021f, 0.012f)};// spec
 
 	Cubemap cubemap;
 };

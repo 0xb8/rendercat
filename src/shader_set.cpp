@@ -1,8 +1,11 @@
 #include <rendercat/shader_set.hpp>
-#include <boost/filesystem.hpp>
-#include <iostream>
+#include <rendercat/util/gl_unique_handle.hpp>
+#include <tinyheaders/tinyfiles.h>
+#include <fmt/format.h>
 #include <sstream>
+#include <fstream>
 #include <vector>
+#include <memory>
 
 #include <glbinding/gl45core/boolean.h>
 #include <glbinding/gl45core/types.h>
@@ -11,246 +14,193 @@
 
 using namespace gl45core;
 
-#define VERT_SHADER_EXT ".vert"
-#define FRAG_SHADER_EXT ".frag"
-
-namespace fs = boost::filesystem;
 namespace {
+
+struct shader_ext_type
+{
+	const char* const ext;
+	const GLenum type;
+};
+
+constexpr shader_ext_type types[] {
+	{".vert", GL_VERTEX_SHADER},
+	{".frag", GL_FRAGMENT_SHADER},
+	{".geom", GL_GEOMETRY_SHADER},
+	{".comp", GL_COMPUTE_SHADER},
+	{".tese", GL_TESS_EVALUATION_SHADER},
+	{".tesc", GL_TESS_CONTROL_SHADER}
+};
+
+GLenum shader_type_from_filename(const std::string_view filename)
+{
+	auto ext_pos = filename.find_last_of('.');
+	if(ext_pos != std::string_view::npos && ext_pos < filename.length()-4) {
+		auto ext = filename.substr(ext_pos);
+
+		for(unsigned i = 0; i < std::size(types); ++i) {
+			if(ext == types[i].ext)
+				return types[i].type;
+
+		}
+	}
+
+	fmt::print(stderr, "[shader]  could not determine type of file: [{}]\n", filename);
+
+	return GL_INVALID_ENUM;
+}
 
 struct Shader
 {
-	explicit Shader(const fs::path&& fpath) : filepath(fpath)
-	{
-		reload(true);
-	}
+	std::string     filepath;
+	tfFILETIME      last_mod = {};
+	rc::shader_handle   handle;
 
-	~Shader()
-	{
-		glDeleteShader(handle);
-	}
+	explicit Shader(std::string&& fpath) : filepath(std::move(fpath)) { }
+
+	~Shader() = default;
+	Shader(Shader&& o) noexcept = default;
+	Shader& operator =(Shader&& o) noexcept = default;
+	RC_DISABLE_COPY(Shader)
 
 	bool should_reload()
 	{
-		auto mod_date = fs::last_write_time(filepath);
+		tfFILETIME ft;
+		tfGetFileTime(filepath.data(), &ft);
 
-		if(last_mod >= mod_date)
-		{
+		if(likely(0 == tfCompareFileTimes(&last_mod, &ft))) {
 			return false;
 		}
+		last_mod = ft;
 		return true;
 	}
 
-	void reload(bool force) try
+	bool reload() try
 	{
-		fs::ifstream sh_fstream;
-		sh_fstream.open(filepath);
+		if(!should_reload())
+			return false;
 
-		auto filename_str = filepath.string();
-		auto filename = std::string_view{filename_str};
+		std::ifstream filestream;
+		filestream.open(filepath);
 
-		if(!sh_fstream.is_open()) {
-			std::cerr << "[shader]   could not open " << filename << std::endl;
-			return;
-		}
-
-		if(!force && !should_reload())
-		{
-			return;
-		}
-
-		last_mod = fs::last_write_time(filepath);
-
-		auto ext_pos = filename.find_last_of('.');
-		if(ext_pos == std::string_view::npos || ext_pos == filename.length()-1) {
-			std::cerr << "[shader]   could not determine shader type of " << filename << std::endl;
-			return;
-		}
-		auto ext = filename.substr(ext_pos);
-
-		GLenum shader_type{};
-		if(ext == VERT_SHADER_EXT) {
-			shader_type = GL_VERTEX_SHADER;
-		}
-		else if(ext == FRAG_SHADER_EXT) {
-			shader_type = GL_FRAGMENT_SHADER;
-		}
-		else {
-			std::cerr << "[shader]   unknown shader type: " << ext << " of " << filename <<std::endl;
-			return;
+		if(!filestream.is_open()) {
+			fmt::print(stderr, "[shader]  reload failed: could not open file [{}]\n", filepath);
 		}
 
 		std::ostringstream oss{};
-		oss << sh_fstream.rdbuf();
-		auto shader_source = oss.str();
-		auto shader_source_data = shader_source.c_str();
+		oss << filestream.rdbuf();
 
+		auto shader_type = shader_type_from_filename(filepath);
+		const auto shader_source = oss.str();
+		const auto shader_source_ptr = shader_source.data();
 
-		GLuint new_handle = glCreateShader(shader_type);
-		glShaderSource(new_handle, 1, &shader_source_data, nullptr);
-		glCompileShader(new_handle);
+		rc::shader_handle new_handle(glCreateShader(shader_type));
+		glShaderSource(*new_handle, 1, &shader_source_ptr, nullptr);
+		glCompileShader(*new_handle);
 		GLint success = 0;
-		glGetShaderiv(new_handle, GL_COMPILE_STATUS, &success);
-		if(!success) {
-//			char msg[1024];
-//			glGetShaderInfoLog(handle, 1024, nullptr, msg);
-//			std::cerr << "Shader compilation failed:\n" << msg << std::endl;
-			glDeleteShader(new_handle);
-			new_handle = 0;
+		glGetShaderiv(*new_handle, GL_COMPILE_STATUS, &success);
+		if(success && new_handle) {
+			handle = std::move(new_handle);
+			fmt::print("[shader]  reload success [{}]\n", filepath);
+			return true;
 		}
+		return false;
 
-		if(new_handle != 0) {
-			handle = new_handle;
-			std::cerr << "[shader]   (re)loaded " << filepath.filename() << std::endl;
-		}
-	} catch(const boost::filesystem::filesystem_error& err) {
-		std::cerr << "exception in shader reload(), code: " << err.code() << ", what(): \n" << err.what() << std::endl;
+	} catch(const std::exception& e) {
+		fmt::print(stderr, "[shader]  exception, what(): {}\n", e.what());
+		return false;
 	}
 
-	Shader(Shader&& o)
+	bool valid() const noexcept
 	{
-		std::swap(handle,o.handle);
-		std::swap(filepath, o.filepath);
-		last_mod = o.last_mod;
+		return static_cast<bool>(handle);
 	}
-
-	Shader& operator=(const Shader&&) = delete;
-	Shader& operator=(const Shader&) = delete;
-	Shader(Shader&) = delete;
-
-	bool valid() const
-	{
-		return handle != 0;
-	}
-
-	fs::path filepath;
-	time_t last_mod = 0;
-	GLuint handle{};
 };
 
 }
 
-struct ShaderSet::Program
+class ShaderSet::Program
 {
-	Program() : handle(glCreateProgram()) { }
-	~Program()
+	std::vector<Shader> m_shaders;
+public:
+	rc::program_handle handle{};
+
+	Program() = default;
+	~Program() = default;
+	Program(Program&&) noexcept = default;
+	Program& operator=(Program&&) noexcept = default;
+	RC_DISABLE_COPY(Program)
+
+	static bool link(rc::program_handle& program)
 	{
-		glDeleteProgram(handle);
+		glLinkProgram(*program);
+		GLint success = 0;
+		glGetProgramiv(*program, GL_LINK_STATUS, &success);
+		if(!success) {
+			fmt::print(stderr, "[shader]  failed to link program id [{}]\n", *program);
+		}
+		return success;
 	}
-
-	Program(Program&& o)
-	{
-		std::swap(handle, o.handle);
-		std::swap(m_shaders, o.m_shaders);
-	}
-
-
-	Program& operator=(Program&) = delete;
-	Program(Program&) = delete;
 
 	void attach_shader(Shader&& s)
 	{
-		if(s.valid()) {
-			auto sh = s.handle;
-			m_shaders.push_back(std::move(s));
-			glAttachShader(handle, sh);
-			//std::cerr << "attached " << m_shaders.back().filepath << std::endl;
-			glDeleteShader(sh); // mark for garbage collection after detaching from program
-		}
+		m_shaders.push_back(std::move(s));
 	}
 
-	void link()
+	bool reload()
 	{
-		glLinkProgram(handle);
-		GLint success = 0;
-		glGetProgramiv(handle, GL_LINK_STATUS, &success);
-		if(!success) {
-
-			std::cerr << "[shader]  failed to link program..." << std::endl;
-			//char msg[512];
-			//glGetShaderInfoLog(handle, 512, nullptr, msg);
-			//std::cerr << "Shader compilation failed:\n" << msg << std::endl;
-			glDeleteProgram(handle);
-			handle = 0;
-		}
-	}
-
-	void reload()
-	{
-		bool should_reload = false;
+		unsigned valid_shaders = 0, reloaded_shaders = 0;
 		for(auto& s : m_shaders) {
-			if(s.should_reload()) {
-				should_reload = true;
-				break;
+			if(s.reload()) {
+				++reloaded_shaders;
 			}
-		}
-
-		if(!should_reload)
-			return;
-
-		GLuint new_program_handle = glCreateProgram();
-
-		size_t valid_shaders = 0;
-		for(auto& s : m_shaders) {
-			s.reload(true);
 			if(s.valid()) {
 				++valid_shaders;
 			}
 		}
+		if(reloaded_shaders == 0 || valid_shaders != m_shaders.size())
+			return false;
 
-		if(valid_shaders < m_shaders.size()) {
-			std::cerr << "[shader]   only " << valid_shaders << " out of " << m_shaders.size() << " attached." << std::endl;
-			return;
-		}
+		rc::program_handle new_handle(glCreateProgram());
 
 		for(auto& s : m_shaders) {
-			glAttachShader(new_program_handle, s.handle);
-			glDeleteShader(s.handle);
+			glAttachShader(*new_handle, *s.handle);
 		}
 
-		glLinkProgram(new_program_handle);
-		GLint success = 0;
-		glGetProgramiv(handle, GL_LINK_STATUS, &success);
-		if(!success) {
-			glDeleteProgram(new_program_handle);
-			new_program_handle = 0;
-		} else {
-			glDeleteProgram(handle);
-			handle = new_program_handle;
-			//std::cerr << "Reloaded program successfully!" << std::endl;
+		if(Program::link(new_handle)) {
+			handle = std::move(new_handle);
+			return true;
 		}
+		// seems like there's no need to detach shaders before program deletion
+		return false;
 	}
 
 
 	bool valid() const
 	{
-		return handle != 0;
+		return static_cast<bool>(handle);
 	}
 
-	GLuint handle{};
 
-private:
-
-	std::vector<Shader> m_shaders;
 };
 
 
-ShaderSet::ShaderSet(std::string_view directory) : m_directory(directory)
-{
-
-}
+ShaderSet::ShaderSet(std::string_view directory) : m_directory(directory) { }
 
 ShaderSet::~ShaderSet()
 {
-	for(int i= 0; i < m_program_count; ++i)	{
-		(m_programs[i])->~Program();
+	for(unsigned i = 0; i < m_program_count; ++i) {
+		std::destroy_at(m_programs[i]);
+		m_programs[i] = nullptr;
 	}
 }
 
-void ShaderSet::check_updates()
+bool ShaderSet::check_updates()
 {
-	for(int i= 0; i < m_program_count; ++i)	{
-		(m_programs[i])->reload();
+	bool ret = false;
+	for(unsigned i = 0; i < m_program_count; ++i) {
+		ret |= (m_programs[i])->reload();
 	}
+	return ret;
 }
 
 
@@ -258,23 +208,23 @@ gl::GLuint * ShaderSet::load_program(std::initializer_list<std::string_view> nam
 {
 	Program program;
 
-	for(auto&& name : names) {
-		fs::path filepath{m_directory};
-		filepath /= name.data();
+	for(const auto& name : names) {
+		std::string filepath(m_directory);
+		filepath.append(name);
 
-		if(!fs::exists(filepath)) {
-			std::cerr << "[shader]   file does not exist: " << filepath << std::endl;
+		if(!tfFileExists(filepath.data())) {
+			fmt::print(stderr, "[shader]  shader file does not exist: [{}]\n", filepath);
 			return nullptr;
 		}
 
 		program.attach_shader(Shader(std::move(filepath)));
 	}
 
-	program.link();
+	program.reload();
 
 	if(program.valid()) {
 		m_programs[m_program_count] = new Program{std::move(program)};
-		return &((m_programs[m_program_count++])->handle);
+		return m_programs[m_program_count++]->handle.get();
 	}
 
 	return nullptr;

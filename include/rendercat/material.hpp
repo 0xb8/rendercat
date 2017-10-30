@@ -25,29 +25,13 @@ struct Material
 	static void set_default_diffuse() noexcept;
 
 	Material(const std::string& name_) noexcept : name(name_), m_diffuse_map(default_diffuse){}
-	~Material() noexcept;
+	~Material();
 
 	Material(const Material&) = delete;
 	Material& operator=(const Material&) = delete;
 
-	Material(Material&& o) noexcept
-	{
-		this->operator=(std::move(o));
-	}
-	Material& operator =(Material&& o) noexcept
-	{
-		assert(this != &o);
-		m_specular_color = o.m_specular_color;
-		m_shininess      = o.m_shininess;
-		flags            = o.flags;
-
-		name = std::move(o.name);
-		std::swap(m_diffuse_map, o.m_diffuse_map);
-		std::swap(m_normal_map, o.m_normal_map);
-		std::swap(m_specular_map, o.m_specular_map);
-
-		return *this;
-	}
+	Material(Material&& o) noexcept;
+	Material& operator =(Material&& o) noexcept;
 
 	void bind(gl::GLuint s) const noexcept;
 
@@ -72,7 +56,7 @@ private:
 	glm::vec3 m_specular_color = {0.0f, 0.0f, 0.0f};
 	float     m_shininess      = 0.0f;
 
-	gl::GLuint  m_diffuse_map  = 0;
+	gl::GLuint  m_diffuse_map  = 0; // can't convert to unique_handle because it has shared lifetime with cache
 	gl::GLuint  m_normal_map   = 0;
 	gl::GLuint  m_specular_map = 0;
 };

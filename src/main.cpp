@@ -1,7 +1,6 @@
-#include <iostream>
-#include <sstream>
 #include <chrono>
 #include <thread>
+#include <fmt/format.h>
 
 #include <glbinding/gl45core/boolean.h>
 #include <glbinding/gl45core/types.h>
@@ -65,11 +64,11 @@ namespace consts {
 void GLAPIENTRY gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei /*length*/, const GLchar *message, const void */*userParam*/)
 {
 
-	std::stringstream ss;
-	ss << "[GL] ";
+	fmt::MemoryWriter ss;
+	ss << "\n[GL] ";
 	switch (source)
 	{
-		case GL_DEBUG_SOURCE_API:             ss<< "API "; break;
+		case GL_DEBUG_SOURCE_API:             ss << "OpenGL API "; break;
 		case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   ss << "Window System "; break;
 		case GL_DEBUG_SOURCE_SHADER_COMPILER: ss << "Shader Compiler "; break;
 		case GL_DEBUG_SOURCE_THIRD_PARTY:     ss << "Third Party "; break;
@@ -80,14 +79,12 @@ void GLAPIENTRY gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum 
 
 	switch (type)
 	{
-		case GL_DEBUG_TYPE_ERROR:               ss << "error "; break;
-		case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: ss << "Deprecated Behaviour "; break;
-		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  ss << "Undefined Behaviour "; break;
+		case GL_DEBUG_TYPE_ERROR:               ss << "Error "; break;
+		case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: ss << "Deprecated Behavior"; break;
+		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  ss << "Undefined Behavior"; break;
 		case GL_DEBUG_TYPE_PORTABILITY:         ss << "Portability "; break;
 		case GL_DEBUG_TYPE_PERFORMANCE:         ss << "Performance "; break;
 		case GL_DEBUG_TYPE_MARKER:              ss << "Marker "; break;
-		case GL_DEBUG_TYPE_PUSH_GROUP:          ss << "Push Group "; break;
-		case GL_DEBUG_TYPE_POP_GROUP:           ss << "Pop Group "; break;
 		case GL_DEBUG_TYPE_OTHER:               ss << "Other "; break;
 		default: break;
 	}
@@ -97,12 +94,13 @@ void GLAPIENTRY gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum 
 		case GL_DEBUG_SEVERITY_HIGH:         ss << "(high) "; break;
 		case GL_DEBUG_SEVERITY_MEDIUM:       ss << "(med)  "; break;
 		case GL_DEBUG_SEVERITY_LOW:          ss << "(low)  "; break;
-		case GL_DEBUG_SEVERITY_NOTIFICATION: ss<< "(info) "; break;
+		case GL_DEBUG_SEVERITY_NOTIFICATION: ss << "(info) "; break;
 		default: break;
 	}
 
-	ss << "[" << id << "]:\t" << message << '\n';
-	std::cerr << ss.rdbuf();
+	ss << "[" << id << "]\n\t" << message << '\n';
+	std::fwrite(ss.data(), 1, ss.size(), stderr);
+	std::fflush(stderr);
 }
 
 
@@ -249,7 +247,7 @@ static void enable_gl_debug_callback()
 	if(!glfwExtensionSupported("GL_KHR_debug") && !glfwExtensionSupported("GL_ARB_debug_output"))
 		return;
 	//glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-	glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, 0, GL_FALSE);
+	//glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, 0, GL_FALSE);
 	glDebugMessageCallback(gl_debug_callback, 0);
 #endif
 }
@@ -260,7 +258,7 @@ static void check_gl_default_framebuffer_is_srgb()
 	GLint param;
 	glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_FRONT_LEFT, GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING, &param);
 	if(param != GL_SRGB) {
-		std::cerr << "[renderer] default framebuffer is not SRGB! Possible driver bug, check colors manually.\n";
+		std::fputs("[renderer] default framebuffer is not SRGB! Possible driver bug, check colors manually.\n", stderr);
 	}
 
 }
@@ -283,10 +281,12 @@ static void print_all_extensions()
 {
 	int n;
 	glGetIntegerv(GL_NUM_EXTENSIONS, &n);
-	std::cerr << n << " supported extensions:\n";
+	fmt::MemoryWriter ss;
+	ss << n << " supported extensions:\n";
 	for(int i = 0; i <n; ++i) {
-		std::cerr << glGetStringi(GL_EXTENSIONS, i) << '\n';
+		ss << (const char*)glGetStringi(GL_EXTENSIONS, i) << '\n';
 	}
+	std::fwrite(ss.data(), ss.size(), 1, stdout);
 }
 
 static void init_glfw_callbacks(GLFWwindow* window)
@@ -304,7 +304,7 @@ static void process_screenshot()
 	if(input::screenshot_requested && input::screenshot_timeout == 0) {
 		input::screenshot_requested = false;
 		input::screenshot_timeout = 200;
-		util::gl_screenshot(globals::glfw_framebuffer_width,
+		rc::util::gl_screenshot(globals::glfw_framebuffer_width,
 		              globals::glfw_framebuffer_height,
 		              "screenshot.png");
 	}
@@ -399,6 +399,6 @@ int main() try
 	return 0;
 } catch(const std::exception& e) {
 	glfwTerminate();
-	std::cerr << "exception in main():\n" << e.what() << std::endl;
+	fmt::print(stderr, "exception in main(): {}\n", e.what());
 	return -1;
 }

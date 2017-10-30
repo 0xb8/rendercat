@@ -8,10 +8,10 @@ class ShaderSet
 {
 public:
 
-	explicit ShaderSet(std::string_view directory = "shaders");
+	explicit ShaderSet(std::string_view directory = rc::path::shader);
 	~ShaderSet();
 
-	void check_updates();
+	bool check_updates();
 
 	gl::GLuint* load_program(std::initializer_list<std::string_view>);
 
@@ -21,7 +21,7 @@ private:
 	class Program;
 	std::string	m_directory;
 	Program*	m_programs[max_programs];
-	int		m_program_count = 0;
+	unsigned	m_program_count = 0;
 
 };
 

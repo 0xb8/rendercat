@@ -5,7 +5,7 @@
 
 using namespace gl45core;
 
-void util::gl_screenshot(unsigned w, unsigned h, const char * filename)
+void rc::util::gl_screenshot(unsigned w, unsigned h, const char * filename)
 {
 	struct pixel
 	{

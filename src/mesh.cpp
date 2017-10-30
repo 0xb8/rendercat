@@ -3,8 +3,9 @@
 #include <rendercat/material.hpp>
 #include <tiny_obj_loader.h>
 #include <mikktspace.h>
-#include <iostream>
+#include <fmt/format.h>
 #include <numeric>
+#include <utility>
 
 #include <glbinding/gl45core/boolean.h>
 #include <glbinding/gl45core/bitfield.h>
@@ -62,7 +63,7 @@ static Material load_obj_material(const tinyobj::material_t& mat, const std::str
 		if(val == "0") {
 			material.flags |= Material::FaceCullingDisabled;
 		}
-		std::cerr << "   - no face culling\n";
+		fmt::print(stderr, "   - no face culling\n");
 	}
 
 	return std::move(material);
@@ -79,32 +80,35 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 	std::vector<int> scene_mesh_material;
 	std::string err;
 
-	std::string model_path{"assets/models/"};
+	std::string model_path{rc::path::asset::model};
 	model_path.append(basedir);
 
 	std::string model_path_full = model_path;
 	model_path_full.append(name);
 
-	std::string material_path{"assets/materials/models/"};
+	std::string material_path{rc::path::asset::model_material};
 	material_path.append(basedir);
 
-	std::cerr << "\n--- loading model \'" << name << "\' from \'" << model_path << "\' ------------------------\n";
+	fmt::print(stderr, "\n--- loading model '{}' from '{}' ------------------------\n",
+	                   name,model_path);
 	size_t vertex_cout = 0, unique_vertex_count = 0;
 
 
 	if(!tinyobj::LoadObj(&attrib, &shapes, &obj_materials, &err, model_path_full.data(), model_path.data())) {
-		std::cerr << "Error loading OBJ: " << err << std::endl;
+		fmt::print(stderr, "Error loading OBJ: {}", err);
 		return false;
 	}
 
 	const bool has_normals = !attrib.normals.empty();
 	const bool has_texcoords = !attrib.texcoords.empty();
 	if(unlikely(!has_normals)) {
-		std::cerr << "Error loading OBJ: " << name << " does not have vertex normals!\n";
+		fmt::print(stderr, "Error loading OBJ: '{}' does not have vertex normals!\n",
+		           name);
 		return false;
 	}
 	if(unlikely(!has_texcoords)) {
-		std::cerr << "Error loading OBJ: " << name << " does not have texture coords!\n";
+		fmt::print(stderr, "Error loading OBJ: '{}' does not have texture coords!\n",
+		           name);
 		return false;
 	}
 
@@ -113,22 +117,22 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 	scene_mesh_material.reserve(shapes.size());
 
 	for(const tinyobj::shape_t& shape : shapes) {
-		std::cerr << " * loading submesh \'" << shape.name << "\'\n";
+		fmt::print(stderr, " * loading submesh '{}'\n", shape.name);
 
 		int shape_material_id = -1;
 
 		if(unlikely(shape.mesh.material_ids.size() == 0)) {
-			std::cerr << "   - missing material!\n";
+			fmt::print(stderr, "   - missing material!\n");
 		} else if(!std::equal(std::next(std::cbegin(shape.mesh.material_ids)),
 		                      std::cend(shape.mesh.material_ids),
 		                      std::cbegin(shape.mesh.material_ids)))
 		{
-			std::cerr << "   -  per-face materials detected\n";
+			fmt::print(stderr, "   -  per-face materials detected\n");
 		} else  {
 			auto shape_mat_id = shape.mesh.material_ids[0];
 
 			if(unlikely(shape_mat_id < 0 || shape_mat_id >= (int)obj_materials.size())) {
-				std::cerr << "   - invalid material id:  " << shape_mat_id << '\n';
+				fmt::print(stderr, "   - invalid material id:  {}\n", shape_mat_id);
 			} else {
 				tinyobj::material_t& mat = obj_materials[shape_mat_id];
 				const auto& mat_name = mat.name;
@@ -180,7 +184,8 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 		unique_vertex_count += mesh.numverts_unique;
 
 		if(unlikely(!mesh.valid())) {
-			std::cerr << "\nError loading submesh [" << shape.name << "]\n";
+			fmt::print(stderr, "\nError loading submesh [{}]\n", shape.name);
+			std::fflush(stderr);
 			return false;
 		}
 
@@ -188,13 +193,16 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 
 		scene_mesh_material.push_back(shape_material_id);
 		if(unlikely(shape_material_id < 0)) {
-			std::cerr << " - invalid material!\n";
+			fmt::print(stderr, " - invalid material!\n");
 		}
+
 	}
-	std::cerr << " ~ final vertex count: "
-		  << vertex_cout << ", unique: " << unique_vertex_count
-		  << " (" << 100-m::percent(unique_vertex_count, vertex_cout) << "% saved)"
-		  << "\n--- model \'" << name <<"\' loaded -------------------------------\n" << std::endl;
+	fmt::print(stderr, " ~ final vertex count: {}, unique: {} ({}% saved)\n"
+	                   "\n--- model '{}' loaded -------------------------------\n",
+	           vertex_cout,
+	           unique_vertex_count,
+	           100-rc::math::percent(unique_vertex_count, vertex_cout),
+	           name);
 
 	for(auto& m : scene_materials) {
 		m.name.insert(0, basedir);
@@ -202,6 +210,7 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 	res->materials = std::move(scene_materials);
 	res->submeshes = std::move(scene_meshes);
 	res->submesh_material = std::move(scene_mesh_material);
+	std::fflush(stderr);
 
 	return true;
 }
@@ -353,6 +362,7 @@ model::mesh::mesh(const std::string& name_, std::vector<vertex> && verts) : name
 	assert(verts.size() == tangents.size());
 	uint32_t initial_vertex_count = verts.size();
 	uint32_t unique_vertex_count = verts.size();
+	uint32_t max_idx{0};
 
 	// index the mesh ------------------------------------------------------
 	std::vector<uint32_t> indices;
@@ -367,7 +377,7 @@ model::mesh::mesh(const std::string& name_, std::vector<vertex> && verts) : name
 		use_small_indices = false;
 	}
 
-	auto add_index = [use_small_indices,&indices,&small_indices](uint32_t idx)
+	auto add_index = [use_small_indices,&indices,&small_indices,&max_idx](uint32_t idx)
 	{
 		if(likely(use_small_indices)) {
 			assert(idx < std::numeric_limits<uint16_t>::max());
@@ -375,6 +385,8 @@ model::mesh::mesh(const std::string& name_, std::vector<vertex> && verts) : name
 		} else {
 			indices.push_back(idx);
 		}
+		if(idx > max_idx)
+			max_idx = idx;
 	};
 
 	std::vector<vertex_tangent> vtans;
@@ -437,48 +449,47 @@ model::mesh::mesh(const std::string& name_, std::vector<vertex> && verts) : name
 
 
 	// set up GPU objects --------------------------------------------------
-	glCreateVertexArrays(1, &vao);
+	glCreateVertexArrays(1, vao.get());
 
-	glCreateBuffers(1, &ebo);
+	glCreateBuffers(1, ebo.get());
 	if(likely(use_small_indices)) { // reduces index memory usage by 2x for most of the meshes
-		glNamedBufferStorage(ebo, small_indices.size() * sizeof(uint16_t), small_indices.data(), GL_NONE_BIT);
+		glNamedBufferStorage(*ebo, small_indices.size() * sizeof(uint16_t), small_indices.data(), GL_NONE_BIT);
 		index_type = GL_UNSIGNED_SHORT;
 	} else {
-		std::cerr << "   - using 32-bit indices...\n";
-		glNamedBufferStorage(ebo, indices.size() * sizeof(uint32_t), indices.data(), GL_NONE_BIT);
+		glNamedBufferStorage(*ebo, indices.size() * sizeof(uint32_t), indices.data(), GL_NONE_BIT);
 		index_type = GL_UNSIGNED_INT;
 	}
-	glVertexArrayElementBuffer(vao, ebo);
+	glVertexArrayElementBuffer(*vao, *ebo);
 
-	glCreateBuffers(1, &dynamic_vbo);
-	glNamedBufferStorage(dynamic_vbo, dynamic_attribs.size() * sizeof(dynamic_attrib), dynamic_attribs.data(), GL_NONE_BIT);
+	glCreateBuffers(1, dynamic_vbo.get());
+	glNamedBufferStorage(*dynamic_vbo, dynamic_attribs.size() * sizeof(dynamic_attrib), dynamic_attribs.data(), GL_NONE_BIT);
 
-	glCreateBuffers(1, &static_vbo);
-	glNamedBufferStorage(static_vbo, static_attribs.size() * sizeof(static_attrib), static_attribs.data(), GL_NONE_BIT);
+	glCreateBuffers(1, static_vbo.get());
+	glNamedBufferStorage(*static_vbo, static_attribs.size() * sizeof(static_attrib), static_attribs.data(), GL_NONE_BIT);
 
 	const GLuint dynamic_vbo_id = 0;
 	const GLuint static_vbo_id  = 1;
 
 	// set up VBO: binding index, vbo, offset, stride
-	glVertexArrayVertexBuffer(vao, dynamic_vbo_id, dynamic_vbo,  0, sizeof(dynamic_attrib));
-	glVertexArrayVertexBuffer(vao, static_vbo_id,  static_vbo,   0, sizeof(static_attrib));
+	glVertexArrayVertexBuffer(*vao, dynamic_vbo_id, *dynamic_vbo,  0, sizeof(dynamic_attrib));
+	glVertexArrayVertexBuffer(*vao, static_vbo_id,  *static_vbo,   0, sizeof(static_attrib));
 
-	glEnableVertexArrayAttrib(vao, 0);
-	glEnableVertexArrayAttrib(vao, 1);
-	glEnableVertexArrayAttrib(vao, 2);
-	glEnableVertexArrayAttrib(vao, 3);
+	glEnableVertexArrayAttrib(*vao, 0);
+	glEnableVertexArrayAttrib(*vao, 1);
+	glEnableVertexArrayAttrib(*vao, 2);
+	glEnableVertexArrayAttrib(*vao, 3);
 
 	// specify attrib format: attrib idx, element count, format, normalized, relative offset
-	glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, GL_FALSE, offsetof(dynamic_attrib, position));
-	glVertexArrayAttribFormat(vao, 1, 3, GL_FLOAT, GL_FALSE, offsetof(static_attrib,  normal));
-	glVertexArrayAttribFormat(vao, 2, 3, GL_FLOAT, GL_FALSE, offsetof(static_attrib,  tangent));
-	glVertexArrayAttribFormat(vao, 3, 3, GL_FLOAT, GL_FALSE, offsetof(static_attrib,  texcoords));
+	glVertexArrayAttribFormat(*vao, 0, 3, GL_FLOAT, GL_FALSE, offsetof(dynamic_attrib, position));
+	glVertexArrayAttribFormat(*vao, 1, 3, GL_FLOAT, GL_FALSE, offsetof(static_attrib,  normal));
+	glVertexArrayAttribFormat(*vao, 2, 3, GL_FLOAT, GL_FALSE, offsetof(static_attrib,  tangent));
+	glVertexArrayAttribFormat(*vao, 3, 3, GL_FLOAT, GL_FALSE, offsetof(static_attrib,  texcoords));
 
 	// assign VBOs to attributes
-	glVertexArrayAttribBinding(vao, 0, dynamic_vbo_id);
-	glVertexArrayAttribBinding(vao, 1, static_vbo_id);
-	glVertexArrayAttribBinding(vao, 2, static_vbo_id);
-	glVertexArrayAttribBinding(vao, 3, static_vbo_id);
+	glVertexArrayAttribBinding(*vao, 0, dynamic_vbo_id);
+	glVertexArrayAttribBinding(*vao, 1, static_vbo_id);
+	glVertexArrayAttribBinding(*vao, 2, static_vbo_id);
+	glVertexArrayAttribBinding(*vao, 3, static_vbo_id);
 
 	if(glGetError() != GL_NO_ERROR)
 		return;
@@ -486,14 +497,8 @@ model::mesh::mesh(const std::string& name_, std::vector<vertex> && verts) : name
 	// mark submesh as valid -----------------------------------------------
 	numverts = initial_vertex_count;
 	numverts_unique = unique_vertex_count;
+	index_max = max_idx;
+	index_min = 0;
+	if(max_idx != unique_vertex_count - 1)
+		fmt::print(stderr, "[submesh] inconsistent indices detected!\n");
 }
-
-model::mesh::~mesh()
-{
-	glDeleteBuffers(1, &dynamic_vbo);
-	glDeleteBuffers(1, &static_vbo);
-	glDeleteBuffers(1, &ebo);
-	glDeleteVertexArrays(1, &vao);
-}
-
-

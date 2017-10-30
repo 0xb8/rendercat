@@ -3,6 +3,7 @@
 #include <rendercat/common.hpp>
 #include <rendercat/AABB.hpp>
 #include <rendercat/material.hpp>
+#include <rendercat/util/gl_unique_handle.hpp>
 #include <string_view>
 #include <vector>
 
@@ -12,45 +13,29 @@ namespace model {
 	struct mesh
 	{
 		std::string name;
-		gl::GLuint ebo = 0;
-		gl::GLuint dynamic_vbo = 0;
-		gl::GLuint static_vbo = 0;
-		gl::GLuint vao = 0;
+		rc::buffer_handle ebo;
+		rc::buffer_handle dynamic_vbo;
+		rc::buffer_handle static_vbo;
+		rc::vertex_array_handle vao;
 		gl::GLuint numverts = 0;
 		gl::GLuint numverts_unique = 0;
-		gl::GLenum   index_type{};
+		gl::GLuint index_min = 0; // always 0 for now
+		gl::GLuint index_max = 0;
+		gl::GLuint touched_lights = 0;
+		gl::GLenum index_type{};
 		AABB aabb;
 
 		bool valid() const noexcept
 		{
-			return numverts != 0 && vao != 0;
+			return numverts != 0 && vao;
 		}
 
 		mesh(const std::string & name_, std::vector<vertex>&& verts);
-		~mesh();
+		~mesh() = default;
 
-		mesh(const mesh&) = delete;
-		mesh& operator=(const mesh&) = delete;
-
-		mesh(mesh&& o) noexcept
-		{
-			this->operator=(std::move(o));
-		}
-
-		mesh& operator=(mesh&& o) noexcept
-		{
-			assert(this != &o);
-			name = std::move(o.name);
-			std::swap(ebo, o.ebo);
-			std::swap(dynamic_vbo, o.dynamic_vbo);
-			std::swap(static_vbo, o.static_vbo);
-			std::swap(vao, o.vao);
-			numverts = o.numverts;
-			numverts_unique = o.numverts_unique;
-			index_type = o.index_type;
-			aabb = o.aabb;
-			return *this;
-		}
+		mesh(mesh&& o) noexcept = default;
+		mesh& operator=(mesh&& o) noexcept = default;
+		RC_DISABLE_COPY(mesh)
 	};
 
 	struct data

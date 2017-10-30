@@ -3,7 +3,7 @@
 #include <glm/gtc/color_space.hpp>
 
 // based on MIT-licensed JS implementation from https://github.com/neilbartlett/color-temperature
-glm::vec3 util::temperature_to_srgb_color(float kelvin)
+glm::vec3 rc::util::temperature_to_srgb_color(float kelvin)
 {
 	float temperature = kelvin / 100.0f;
 	float red, green, blue;
@@ -69,7 +69,7 @@ glm::vec3 util::temperature_to_srgb_color(float kelvin)
 	return glm::vec3{red, green, blue};
 }
 
-glm::vec3 util::temperature_to_linear_color(float kelvin)
+glm::vec3 rc::util::temperature_to_linear_color(float kelvin)
 {
 	return glm::convertSRGBToLinear(temperature_to_srgb_color(kelvin) / glm::vec3{255.0f, 255.0f, 255.0f});
 }

@@ -9,7 +9,6 @@ endif()
 
 SET(BUILD_SHARED_LIBS OFF)
 
-find_package(Boost COMPONENTS filesystem REQUIRED)
 find_package(glm REQUIRED)
 find_package(OpenGL REQUIRED)
 
@@ -26,6 +25,7 @@ add_executable(rendercat
 	src/util/color_temperature.cpp
 	src/util/gl_perfquery.cpp
 	src/util/gl_screenshot.cpp
+	src/util/gl_unique_handle.cpp
 )
 
 set_target_properties(rendercat
@@ -42,12 +42,13 @@ target_include_directories(rendercat
 
 target_link_libraries(rendercat
 	PRIVATE
-		Boost::filesystem
 		stb::image
 		stb::image_write
+		tinyheaders::tinyfiles
 		imgui::imgui
 		glbinding::glbinding
 		OpenGL::GL
+		fmt::fmt
 		glfw
 		glm
 		tinyobjloader
