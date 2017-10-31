@@ -42,17 +42,17 @@ target_include_directories(rendercat
 
 target_link_libraries(rendercat
 	PRIVATE
+		fmt::fmt
+		glbinding::glbinding
+		glfw
+		glm
+		imgui::imgui
+		mikktspace::mikktspace
+		OpenGL::GL
 		stb::image
 		stb::image_write
 		tinyheaders::tinyfiles
-		imgui::imgui
-		glbinding::glbinding
-		OpenGL::GL
-		fmt::fmt
-		glfw
-		glm
 		tinyobjloader
-		mikktspace
 )
 
 if(CMAKE_COMPILER_IS_GNUCC)

@@ -25,9 +25,6 @@ public:
 		include(p2);
 	}
 
-	AABB(const AABB& aabb) noexcept = default;
-	AABB& operator=(const AABB& aabb) noexcept = default;
-
 	/// Returns true if AABB is NULL (not set).
 	bool is_null() const {return mMin.x > mMax.x || mMin.y > mMax.y || mMin.z > mMax.z;}
 
