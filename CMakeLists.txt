@@ -67,3 +67,9 @@ endif()
 add_subdirectory(shaders)
 add_dependencies(rendercat shaders)
 
+option(RC_BUILD_TESTS ON)
+if(RC_BUILD_TESTS)
+	enable_testing()
+	add_subdirectory(tests)
+endif()
+
