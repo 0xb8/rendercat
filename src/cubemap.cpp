@@ -10,6 +10,7 @@
 #include <glbinding/gl45core/types.h>
 #include <glbinding/gl45core/enum.h>
 #include <glbinding/gl45core/functions.h>
+#include <glbinding/Meta.h>
 
 using namespace gl45core;
 
@@ -22,7 +23,9 @@ static const char* const face_names_hdr[6] = {
 	"back.hdr"
 };
 
-static GLint max_texture_size;
+static GLint max_texture_size;                       // spec requires 16384+, but some cards can only 8192
+static GLboolean has_seamless_filtering;             // NOTE: GL_ARB_seamless_cube_map is widely supported
+static GLboolean has_seamless_filtering_per_texture; // TODO: check for GL_ARB_seamless_cubemap_per_texture
 
 Cubemap::Cubemap() noexcept
 {
@@ -72,8 +75,15 @@ Cubemap::Cubemap() noexcept
 
 	if(!max_texture_size) {
 		glGetIntegerv(GL_MAX_CUBE_MAP_TEXTURE_SIZE, &max_texture_size);
+		has_seamless_filtering = glIsEnabled(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 		fmt::print("[cubemap] limits:\n"
-		           "    Texture size: {}\n", max_texture_size);
+		           "    Texture size:        {}\n"
+		           "    Seamless filtering:\n"
+		           "        Global:          {}\n"
+		           "        Per-texture:     {}\n",
+		           max_texture_size,
+		           glbinding::Meta::getString(has_seamless_filtering),
+		           glbinding::Meta::getString(has_seamless_filtering_per_texture));
 	}
 
 	if(!m_vao && !m_vbo) {
@@ -112,6 +122,9 @@ void Cubemap::load_textures(std::string_view basedir)
 	glTextureParameteri(*tex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTextureParameteri(*tex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTextureParameteri(*tex, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	if(has_seamless_filtering_per_texture) {
+		glTextureParameteri(*tex, GL_TEXTURE_CUBE_MAP_SEAMLESS, GL_TRUE);
+	}
 
 	struct stb_guard
 	{

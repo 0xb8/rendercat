@@ -20,7 +20,7 @@ static float max_anisotropic_filtering_samples = 2.0f; // required by spec
 GLuint        Material::default_diffuse = 0;
 TextureCache* Material::cache = nullptr;
 
-static GLuint load_texture(const std::string& path, bool linear, int desired_channels = 0, int* num_channels = nullptr)
+static GLuint load_texture(const std::string& path, bool linear, int desired_channels = 0, int* num_channels = nullptr, bool gen_mipmap = true)
 {
 	static const int   max_levels = 14;
 	if(max_anisotropic_filtering_samples == 2.0f) {
@@ -29,9 +29,9 @@ static GLuint load_texture(const std::string& path, bool linear, int desired_cha
 		glGetIntegerv(GL_MAX_RECTANGLE_TEXTURE_SIZE, &max_tex_size);
 		glGetIntegerv(GL_MAX_TEXTURE_BUFFER_SIZE, &max_buffer_size);
 		fmt::print("[material] limits:\n"
-		           "    AF samples:   {}\n"
-		           "    Texture size: {}\n"
-		           "    Texture buf:  {}\n",
+		           "    AF samples:          {}\n"
+		           "    Texture size:        {}\n"
+		           "    Texture buf:         {}\n",
 		           max_anisotropic_filtering_samples,
 		           max_tex_size,
 		           max_buffer_size);
@@ -72,12 +72,13 @@ static GLuint load_texture(const std::string& path, bool linear, int desired_cha
 			assert(false);
 			break;
 		}
-
-		glGenerateTextureMipmap(tex);
 		stbi_image_free(data);
-
-		if(num_channels)
+		if(gen_mipmap) {
+			glGenerateTextureMipmap(tex);
+		}
+		if(num_channels) {
 			*num_channels = nrChannels;
+		}
 	}
 	return tex;
 }
@@ -91,9 +92,14 @@ void Material::set_texture_cache(TextureCache * c)
 void Material::set_default_diffuse() noexcept
 {
 	stbi_set_flip_vertically_on_load(1);
-	auto diffuse = load_texture("assets/materials/missing.png", true);
+	auto diffuse = load_texture("assets/materials/missing.tga", false, 3, nullptr, false);
 
 	assert(diffuse && "invalid default diffuse");
+
+	glTextureParameteri(diffuse, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTextureParameteri(diffuse, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTextureParameterf(diffuse, GL_TEXTURE_MAX_ANISOTROPY_EXT, 1.0f);
+
 	default_diffuse = diffuse;
 }
 

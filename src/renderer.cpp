@@ -11,6 +11,7 @@
 #include <glbinding/gl45core/types.h>
 #include <glbinding/gl45core/enum.h>
 #include <glbinding/gl45core/functions.h>
+#include <glbinding/Meta.h>
 
 using namespace gl45core;
 
@@ -21,6 +22,8 @@ static GLint max_depth_samples;
 static GLint max_framebuffer_samples;
 static GLint max_framebuffer_width;
 static GLint max_framebuffer_height;
+static GLint max_uniform_locations;
+static GLenum frag_derivative_quality_hint;
 
 Renderer::Renderer(Scene * s) : m_scene(s)
 {
@@ -40,11 +43,15 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 	glGetIntegerv(GL_MAX_FRAMEBUFFER_SAMPLES,   &max_framebuffer_samples);
 	glGetIntegerv(GL_MAX_FRAMEBUFFER_WIDTH,     &max_framebuffer_width);
 	glGetIntegerv(GL_MAX_FRAMEBUFFER_HEIGHT,    &max_framebuffer_height);
+	glGetIntegerv(GL_MAX_UNIFORM_LOCATIONS,     &max_uniform_locations);
+	glGetIntegerv(GL_FRAGMENT_SHADER_DERIVATIVE_HINT, &frag_derivative_quality_hint);
 	fmt::print("[renderer] limits:\n"
-	           "    MSAA samples: {} (color: {} depth: {} framebuf: {})\n"
-	           "    FB size:      {} x {}\n"
-	           "    Vertices:     {}\n"
-	           "    Indices:      {}\n",
+	           "    MSAA samples:        {} (color: {} depth: {} FB: {})\n"
+	           "    Framebuffer size:    {} x {}\n"
+	           "    Vertices:            {}\n"
+	           "    Indices:             {}\n"
+	           "    Uniform Locations:   {}\n"
+	           "    Fragment Derivative: {}\n",
 	           MSAASampleCountMax,
 	           max_depth_samples,
 	           max_color_samples,
@@ -52,17 +59,22 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 	           max_framebuffer_width,
 	           max_framebuffer_height,
 	           max_elements_vertices,
-	           max_elements_indices);
+	           max_elements_indices,
+	           max_uniform_locations,
+	           glbinding::Meta::getString(frag_derivative_quality_hint));
 	std::fflush(stdout);
 }
 
 void Renderer::resize(uint32_t width, uint32_t height, bool force)
 {
+	if(!force && (width == m_window_width && height == m_window_height))
+		return;
+
 	if(width < 2 || height < 2)
 		return;
 
-	if(!force && (width == m_window_width && height == m_window_height))
-		return;
+	if(unlikely(width > (GLuint)max_framebuffer_width || height > (GLuint)max_framebuffer_height))
+		throw std::runtime_error("framebuffer resize failed: specified size too big");
 
 	// NOTE: for some reason AMD driver accepts 0 samples, but it's wrong
 	int samples = glm::clamp((int)std::exp2(m_scene->desired_msaa_level), 1, MSAASampleCountMax);
@@ -120,7 +132,7 @@ void Renderer::resize(uint32_t width, uint32_t height, bool force)
 	m_backbuffer_height = backbuffer_height;
 
 	m_scene->main_camera.update_projection(float(m_backbuffer_width) / (float)m_backbuffer_height);
-	fmt::print(stderr, "[renderer] framebuffer resized to {}x{}\n", m_backbuffer_width, m_backbuffer_height);
+	fmt::print(stderr, "[renderer] framebuffer resized to {}x{} {}\n", m_backbuffer_width, m_backbuffer_height, force ? "(forced)" : "");
 	std::fflush(stderr);
 }
 

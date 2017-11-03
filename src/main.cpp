@@ -287,6 +287,7 @@ static void print_all_extensions()
 		ss << (const char*)glGetStringi(GL_EXTENSIONS, i) << '\n';
 	}
 	std::fwrite(ss.data(), ss.size(), 1, stdout);
+	std::fflush(stdout);
 }
 
 static void init_glfw_callbacks(GLFWwindow* window)
@@ -397,6 +398,10 @@ int main() try
 	ImGui_ImplGlfwGL3_Shutdown();
 	glfwTerminate();
 	return 0;
+} catch(const fmt::FormatError& e) {
+	glfwTerminate();
+	fmt::print("fmt::FormatError exception: {}\n", e.what());
+	return -1;
 } catch(const std::exception& e) {
 	glfwTerminate();
 	fmt::print(stderr, "exception in main(): {}\n", e.what());
