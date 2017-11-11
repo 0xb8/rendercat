@@ -2,10 +2,10 @@
 
 #include <rendercat/common.hpp>
 #include <rendercat/mesh.hpp>
-#include <rendercat/camera.hpp>
+#include <rendercat/core/camera.hpp>
 #include <rendercat/material.hpp>
 #include <rendercat/texture_cache.hpp>
-#include <rendercat/point_light.hpp>
+#include <rendercat/core/point_light.hpp>
 #include <rendercat/cubemap.hpp>
 
 #include <memory>
@@ -54,7 +54,6 @@ struct Scene
 	std::vector<Model>       models;
 	std::vector<PointLight>  point_lights;
 	std::vector<SpotLight>   spot_lights;
-	size_t flashlight_idx =  std::numeric_limits<size_t>::max();
 
 	bool  window_shown = true;
 	int   desired_msaa_level = 0;

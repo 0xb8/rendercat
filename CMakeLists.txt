@@ -22,7 +22,11 @@ add_executable(rendercat
 	src/scene.cpp
 	src/shader_set.cpp
 	src/cubemap.cpp
+	src/core/AABB.cpp
+	src/core/camera.cpp
+	src/core/frustum.cpp
 	src/util/color_temperature.cpp
+	src/util/gl_meta.cpp
 	src/util/gl_perfquery.cpp
 	src/util/gl_screenshot.cpp
 	src/util/gl_unique_handle.cpp
@@ -43,6 +47,7 @@ target_include_directories(rendercat
 target_link_libraries(rendercat
 	PRIVATE
 		fmt::fmt
+		debug::draw
 		glbinding::glbinding
 		glfw
 		glm
@@ -67,7 +72,7 @@ endif()
 add_subdirectory(shaders)
 add_dependencies(rendercat shaders)
 
-option(RC_BUILD_TESTS ON)
+option(RC_BUILD_TESTS "Enable test building" ON)
 if(RC_BUILD_TESTS)
 	enable_testing()
 	add_subdirectory(tests)

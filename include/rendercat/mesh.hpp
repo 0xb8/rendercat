@@ -1,7 +1,7 @@
 #pragma once
 
 #include <rendercat/common.hpp>
-#include <rendercat/AABB.hpp>
+#include <rendercat/core/AABB.hpp>
 #include <rendercat/material.hpp>
 #include <rendercat/util/gl_unique_handle.hpp>
 #include <string_view>
@@ -23,7 +23,7 @@ namespace model {
 		gl::GLuint index_max = 0;
 		gl::GLuint touched_lights = 0;
 		gl::GLenum index_type{};
-		AABB aabb;
+		rc::AABB aabb;
 
 		bool valid() const noexcept
 		{

@@ -13,6 +13,8 @@
 #include <glbinding/gl45core/functions.h>
 #include <glbinding/Meta.h>
 
+#include <debug_draw.hpp>
+
 using namespace gl45core;
 
 static GLint max_elements_vertices;
@@ -63,6 +65,8 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 	           max_uniform_locations,
 	           glbinding::Meta::getString(frag_derivative_quality_hint));
 	std::fflush(stdout);
+
+	dd::initialize(&debug_draw_ctx);
 }
 
 void Renderer::resize(uint32_t width, uint32_t height, bool force)
@@ -132,6 +136,7 @@ void Renderer::resize(uint32_t width, uint32_t height, bool force)
 	m_backbuffer_height = backbuffer_height;
 
 	m_scene->main_camera.update_projection(float(m_backbuffer_width) / (float)m_backbuffer_height);
+	debug_draw_ctx.window_size = glm::vec2{backbuffer_width, backbuffer_height};
 	fmt::print(stderr, "[renderer] framebuffer resized to {}x{} {}\n", m_backbuffer_width, m_backbuffer_height, force ? "(forced)" : "");
 	std::fflush(stderr);
 }
@@ -181,7 +186,9 @@ static const char* indexed_uniform(std::string_view array, std::string_view name
 
 void Renderer::set_uniforms(GLuint shader)
 {
-	unif::m4(shader, "proj_view", m_scene->main_camera.projection * m_scene->main_camera.view);
+	debug_draw_ctx.mvpMatrix = m_scene->main_camera.view_projection;
+
+	unif::m4(shader, "proj_view", m_scene->main_camera.view_projection);
 	unif::v3(shader, "viewPos",   m_scene->main_camera.pos);
 	unif::v3(shader, "directional_light.direction", m_scene->directional_light.direction);
 	unif::v3(shader, "directional_light.ambient",   m_scene->directional_light.ambient);
@@ -244,20 +251,26 @@ void Renderer::draw()
 
 		for(unsigned submesh_idx = 0; submesh_idx < model.submesh_count; ++submesh_idx) {
 			model::mesh& submesh = m_scene->submeshes[model.submeshes[submesh_idx]];
-			const Material& material = m_scene->materials[model.materials[submesh_idx]];
 
+			auto submesh_aabb = submesh.aabb;
+			submesh_aabb.translate(model.transform[3]);
+
+			if(m_scene->main_camera.frustum.aabb_culled(submesh_aabb))
+				continue;
+
+			const Material& material = m_scene->materials[model.materials[submesh_idx]];
 			if(material.flags & Material::FaceCullingDisabled) {
 				glDisable(GL_CULL_FACE);
 			} else {
 				glEnable(GL_CULL_FACE);
 			}
 
-			auto submesh_aabb = submesh.aabb;
-			submesh_aabb.translate(model.transform[3]);
 			int point_light_count = 0;
 			for(unsigned i = 0; i < m_scene->point_lights.size() && i < MaxLights; ++i) {
 				const auto& light = m_scene->point_lights[i];
-				if(!light.enabled)
+				if(!(light.state & PointLight::Enabled))
+					continue;
+				if(m_scene->main_camera.frustum.sphere_culled(light.position(), light.radius()))
 					continue;
 
 				// TODO: implement per-light AABB cutoff to prevent light leaking
@@ -273,7 +286,10 @@ void Renderer::draw()
 			int spot_light_count = 0;
 			for(unsigned i = 0; i < m_scene->spot_lights.size() && i < MaxLights; ++i) {
 				const auto& light = m_scene->spot_lights[i];
-				if(!light.enabled)
+				if(!(light.state & SpotLight::Enabled))
+					continue;
+
+				if(m_scene->main_camera.frustum.sphere_culled(light.position(), light.radius()))
 					continue;
 
 				// TODO: implement cone-AABB collision check
@@ -296,9 +312,44 @@ void Renderer::draw()
 		}
 	}
 
-	glEnable(GL_CULL_FACE);
+	for(auto&& light : m_scene->point_lights) {
+		if(!(light.state & PointLight::ShowWireframe))
+			continue;
 
+		if(m_scene->main_camera.frustum.sphere_culled(light.position(), light.radius()))
+			continue;
+
+		dd::sphere(light.position(), light.diffuse(), 0.01f * light.radius(), 0, false);
+		dd::sphere(light.position(), light.diffuse(), light.radius());
+	}
+
+	for(auto&& light : m_scene->spot_lights) {
+		if(!(light.state & SpotLight::ShowWireframe))
+			continue;
+
+		if(m_scene->main_camera.frustum.sphere_culled(light.position(), light.radius()))
+			continue;
+
+		dd::sphere(light.position(), light.diffuse(), 0.01f * light.radius(), 0, false);
+		dd::cone(light.position(),
+		         glm::normalize(-light.direction()) * light.radius(),
+		         light.diffuse(),
+		         light.angle_outer() * light.radius(), 0.0f);
+		dd::cone(light.position(),
+		         glm::normalize(-light.direction()) * light.radius(),
+		         light.diffuse(),
+		         light.angle_inner() * light.radius(), 0.0f);
+	}
+
+	const auto& frustum = m_scene->main_camera.frustum;
+	if(frustum.state & rc::Frustum::ShowWireframe) {
+		frustum.draw_debug();
+	}
+
+	glEnable(GL_CULL_FACE);
 	draw_skybox();
+
+	dd::flush();
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glViewport(0, 0, m_window_width, m_window_height);

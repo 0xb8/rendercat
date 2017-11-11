@@ -84,6 +84,7 @@ struct Shader
 
 		if(!filestream.is_open()) {
 			fmt::print(stderr, "[shader]  reload failed: could not open file [{}]\n", filepath);
+			std::fflush(stderr);
 		}
 
 		std::ostringstream oss{};
@@ -101,12 +102,14 @@ struct Shader
 		if(success && new_handle) {
 			handle = std::move(new_handle);
 			fmt::print("[shader]  reload success [{}]\n", filepath);
+			std::fflush(stdout);
 			return true;
 		}
 		return false;
 
 	} catch(const std::exception& e) {
 		fmt::print(stderr, "[shader]  exception, what(): {}\n", e.what());
+		std::fflush(stderr);
 		return false;
 	}
 

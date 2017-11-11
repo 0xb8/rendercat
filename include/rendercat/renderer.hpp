@@ -3,6 +3,7 @@
 #include <rendercat/shader_set.hpp>
 #include <rendercat/util/gl_perfquery.hpp>
 #include <rendercat/util/gl_unique_handle.hpp>
+#include <debug_draw.hpp>
 
 class Scene;
 
@@ -28,6 +29,8 @@ class Renderer
 
 	void set_uniforms(gl::GLuint shader);
 	void draw_skybox();
+
+	DDRenderInterfaceCoreGL debug_draw_ctx;
 
 public:
 	static const unsigned int ShadowMapWidth = 1024;

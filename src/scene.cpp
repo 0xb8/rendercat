@@ -16,7 +16,7 @@ Scene::Scene()
 	  .ambient({0.0f, 0.0f, 0.0f})
 	  .diffuse({1.0f, 0.2f, 0.1f})
 	  .specular({0.3f, 0.05f, 0.0f})
-	  .radius(4.5f)
+	  .radius(3.5f)
 	  .flux(75.0f);
 
 	point_lights.push_back(pl);
@@ -110,6 +110,18 @@ static void show_flux_help()
 
 void Scene::update()
 {
+	for(auto& pl : point_lights) {
+		if(pl.state & PointLight::FollowCamera) {
+			pl.position(main_camera.pos);
+		}
+	}
+	for(auto& sl : spot_lights) {
+		if(sl.state & PointLight::FollowCamera) {
+			sl.direction(-main_camera.front).position(main_camera.pos);
+		}
+	}
+
+
 	if(!ImGui::Begin("Scene", &window_shown)) {
 		ImGui::End();
 		return;
@@ -127,7 +139,17 @@ void Scene::update()
 		ImGui::InputFloat3("Position", glm::value_ptr(main_camera.pos));
 		ImGui::SliderFloat("FOV", &main_camera.fov, 30.0f, 120.0f);
 		ImGui::SliderFloat("Near Z", &main_camera.znear, 0.001f, 10.0f);
+		ImGui::SliderFloat("Far Z", &main_camera.zfar, main_camera.znear, 1000.0f);
 		ImGui::SliderFloat("Exposure", &main_camera.exposure, 0.001f, 10.0f);
+
+		bool frustum_locked = main_camera.frustum.state & rc::Frustum::Locked;
+		bool frustum_debug = main_camera.frustum.state & rc::Frustum::ShowWireframe;
+		ImGui::Checkbox("Frustum Locked", &frustum_locked);
+		ImGui::SameLine();
+		ImGui::Checkbox("Show Wireframe", &frustum_debug);
+		main_camera.frustum.state = 0;
+		main_camera.frustum.state |= frustum_locked ? rc::Frustum::Locked : 0;
+		main_camera.frustum.state |= frustum_debug ? rc::Frustum::ShowWireframe : 0;
 	}
 
 	if(ImGui::CollapsingHeader("Lighting")) {
@@ -163,9 +185,12 @@ void Scene::update()
 					float angle_o = light.angle_outer();
 					float angle_i = light.angle_inner();
 
-					bool flashlight = (i == flashlight_idx);
-
-					ImGui::Checkbox("Enabled", &light.enabled);
+					bool flashlight    = light.state & SpotLight::FollowCamera;
+					bool light_enabled = light.state & SpotLight::Enabled;
+					bool debug_enabled = light.state & SpotLight::ShowWireframe;
+					ImGui::Checkbox("Enabled", &light_enabled);
+					ImGui::SameLine();
+					ImGui::Checkbox("Wireframe", &debug_enabled);
 					ImGui::SameLine();
 					if (ImGui::Button("Remove?"))
 						ImGui::OpenPopup("RemovePopup");
@@ -194,14 +219,6 @@ void Scene::update()
 					ImGui::SliderAngle("Angle Outer",  &angle_o, 0.0f, 89.0f);
 					ImGui::SliderAngle("Angle Inner",  &angle_i, 0.0f, 89.0f); // TODO: add slider for softness
 
-					if(flashlight) {
-						flashlight_idx = i;
-						dir = -main_camera.front;
-						pos = main_camera.pos;
-					} else if(flashlight_idx == i) {
-						flashlight_idx = std::numeric_limits<size_t>::max();
-					}
-
 					light.direction(dir)
 					     .angle_outer(angle_o)
 					     .angle_inner(angle_i)
@@ -211,6 +228,11 @@ void Scene::update()
 					     .ambient(amb)
 					     .diffuse(diff)
 					     .specular(spec);
+
+					light.state = SpotLight::Disabled;
+					light.state |= flashlight    ? SpotLight::FollowCamera : 0;
+					light.state |= light_enabled ? SpotLight::Enabled : 0;
+					light.state |= debug_enabled ? SpotLight::ShowWireframe : 0;
 
 					if (ImGui::BeginPopup("RemovePopup")) {
 						if(ImGui::Button("Confirm"))
@@ -243,10 +265,17 @@ void Scene::update()
 					float power = light.flux();
 					float radius = light.radius();
 
-					ImGui::Checkbox("Enabled", &light.enabled);
+					bool light_enabled = light.state & PointLight::Enabled;
+					bool debug_enabled = light.state & PointLight::ShowWireframe;
+					bool light_follow  = light.state & PointLight::FollowCamera;
+					ImGui::Checkbox("Enabled", &light_enabled);
+					ImGui::SameLine();
+					ImGui::Checkbox("Wireframe", &debug_enabled);
 					ImGui::SameLine();
 					if (ImGui::Button("Remove?"))
 						ImGui::OpenPopup("RemovePopup");
+
+					ImGui::Checkbox("Follow Camera", &light_follow);
 
 					ImGui::DragFloat3("Position", glm::value_ptr(pos), 0.01f);
 					ImGui::ColorEdit3("Ambient",  glm::value_ptr(amb),
@@ -273,6 +302,11 @@ void Scene::update()
 					     .ambient(amb)
 					     .diffuse(diff)
 					     .specular(spec);
+
+					light.state = PointLight::Disabled;
+					light.state |= light_enabled ? PointLight::Enabled : 0;
+					light.state |= debug_enabled ? PointLight::ShowWireframe : 0;
+					light.state |= light_follow ? PointLight::FollowCamera : 0;
 
 					if (ImGui::BeginPopup("RemovePopup")) {
 						if(ImGui::Button("Confirm"))

@@ -16,7 +16,7 @@ public:
 	explicit unique_handle(const T& handle) noexcept :
 		m_handle(handle)
 	{
-		static_assert(std::is_fundamental_v<T>, "handle type must be fundamental");
+		static_assert(std::is_fundamental_v<T> || std::is_pointer_v<T>, "T must be fundamental type or pointer");
 	}
 
 	~unique_handle() noexcept {

@@ -15,6 +15,7 @@
 #include <rendercat/scene.hpp>
 #include <rendercat/renderer.hpp>
 #include <rendercat/util/gl_screenshot.hpp>
+#include <rendercat/util/gl_meta.hpp>
 
 #include <imgui.hpp>
 #include <imgui_impl_glfw.h>
@@ -99,7 +100,7 @@ void GLAPIENTRY gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum 
 	}
 
 	ss << "[" << id << "]\n\t" << message << '\n';
-	std::fwrite(ss.data(), 1, ss.size(), stderr);
+	std::fwrite(ss.data(), sizeof(char), ss.size(), stderr);
 	std::fflush(stderr);
 }
 
@@ -244,7 +245,7 @@ static void enable_gl_clip_control()
 static void enable_gl_debug_callback()
 {
 #ifndef NDEBUG
-	if(!glfwExtensionSupported("GL_KHR_debug") && !glfwExtensionSupported("GL_ARB_debug_output"))
+	if(!(rc::glmeta::extension_supported(gl::GLextension::GL_KHR_debug) || rc::glmeta::extension_supported(gl::GLextension::GL_ARB_debug_output)))
 		return;
 	//glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 	//glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, 0, GL_FALSE);
@@ -265,29 +266,13 @@ static void check_gl_default_framebuffer_is_srgb()
 
 static void check_required_extensions()
 {
-	const char* extensions[] = {"GL_ARB_direct_state_access",
-	                            "GL_ARB_clip_control"};
+	const gl::GLextension exts[] = {gl::GLextension::GL_ARB_clip_control,
+	                                gl::GLextension::GL_ARB_direct_state_access,
+	                                gl::GLextension::GL_ARB_framebuffer_sRGB};
 
-	for(unsigned i = 0; i < std::size(extensions); ++i) {
-		if(!glfwExtensionSupported(extensions[i])) {
-			std::string err{"required opengl extension missing: "};
-			err.append(extensions[i]);
-			throw std::runtime_error(err);
-		}
+	for(unsigned i = 0; i < std::size(exts); ++i) {
+		rc::glmeta::require_extension(exts[i]);
 	}
-}
-
-static void print_all_extensions()
-{
-	int n;
-	glGetIntegerv(GL_NUM_EXTENSIONS, &n);
-	fmt::MemoryWriter ss;
-	ss << n << " supported extensions:\n";
-	for(int i = 0; i <n; ++i) {
-		ss << (const char*)glGetStringi(GL_EXTENSIONS, i) << '\n';
-	}
-	std::fwrite(ss.data(), ss.size(), 1, stdout);
-	std::fflush(stdout);
 }
 
 static void init_glfw_callbacks(GLFWwindow* window)
@@ -344,7 +329,7 @@ int main() try
 
 	glbinding::Binding::initialize(false);
 
-	//print_all_extensions();
+	//rc::glmeta::log_all_supported_extensions("logs/gl_extensions.log");
 	check_required_extensions();
 	check_gl_default_framebuffer_is_srgb();
 	enable_gl_debug_callback();
@@ -367,21 +352,21 @@ int main() try
 
 	init_glfw_callbacks(window);
 
-	globals::last_frame_time = glfwGetTime();
+		globals::last_frame_time = glfwGetTime();
 
 	while(!glfwWindowShouldClose(window))
 	{
 		glfwPollEvents();
 		glfw_process_input(&scene);
-		ImGui_ImplGlfwGL3_NewFrame();
-
-		scene.update();
 
 		if(globals::glfw_framebuffer_resized) {
 			globals::glfw_framebuffer_resized = false;
 			renderer.resize(globals::glfw_framebuffer_width,
 			                globals::glfw_framebuffer_height);
 		}
+		ImGui_ImplGlfwGL3_NewFrame();
+		scene.update();
+
 		renderer.draw();
 		renderer.draw_gui();
 		ImGui::Render();
@@ -398,6 +383,7 @@ int main() try
 	ImGui_ImplGlfwGL3_Shutdown();
 	glfwTerminate();
 	return 0;
+
 } catch(const fmt::FormatError& e) {
 	glfwTerminate();
 	fmt::print("fmt::FormatError exception: {}\n", e.what());

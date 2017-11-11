@@ -113,6 +113,11 @@ float direction_attenuation(const in vec3 lightDir, const in vec3 spotDir, const
 	return att * att;
 }
 
+vec3 fresnelSchlick(vec3 F0, float cosTheta)
+{
+	return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
 vec3 calcDirectionalLight(const in DirectionalLight light,  const in vec3 viewDir, const in mat3 materialParams)
 {
 	vec3 lightDir = normalize(light.direction);
@@ -127,9 +132,9 @@ vec3 calcDirectionalLight(const in DirectionalLight light,  const in vec3 viewDi
 	// saturating dot product seems to greatly reduce specular pixel flicker
 	// with MSAA, but does not solve it completely (due to other light sources' contribution).
 	float spec = pow(clamp(dot(normal, halfwayDir), 0.0, 1.0), material.shininess);
-	vec3 specular = spec * light.specular * materialParams[1];
+	vec3 specular = spec * light.specular * materialParams[1] * check_light_side(lightDir);
 
-	return ambient + (diffuse + specular) * check_light_side(lightDir);
+	return ambient + (diffuse + specular);
 }
 
 vec3 calcPointLight(const in PointLight light, const in vec3 viewDir, const in mat3 materialParams)
@@ -144,12 +149,11 @@ vec3 calcPointLight(const in PointLight light, const in vec3 viewDir, const in m
 	// specular (blinn-phong)
 	vec3 halfwayDir = normalize(lightDir + viewDir);
 	float spec = pow(clamp(dot(normal, halfwayDir), 0.0, 1.0), material.shininess);
-	vec3 specular = light.intensity * light.specular * spec * materialParams[1];
+	vec3 specular = light.intensity * light.specular * spec * materialParams[1] * check_light_side(lightDir);
 
 	// attenuation
 	float dist = length(lightv);
 	float att = distance_attenuation(dist, light.radius);
-	att *= check_light_side(lightDir);
 	return att * (ambient + diffuse + specular);
 }
 
@@ -165,13 +169,12 @@ vec3 calcSpotLight(const in SpotLight light, const in vec3 viewDir, const in mat
 	// specular (blinn-phong)
 	vec3 halfwayDir = normalize(lightDir + viewDir);
 	float spec = pow(clamp(dot(normal, halfwayDir), 0.0, 1.0), material.shininess);
-	vec3 specular = light.intensity * light.specular * spec * materialParams[1];
+	vec3 specular = light.intensity * light.specular * spec * materialParams[1] * check_light_side(lightDir);
 
 	// attenuation
 	float dist = length(lightv);
 	float att = distance_attenuation(dist, light.radius);
 	att *= direction_attenuation(lightDir, light.direction, light.angle_scale, light.angle_offset);
-	att *= check_light_side(lightDir);
 	return att * (ambient + diffuse + specular);
 }
 

@@ -22,3 +22,6 @@
 [submodule "third_party/tinyheaders_integration/tinyheaders"]
 	path = third_party/tinyheaders_integration/tinyheaders
 	url = https://github.com/RandyGaul/tinyheaders.git
+[submodule "third_party/debug_draw_integration/debug-draw"]
+	path = third_party/debug_draw_integration/debug-draw
+	url = https://github.com/glampert/debug-draw.git

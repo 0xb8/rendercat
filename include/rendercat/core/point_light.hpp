@@ -14,7 +14,15 @@ class PunctualLight // CRTP base class
 	float m_dummy{}; // padding
 
 public:
-	bool enabled = true;
+	enum State
+	{
+		Disabled,
+		Enabled = 0x1,
+		ShowWireframe = 0x2,
+		FollowCamera = 0x4
+	};
+
+	uint8_t state = Enabled;
 
 	constexpr PunctualLight() = default;
 

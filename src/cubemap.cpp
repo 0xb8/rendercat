@@ -5,12 +5,14 @@
 #include <utility>
 #include <fmt/format.h>
 
+#include <glbinding/gl/extension.h>
 #include <glbinding/gl45core/boolean.h>
 #include <glbinding/gl45core/bitfield.h>
-#include <glbinding/gl45core/types.h>
 #include <glbinding/gl45core/enum.h>
+#include <glbinding/gl45core/types.h>
 #include <glbinding/gl45core/functions.h>
 #include <glbinding/Meta.h>
+#include <rendercat/util/gl_meta.hpp>
 
 using namespace gl45core;
 
@@ -24,8 +26,8 @@ static const char* const face_names_hdr[6] = {
 };
 
 static GLint max_texture_size;                       // spec requires 16384+, but some cards can only 8192
-static GLboolean has_seamless_filtering;             // NOTE: GL_ARB_seamless_cube_map is widely supported
-static GLboolean has_seamless_filtering_per_texture; // TODO: check for GL_ARB_seamless_cubemap_per_texture
+static GLboolean has_seamless_filtering;             // GL_ARB_seamless_cube_map is widely supported
+static GLboolean has_seamless_filtering_per_texture; // requires GL_ARB_seamless_cubemap_per_texture, checked below
 
 Cubemap::Cubemap() noexcept
 {
@@ -76,6 +78,7 @@ Cubemap::Cubemap() noexcept
 	if(!max_texture_size) {
 		glGetIntegerv(GL_MAX_CUBE_MAP_TEXTURE_SIZE, &max_texture_size);
 		has_seamless_filtering = glIsEnabled(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+		has_seamless_filtering_per_texture = rc::glmeta::extension_supported(gl::GLextension::GL_ARB_seamless_cubemap_per_texture);
 		fmt::print("[cubemap] limits:\n"
 		           "    Texture size:        {}\n"
 		           "    Seamless filtering:\n"

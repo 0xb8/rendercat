@@ -22,3 +22,4 @@ set(GLFW_INSTALL        OFF CACHE BOOL "Generate installation target" FORCE)
 add_subdirectory(glfw)
 
 add_subdirectory(imgui_integration)
+add_subdirectory(debug_draw_integration)
