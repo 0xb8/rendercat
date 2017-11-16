@@ -252,8 +252,7 @@ void Renderer::draw()
 		for(unsigned submesh_idx = 0; submesh_idx < model.submesh_count; ++submesh_idx) {
 			model::mesh& submesh = m_scene->submeshes[model.submeshes[submesh_idx]];
 
-			auto submesh_aabb = submesh.aabb;
-			submesh_aabb.translate(model.transform[3]);
+			auto submesh_aabb = submesh.aabb.transformed(model.transform);
 
 			if(m_scene->main_camera.frustum.aabb_culled(submesh_aabb))
 				continue;

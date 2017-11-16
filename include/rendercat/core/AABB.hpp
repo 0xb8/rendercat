@@ -83,6 +83,9 @@ public:
 		mMax += v;
 	}
 
+	/// Returns transformed version of this AABB.
+	AABB transformed(const glm::mat4&) const noexcept;
+
 	/// Scale the AABB by \p scale, centered around \p origin.
 	/// \param[in]  scale  3D vector specifying scale along each axis.
 	/// \param[in]  origin Origin of scaling operation. Most useful origin would

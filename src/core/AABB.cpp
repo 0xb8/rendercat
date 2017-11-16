@@ -1,8 +1,29 @@
 #include <rendercat/core/AABB.hpp>
 #include <glm/gtx/component_wise.hpp>
 #include <glm/gtx/norm.hpp>
+#include <glm/mat4x4.hpp>
 
 using namespace rc;
+
+AABB AABB::transformed(const glm::mat4 &m) const noexcept
+{
+	const glm::vec3 points[8] {
+		{mMin.x, mMin.y, mMin.z},
+		{mMin.x, mMin.y, mMax.z},
+		{mMin.x, mMax.y, mMin.z},
+		{mMin.x, mMax.y, mMax.z},
+		{mMax.x, mMin.y, mMin.z},
+		{mMax.x, mMin.y, mMax.z},
+		{mMax.x, mMax.y, mMin.z},
+		{mMax.x, mMax.y, mMax.z}
+	};
+
+	AABB res;
+	for(int i = 0; i < 8; ++i) {
+		res.include(m * glm::vec4(points[i], 1.0f));
+	}
+	return res;
+}
 
 void AABB::scale(const glm::vec3 & scale, const glm::vec3 & origin) noexcept
 {
