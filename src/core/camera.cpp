@@ -1,5 +1,7 @@
 #include <rendercat/core/camera.hpp>
 
+using namespace rc;
+
 void Camera::aim(float dx, float dy) noexcept
 {
 	yaw += dx;

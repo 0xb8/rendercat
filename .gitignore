@@ -1,4 +1,6 @@
 build/
 assets/
+logs/
 *.user
 imgui.ini
+screenshot.png

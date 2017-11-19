@@ -3,9 +3,13 @@
 #include <rendercat/common.hpp>
 #include <rendercat/core/frustum.hpp>
 
+class Scene;
+
+namespace rc {
+
 struct Camera
 {
-	friend class Scene;
+	friend class ::Scene;
 
 	void aim(float dx, float dy) noexcept;
 	void forward(float speed) noexcept;
@@ -39,3 +43,5 @@ private:
 	float znear = 0.01f;
 	float zfar  = 10.0f; // not needed with reverse-z, kept for frustum far plane
 };
+
+}

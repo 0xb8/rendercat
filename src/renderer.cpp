@@ -195,6 +195,14 @@ void Renderer::set_uniforms(GLuint shader)
 	unif::v3(shader, "directional_light.diffuse",   m_scene->directional_light.diffuse);
 	unif::v3(shader, "directional_light.specular",  m_scene->directional_light.specular);
 
+	unif::v4(shader, "directional_fog.inscattering_color",     m_scene->fog.inscattering_color);
+	unif::v4(shader, "directional_fog.dir_inscattering_color", m_scene->fog.dir_inscattering_color);
+	unif::v3(shader, "directional_fog.direction",             -m_scene->directional_light.direction);
+	unif::f1(shader, "directional_fog.inscattering_density",   m_scene->fog.inscattering_density);
+	unif::f1(shader, "directional_fog.extinction_density",     m_scene->fog.extinction_density);
+	unif::f1(shader, "directional_fog.dir_exponent",           m_scene->fog.dir_exponent);
+	unif::b1(shader, "directional_fog.enabled",               (m_scene->fog.state & ExponentialDirectionalFog::Enabled));
+
 	for(unsigned i = 0; i < m_scene->point_lights.size() && i < MaxLights;++i) {
 		const auto& light = m_scene->point_lights[i];
 		unif::v3(shader, indexed_uniform("point_light", ".position",  i),  light.position());
@@ -256,6 +264,9 @@ void Renderer::draw()
 
 			if(m_scene->main_camera.frustum.aabb_culled(submesh_aabb))
 				continue;
+
+			if(m_scene->draw_aabb)
+				dd::aabb(submesh_aabb.min(),submesh_aabb.max(), dd::colors::White);
 
 			const Material& material = m_scene->materials[model.materials[submesh_idx]];
 			if(material.flags & Material::FaceCullingDisabled) {
@@ -356,8 +367,7 @@ void Renderer::draw()
 	glUseProgram(*m_hdr_shader);
 	glBindTextureUnit(0, *m_backbuffer_color_to);
 	unif::f1(*m_hdr_shader, 0, m_scene->main_camera.exposure);
-	unif::i2(*m_hdr_shader, 1, m_backbuffer_width, m_backbuffer_height);
-	unif::i1(*m_hdr_shader, 2, MSAASampleCount);
+	unif::i1(*m_hdr_shader, 1, MSAASampleCount);
 	renderQuad();
 
 	glDisable(GL_DEPTH_TEST);

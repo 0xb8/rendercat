@@ -17,7 +17,19 @@ struct DirectionalLight {
 	vec3 ambient;
 	vec3 diffuse;
 	vec3 specular;
+
 };
+
+struct ExponentialDirectionalFog {
+	vec4 dir_inscattering_color;
+	vec4 inscattering_color;
+	vec3 direction;
+	float inscattering_density;
+	float extinction_density;
+	float dir_exponent;
+	bool enabled;
+};
+
 
 struct PointLight {
 	vec3 position;
@@ -56,6 +68,7 @@ uniform vec3 viewPos;
 
 uniform Material material;
 uniform DirectionalLight directional_light;
+uniform ExponentialDirectionalFog directional_fog;
 
 uniform PointLight point_light[MAX_LIGHTS];
 uniform SpotLight  spot_light[MAX_LIGHTS];
@@ -88,6 +101,26 @@ vec3 getNormal()
 	}
 }
 
+vec3 calcFog(const in ExponentialDirectionalFog fog,
+             const in vec3 fragColor,
+             const in float fragDistance,
+             const in vec3 viewDir)
+{
+	vec3 fogColor;
+	if(fog.dir_inscattering_color.a > 0.0) {
+		float directional_amount = max(dot(viewDir, fog.direction), 0.0);
+		directional_amount *= fog.dir_inscattering_color.a;
+		fogColor = mix(fog.inscattering_color.rgb, fog.dir_inscattering_color.rgb, pow(directional_amount, fog.dir_exponent));
+	} else {
+		fogColor = fog.inscattering_color.rgb;
+	}
+	float extinctionAmount   = 1.0 - exp2(-fragDistance * fog.extinction_density);
+	float inscatteringAmount = 1.0 - exp2(-fragDistance * fog.inscattering_density);
+	inscatteringAmount *= fog.inscattering_color.a;
+	extinctionAmount *= fog.inscattering_color.a;
+	return fragColor * (1.0 - extinctionAmount) + fogColor * inscatteringAmount;
+}
+
 // prevent light leaking from behind the face when normal mapped
 float check_light_side(vec3 lightDir) {
 	float x	= dot(fs_in.TBN[2], lightDir);
@@ -105,7 +138,10 @@ float distance_attenuation(const in float dist, const in float radius)
 	return pow(clamp(1.0 - pow(dist/radius, 4.0), 0.0, 1.0), decay) / max(pow(dist, decay), 0.01);
 }
 
-float direction_attenuation(const in vec3 lightDir, const in vec3 spotDir, const in float angleScale, const in float angleOffset)
+float direction_attenuation(const in vec3 lightDir,
+                            const in vec3 spotDir,
+                            const in float angleScale,
+                            const in float angleOffset)
 {
 	// ref: listing (4) from https://seblagarde.files.wordpress.com/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
 	// @ https://seblagarde.wordpress.com/2015/07/14/siggraph-2014-moving-frostbite-to-physically-based-rendering/
@@ -113,14 +149,11 @@ float direction_attenuation(const in vec3 lightDir, const in vec3 spotDir, const
 	return att * att;
 }
 
-vec3 fresnelSchlick(vec3 F0, float cosTheta)
+vec3 calcDirectionalLight(const in DirectionalLight light,
+                          const in vec3 viewDir,
+                          const in mat3 materialParams)
 {
-	return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
-}
-
-vec3 calcDirectionalLight(const in DirectionalLight light,  const in vec3 viewDir, const in mat3 materialParams)
-{
-	vec3 lightDir = normalize(light.direction);
+	vec3 lightDir = light.direction;
 	vec3 color = materialParams[0];
 	vec3 normal = materialParams[2];
 
@@ -132,15 +165,18 @@ vec3 calcDirectionalLight(const in DirectionalLight light,  const in vec3 viewDi
 	// saturating dot product seems to greatly reduce specular pixel flicker
 	// with MSAA, but does not solve it completely (due to other light sources' contribution).
 	float spec = pow(clamp(dot(normal, halfwayDir), 0.0, 1.0), material.shininess);
-	vec3 specular = spec * light.specular * materialParams[1] * check_light_side(lightDir);
+	vec3 specular = spec * light.specular * materialParams[1];
 
-	return ambient + (diffuse + specular);
+	return ambient + (diffuse + specular)  * check_light_side(lightDir);
 }
 
-vec3 calcPointLight(const in PointLight light, const in vec3 viewDir, const in mat3 materialParams)
+vec3 calcPointLight(const in PointLight light,
+                    const in vec3 viewDir,
+                    const in mat3 materialParams)
 {
 	vec3 lightv = light.position - fs_in.FragPos;
-	vec3 lightDir = normalize(lightv);
+	float lightDistance = length(lightv);
+	vec3 lightDir = lightv / lightDistance;
 	vec3 color = materialParams[0];
 	vec3 normal = materialParams[2];
 	vec3 diffuse = color * light.intensity * light.diffuse * max(dot(normal, lightDir), 0.0);
@@ -152,15 +188,17 @@ vec3 calcPointLight(const in PointLight light, const in vec3 viewDir, const in m
 	vec3 specular = light.intensity * light.specular * spec * materialParams[1] * check_light_side(lightDir);
 
 	// attenuation
-	float dist = length(lightv);
-	float att = distance_attenuation(dist, light.radius);
+	float att = distance_attenuation(lightDistance, light.radius);
 	return att * (ambient + diffuse + specular);
 }
 
-vec3 calcSpotLight(const in SpotLight light, const in vec3 viewDir, const in mat3 materialParams)
+vec3 calcSpotLight(const in SpotLight light,
+                   const in vec3 viewDir,
+                   const in mat3 materialParams)
 {
 	vec3 lightv = light.position - fs_in.FragPos;
-	vec3 lightDir = normalize(lightv);
+	float lightDistance = length(lightv);
+	vec3 lightDir = lightv / lightDistance;
 	vec3 color = materialParams[0];
 	vec3 normal = materialParams[2];
 	vec3 diffuse = color * light.intensity * light.diffuse * max(dot(normal, lightDir), 0.0);
@@ -172,15 +210,17 @@ vec3 calcSpotLight(const in SpotLight light, const in vec3 viewDir, const in mat
 	vec3 specular = light.intensity * light.specular * spec * materialParams[1] * check_light_side(lightDir);
 
 	// attenuation
-	float dist = length(lightv);
-	float att = distance_attenuation(dist, light.radius);
+
+	float att = distance_attenuation(lightDistance, light.radius);
 	att *= direction_attenuation(lightDir, light.direction, light.angle_scale, light.angle_offset);
 	return att * (ambient + diffuse + specular);
 }
 
 void main()
 {
-	vec3 viewDir = normalize(viewPos - fs_in.FragPos);
+	vec3 viewRay = viewPos - fs_in.FragPos;
+	float viewRayLength = length(viewRay);
+	vec3 viewDir = viewRay / viewRayLength;
 	vec3 normal = getNormal();
 	vec3 materialSpecular = getMaterialSpecular();
 	vec3 materialDiffuse = texture(material_diffuse, fs_in.TexCoords).rgb;
@@ -195,6 +235,13 @@ void main()
 	for(int i = 0; i < num_spot_lights; ++i)
 		spot += calcSpotLight(spot_light[spot_light_indices[i]], viewDir, materialParams);
 
-	FragColor = vec4(directional + point + spot, 1.0);
+	vec3 orig_color = directional + point + spot;
+	vec3 final_color;
+	if(directional_fog.enabled) {
+		final_color = calcFog(directional_fog, orig_color, viewRayLength, viewDir);
+	} else {
+		final_color = orig_color;
+	}
+	FragColor = vec4(final_color, 1.0);
 }
 

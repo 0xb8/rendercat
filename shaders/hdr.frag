@@ -7,12 +7,12 @@ out vec4 FragColor;
 layout(binding=0) uniform sampler2DMS hdrBuffer;
 
 layout(location=0) uniform float exposure;
-layout(location=1) uniform ivec2 texture_size;
-layout(location=2) uniform int   sample_count;
+layout(location=1) uniform int   sample_count;
 
-vec4 textureMultisample(sampler2DMS sampler, ivec2 coord)
+vec4 textureMultisample(sampler2DMS sampler, vec2 TexCoords)
 {
 	vec4 color = vec4(0.0);
+	ivec2 coord = ivec2(TexCoords * textureSize(hdrBuffer));
 	if(sample_count != 0) {
 		for (int i = 0; i < sample_count; ++i)
 			color += texelFetch(sampler, coord, i);
@@ -47,10 +47,10 @@ vec3 ACESFilm(vec3 x)
 
 void main()
 {
-	vec3 color = textureMultisample(hdrBuffer, ivec2(TexCoords * texture_size)).rgb;
+	vec3 color = textureMultisample(hdrBuffer, TexCoords).rgb;
 
 	vec3 tonemapped_color = Uncharted2Tonemap(color * exposure * 2.0);
-	vec3 W = Uncharted2Tonemap(vec3(11.2));
+	vec3 W = Uncharted2Tonemap(vec3(11.2)); // white point
 
 	FragColor = vec4(tonemapped_color / W, 1.0);
 }

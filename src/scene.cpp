@@ -11,6 +11,7 @@ Scene::Scene()
 	cubemap.load_textures("assets/materials/cubemaps/field_evening");
 
 	main_camera.pos = {0.0f, 1.5f, 0.4f};
+	directional_light.direction = glm::normalize(directional_light.direction);
 	PointLight pl;
 	pl.position({4.0f, 1.0f, 1.0f})
 	  .ambient({0.0f, 0.0f, 0.0f})
@@ -108,6 +109,122 @@ static void show_flux_help()
 	show_help_tooltip("Luminous Power in Lumens");
 }
 
+template<typename T>
+static bool edit_light(PunctualLight<T>& pl) noexcept
+{
+	constexpr bool is_spot = std::is_same_v<T, SpotLight>;
+	auto pos = pl.position();
+	auto amb = pl.ambient();
+	auto diff = pl.diffuse();
+	auto spec = pl.specular();
+	float radius = pl.radius();
+	float color_temp = pl.color_temperature();
+
+	glm::vec3 dir;
+	float power;
+	float angle_o;
+	float angle_i;
+
+	bool light_enabled = pl.state & PunctualLight<T>::Enabled;
+	bool light_follow  = pl.state & PunctualLight<T>::FollowCamera;
+	bool light_wireframe = pl.state & PunctualLight<T>::ShowWireframe;
+	ImGui::Checkbox("Enabled", &light_enabled);
+	ImGui::SameLine();
+	ImGui::Checkbox("Wireframe", &light_wireframe);
+	ImGui::SameLine();
+	if (ImGui::Button("Remove?"))
+		ImGui::OpenPopup("RemovePopup");
+
+	ImGui::Checkbox("Follow Camera", &light_follow);
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::PushItemWidth(-1.0f);
+
+	if constexpr(is_spot) {
+		auto spot = static_cast<SpotLight&>(pl);
+		power = spot.flux();
+		dir = spot.direction();
+		angle_o = spot.angle_outer();
+		angle_i = spot.angle_inner();
+		ImGui::TextUnformatted("Direction");
+		ImGui::DragFloat3("##lightdirection", glm::value_ptr(dir), 0.01f);
+	} else {
+		power = pl.flux();
+	}
+
+	ImGui::TextUnformatted("Position");
+	ImGui::DragFloat3("##lightposition", glm::value_ptr(pos), 0.01f);
+
+	ImGui::Spacing();
+	ImGui::Spacing();
+
+	ImGui::TextUnformatted("Ambient color");
+	ImGui::ColorEdit3("##ambientcol",  glm::value_ptr(amb),
+	                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
+	ImGui::TextUnformatted("Diffuse color");
+	ImGui::ColorEdit3("##diffusecol",  glm::value_ptr(diff),
+	                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
+
+	ImGui::TextUnformatted("Diffuse color temperature");
+	if(ImGui::SliderFloat("##diffusetemp", &color_temp, 273.0f, 10000.0f, "%.0f K")) {
+		diff = rc::util::temperature_to_linear_color(color_temp);
+	}
+
+	ImGui::TextUnformatted("Specular color");
+	ImGui::PushItemWidth(-50.0f);
+	ImGui::ColorEdit3("##specularcol", glm::value_ptr(spec),
+	                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
+	ImGui::SameLine();
+	if(ImGui::Button("Use Diff")) {
+		spec = diff;
+	}
+
+	ImGui::PopItemWidth();
+	ImGui::PopItemWidth();
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::DragFloat("Flux (lm)", &power,  1.0f, 1.0f, 100000.0f);
+	show_flux_help();
+	ImGui::DragFloat("Radius",    &radius, 0.1f, 0.5f, 1000.0f);
+
+	if constexpr(is_spot) {
+		ImGui::Spacing();
+		ImGui::SliderAngle("Angle Outer",  &angle_o, 0.0f, 89.0f);
+		ImGui::SliderAngle("Angle Inner",  &angle_i, 0.0f, 89.0f); // TODO: add slider for softness
+	}
+
+	pl.radius(radius)
+	  .position(pos)
+	  .ambient(amb)
+	  .diffuse(diff)
+	  .specular(spec)
+	  .color_temperature(color_temp);
+
+	pl.state = PunctualLight<T>::NoState;
+	pl.state |= light_follow    ? PunctualLight<T>::FollowCamera : 0;
+	pl.state |= light_enabled   ? PunctualLight<T>::Enabled : 0;
+	pl.state |= light_wireframe ? PunctualLight<T>::ShowWireframe : 0;
+
+	if constexpr(is_spot) {
+		static_cast<SpotLight&>(pl).direction(dir)
+		                           .angle_outer(angle_o)
+			                   .angle_inner(angle_i)
+			                   .flux(power);
+	} else {
+		pl.flux(power);
+	}
+
+
+
+	bool ret = true;
+	if (ImGui::BeginPopup("RemovePopup")) {
+		if(ImGui::Button("Confirm"))
+			ret = false;
+		ImGui::EndPopup();
+	}
+	return ret;
+}
+
 void Scene::update()
 {
 	for(auto& pl : point_lights) {
@@ -121,7 +238,6 @@ void Scene::update()
 		}
 	}
 
-
 	if(!ImGui::Begin("Scene", &window_shown)) {
 		ImGui::End();
 		return;
@@ -133,6 +249,7 @@ void Scene::update()
 		ImGui::Combo("MSAA", &desired_msaa_level, labels, 5);
 		show_help_tooltip("Multi-Sample Antialiasing\n\nValues > 4x may be unsupported on some setups.");
 		ImGui::SliderFloat("Resolution scale", &desired_render_scale, 0.1f, 1.0f, "%.1f");
+		ImGui::Checkbox("Show submesh AABB", &draw_aabb);
 	}
 
 	if(ImGui::CollapsingHeader("Camera")) {
@@ -153,15 +270,56 @@ void Scene::update()
 	}
 
 	if(ImGui::CollapsingHeader("Lighting")) {
+		if(ImGui::TreeNode("Fog")) {
+			bool enabled = fog.state & ExponentialDirectionalFog::Enabled;
+			ImGui::Checkbox("Enabled", &enabled);
+			ImGui::TextUnformatted("Inscattering color");
+			ImGui::PushItemWidth(-1.0f);
+			ImGui::ColorEdit4("##inscatteringcolor", glm::value_ptr(fog.inscattering_color),
+			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
+			ImGui::TextUnformatted("Directional inscattering color");
+			ImGui::ColorEdit4("##directionalinscatteringcolor", glm::value_ptr(fog.dir_inscattering_color),
+			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
+
+			if(ImGui::Button("Use Sun Diffuse")) {
+				fog.dir_inscattering_color = glm::vec4(directional_light.diffuse, fog.dir_inscattering_color.w);
+			}
+			ImGui::Spacing();
+			ImGui::Spacing();
+
+			ImGui::TextUnformatted("Directional Exponent");
+			ImGui::SliderFloat("##directionalexponent", &fog.dir_exponent, 1.0f, 64.0f);
+			ImGui::TextUnformatted("Inscattering density");
+			ImGui::SliderFloat("##inscatteringdensity", &fog.inscattering_density, 0.0f, 1.0f, "%.3f", 2.0f);
+			ImGui::TextUnformatted("Extinction density");
+			ImGui::SliderFloat("##extinctiondensity", &fog.extinction_density, 0.0f, 1.0f, "%.3f", 2.0f);
+
+			fog.state = ExponentialDirectionalFog::NoState;
+			fog.state |= enabled ? ExponentialDirectionalFog::Enabled : 0;
+
+			ImGui::PopItemWidth();
+			ImGui::TreePop();
+		}
+
 		if(ImGui::TreeNode("Directional")) {
 
-			ImGui::SliderFloat3("Direction", glm::value_ptr(directional_light.direction), -1.0, 1.0);
-			ImGui::ColorEdit3("Ambient",   glm::value_ptr(directional_light.ambient),
-			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
-			ImGui::ColorEdit3("Diffuse",   glm::value_ptr(directional_light.diffuse),
-			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
-			ImGui::ColorEdit3("Specular",  glm::value_ptr(directional_light.specular),
-			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
+			ImGui::PushItemWidth(-1.0f);
+			ImGui::TextUnformatted("Direction");
+			ImGui::SliderFloat3("##direction", glm::value_ptr(directional_light.direction), -1.0, 1.0);
+			directional_light.direction = glm::normalize(directional_light.direction);
+			ImGui::Spacing();
+			ImGui::Spacing();
+			ImGui::TextUnformatted("Ambient");
+			ImGui::ColorEdit3("##ambientcolor",   glm::value_ptr(directional_light.ambient),
+			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
+			ImGui::TextUnformatted("Diffuse");
+			ImGui::ColorEdit3("##diffusecolor",   glm::value_ptr(directional_light.diffuse),
+			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
+			ImGui::TextUnformatted("Specular");
+			ImGui::ColorEdit3("##specularcolor",  glm::value_ptr(directional_light.specular),
+			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
+
+			ImGui::PopItemWidth();
 			ImGui::TreePop();
 		}
 
@@ -174,72 +332,9 @@ void Scene::update()
 			for(unsigned i = 0; i < spot_lights.size(); ++i) {
 				ImGui::PushID(i);
 				if(ImGui::TreeNode("SpotLight", "Spot light #%d", i)) {
-					auto& light = spot_lights[i];
-					auto dir = light.direction();
-					auto pos = light.position();
-					auto amb = light.ambient();
-					auto diff = light.diffuse();
-					auto spec = light.specular();
-					float power = light.flux();
-					float radius = light.radius();
-					float angle_o = light.angle_outer();
-					float angle_i = light.angle_inner();
-
-					bool flashlight    = light.state & SpotLight::FollowCamera;
-					bool light_enabled = light.state & SpotLight::Enabled;
-					bool debug_enabled = light.state & SpotLight::ShowWireframe;
-					ImGui::Checkbox("Enabled", &light_enabled);
-					ImGui::SameLine();
-					ImGui::Checkbox("Wireframe", &debug_enabled);
-					ImGui::SameLine();
-					if (ImGui::Button("Remove?"))
-						ImGui::OpenPopup("RemovePopup");
-
-					ImGui::Checkbox("Flashlight", &flashlight);
-
-					ImGui::DragFloat3("Direction", glm::value_ptr(dir), 0.01f);
-					ImGui::DragFloat3("Position", glm::value_ptr(pos), 0.01f);
-					ImGui::ColorEdit3("Ambient",  glm::value_ptr(amb),
-					                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
-					ImGui::ColorEdit3("Diffuse",  glm::value_ptr(diff),
-					                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
-
-					static float temp;
-					if(ImGui::SliderFloat("Color Temperature", &temp, 500.0f, 10000.0f, "%.0f K")) {
-						auto col = rc::util::temperature_to_linear_color(temp);
-						diff = col;
+					if(!edit_light<SpotLight>(spot_lights[i])) {
+						spot_lights.erase(std::next(spot_lights.begin(), i));
 					}
-
-					ImGui::ColorEdit3("Specular", glm::value_ptr(spec),
-					                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
-					ImGui::DragFloat("Flux (lm)", &power,  1.0f, 1.0f, 100000.0f);
-					show_flux_help();
-
-					ImGui::DragFloat("Radius",    &radius, 0.1f, 0.5f, 1000.0f);
-					ImGui::SliderAngle("Angle Outer",  &angle_o, 0.0f, 89.0f);
-					ImGui::SliderAngle("Angle Inner",  &angle_i, 0.0f, 89.0f); // TODO: add slider for softness
-
-					light.direction(dir)
-					     .angle_outer(angle_o)
-					     .angle_inner(angle_i)
-					     .radius(radius)
-					     .flux(power)
-					     .position(pos)
-					     .ambient(amb)
-					     .diffuse(diff)
-					     .specular(spec);
-
-					light.state = SpotLight::Disabled;
-					light.state |= flashlight    ? SpotLight::FollowCamera : 0;
-					light.state |= light_enabled ? SpotLight::Enabled : 0;
-					light.state |= debug_enabled ? SpotLight::ShowWireframe : 0;
-
-					if (ImGui::BeginPopup("RemovePopup")) {
-						if(ImGui::Button("Confirm"))
-							spot_lights.erase(std::next(spot_lights.begin(), i));
-						ImGui::EndPopup();
-					}
-
 					ImGui::TreePop();
 				} // Tree Node (Spot Light #)
 				ImGui::PopID();
@@ -257,63 +352,9 @@ void Scene::update()
 				ImGui::PushID(i);
 				if(ImGui::TreeNode("PointLight", "Point light #%d", i)) {
 					auto& light = point_lights[i];
-
-					auto pos = light.position();
-					auto amb = light.ambient();
-					auto diff = light.diffuse();
-					auto spec = light.specular();
-					float power = light.flux();
-					float radius = light.radius();
-
-					bool light_enabled = light.state & PointLight::Enabled;
-					bool debug_enabled = light.state & PointLight::ShowWireframe;
-					bool light_follow  = light.state & PointLight::FollowCamera;
-					ImGui::Checkbox("Enabled", &light_enabled);
-					ImGui::SameLine();
-					ImGui::Checkbox("Wireframe", &debug_enabled);
-					ImGui::SameLine();
-					if (ImGui::Button("Remove?"))
-						ImGui::OpenPopup("RemovePopup");
-
-					ImGui::Checkbox("Follow Camera", &light_follow);
-
-					ImGui::DragFloat3("Position", glm::value_ptr(pos), 0.01f);
-					ImGui::ColorEdit3("Ambient",  glm::value_ptr(amb),
-					                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
-					ImGui::ColorEdit3("Diffuse",  glm::value_ptr(diff),
-					                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
-
-					static float temp;
-					if(ImGui::SliderFloat("Color Temperature", &temp, 500.0f, 10000.0f, "%.0f K")) {
-						auto col = rc::util::temperature_to_linear_color(temp);
-						diff = col;
+					if(!edit_light<PointLight>(light)) {
+						point_lights.erase(std::next(point_lights.begin(), i));
 					}
-
-					ImGui::ColorEdit3("Specular", glm::value_ptr(spec),
-					                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
-					ImGui::DragFloat("Flux (lm)", &power,  1.0f, 1.0f, 100000.0f);
-					show_flux_help();
-
-					ImGui::DragFloat("Radius",    &radius, 0.1f, 0.5f, 1000.0f);
-
-					light.radius(radius)
-					     .flux(power)
-					     .position(pos)
-					     .ambient(amb)
-					     .diffuse(diff)
-					     .specular(spec);
-
-					light.state = PointLight::Disabled;
-					light.state |= light_enabled ? PointLight::Enabled : 0;
-					light.state |= debug_enabled ? PointLight::ShowWireframe : 0;
-					light.state |= light_follow ? PointLight::FollowCamera : 0;
-
-					if (ImGui::BeginPopup("RemovePopup")) {
-						if(ImGui::Button("Confirm"))
-							point_lights.erase(std::next(point_lights.begin(), i));
-						ImGui::EndPopup();
-					}
-
 					ImGui::TreePop();
 				} // TreeNode(Point Light #)
 				ImGui::PopID();
@@ -328,6 +369,8 @@ void Scene::update()
 			ImGui::PushID(i);
 			if(ImGui::TreeNode("Material", "%s", materials[i].name.data())) {
 
+				auto col = ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
+				ImGui::PushStyleColor(ImGuiCol_Text, col);
 				auto type = materials[i].flags;
 				if(type & Material::Opaque) {
 					ImGui::TextUnformatted("Opaque "); ImGui::SameLine();
@@ -346,11 +389,16 @@ void Scene::update()
 				}
 				ImGui::NewLine();
 				if(type & Material::FaceCullingDisabled)
-					ImGui::TextUnformatted("Face Culling Disabled ");
+					ImGui::TextUnformatted("No face culling ");
+
+				ImGui::PopStyleColor();
 
 
-				ImGui::ColorEdit3("Specular Color", glm::value_ptr(materials[i].m_specular_color),
-					ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel);
+				ImGui::Spacing();
+				ImGui::Spacing();
+				ImGui::TextUnformatted("Specular color");
+				ImGui::ColorEdit3("##matspeccolor", glm::value_ptr(materials[i].m_specular_color),
+					ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 				ImGui::DragFloat("Shininess", &(materials[i].m_shininess), 0.1f, 0.01f, 128.0f);
 
 				int texture_count = 1;
@@ -389,9 +437,12 @@ void Scene::update()
 			Model& model = models[i];
 			ImGui::PushID(i);
 			if(ImGui::TreeNode("Model", "%s", model.name.data())) {
-				ImGui::DragFloat3("Position XYZ", glm::value_ptr(model.position), 0.01f);
+				ImGui::PushItemWidth(-1.0f);
+				ImGui::TextUnformatted("Position (XYZ)");
+				ImGui::DragFloat3("##modelpos", glm::value_ptr(model.position), 0.01f);
 				glm::vec3 rot = glm::degrees(model.rotation_euler);
-				ImGui::SliderFloat3("Yaw Pitch Roll", glm::value_ptr(rot), -180.0f, 180.0f, "%.1f\u00B0");
+				ImGui::TextUnformatted("Rotation (Yaw Pitch Roll)");
+				ImGui::SliderFloat3("##modelrot", glm::value_ptr(rot), -180.0f, 180.0f, "%.1f\u00B0");
 				rot = glm::radians(rot);
 				model.rotation_euler = rot;
 				model.update_transform();
@@ -414,6 +465,7 @@ void Scene::update()
 					ImGui::TreePop();
 				}
 
+				ImGui::PopItemWidth();
 				ImGui::TreePop();
 			}
 			ImGui::PopID();

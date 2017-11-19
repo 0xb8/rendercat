@@ -9,17 +9,17 @@ class PunctualLight // CRTP base class
 	glm::vec3 m_ambient  = {0.0f, 0.0f, 0.0f};
 	glm::vec3 m_diffuse  = {1.0f, 1.0f, 1.0f};
 	glm::vec3 m_specular = {0.1f, 0.1f, 0.1f};
-	float m_radius = 10.0f;
+	float m_radius = 5.0f;
 	float m_luminous_intensity = 11.9366f; // in candelas, equiv. 150 lm
-	float m_dummy{}; // padding
+	float m_color_temperature = 6500.0f;   // in Kelvin, ranges from ~1000 to ~22000
 
 public:
 	enum State
 	{
-		Disabled,
-		Enabled = 0x1,
-		ShowWireframe = 0x2,
-		FollowCamera = 0x4
+		NoState,
+		Enabled             = 0x1,
+		ShowWireframe       = 0x2,
+		FollowCamera        = 0x4
 	};
 
 	uint8_t state = Enabled;
@@ -42,8 +42,7 @@ public:
 	}
 	T& ambient(glm::vec3 amb) noexcept
 	{
-		if(rc::math::between(amb, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}))
-			m_ambient = amb;
+		m_ambient = glm::clamp(amb, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f});
 		return *static_cast<T*>(this);
 	}
 
@@ -53,8 +52,7 @@ public:
 	}
 	T& diffuse(glm::vec3 dif) noexcept
 	{
-		if(rc::math::between(dif, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}))
-			m_diffuse = dif;
+		m_diffuse = glm::clamp(dif, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f});;
 		return *static_cast<T*>(this);
 	}
 
@@ -64,8 +62,18 @@ public:
 	}
 	T& specular(glm::vec3 spec) noexcept
 	{
-		if(rc::math::between(spec, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}))
-			m_specular = spec;
+		m_specular = glm::clamp(spec, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f});
+		return *static_cast<T*>(this);
+	}
+
+	float color_temperature() const noexcept
+	{
+		return m_color_temperature;
+	}
+
+	T& color_temperature(float temp) noexcept
+	{
+		m_color_temperature = glm::clamp(temp, 273.0f, 22000.0f);
 		return *static_cast<T*>(this);
 	}
 
@@ -76,9 +84,7 @@ public:
 
 	T& radius(float rad) noexcept
 	{
-		if(rad >= 0.0f && rad < 1000.0f)
-			m_radius = rad;
-
+		m_radius = glm::clamp(rad, 0.1f, 1000.0f);
 		return *static_cast<T*>(this);
 	}
 
@@ -102,8 +108,7 @@ public:
 
 	T& flux(float luminous_flux) noexcept // in lumens
 	{
-		if(luminous_flux > 0.0f && luminous_flux < 20000.0f)
-			m_luminous_intensity = luminous_flux / (4.0 * rc::mathconst::pi);
+		m_luminous_intensity = glm::clamp(luminous_flux, 0.1f, 20000.0f) / (4.0 * rc::mathconst::pi);
 		return *static_cast<T*>(this);
 	}
 
@@ -165,9 +170,7 @@ public:
 
 	SpotLight& flux(float luminous_flux) noexcept // in lumens
 	{
-		if(luminous_flux > 0.0f && luminous_flux < 20000.0f) {
-			intensity(luminous_flux /  rc::mathconst::pi);
-		}
+		intensity(glm::clamp(luminous_flux, 1.0f, 20000.0f) /  rc::mathconst::pi);
 		return *(this);
 	}
 
