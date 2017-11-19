@@ -376,14 +376,13 @@ void Renderer::draw()
 	glUseProgram(0);
 	glBindVertexArray(0);
 	glDepthFunc(GL_LESS);
-
 	m_perfquery.end();
 }
 
 void Renderer::draw_gui()
 {
 	ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiCond_Always);
-	ImGui::SetNextWindowSize(ImVec2(350, 40));
+	ImGui::SetNextWindowSize(ImVec2(375, 40));
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.1f));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,ImVec2(0,0));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
@@ -401,9 +400,9 @@ void Renderer::draw_gui()
 
 	char avgbuf[64];
 	snprintf(avgbuf, std::size(avgbuf),
-	         "GPU avg: %5.2f ms (%4.1f fps), last: %5.2f ms",
+	         "avg: %5.2f ms / %5.1f fps, last: %5.2f ms, qn: %d",
 	         m_perfquery.time_avg,
-	         1000.0f / std::max(m_perfquery.time_avg, 0.01f), m_perfquery.time_last);
+	         1000.0f / std::max(m_perfquery.time_avg, 0.01f), m_perfquery.time_last, m_perfquery.query_num);
 
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.00f, 0.00f, 0.00f, 0.50f));
 	ImGui::PlotLines("", m_perfquery.times, std::size(m_perfquery.times), 0, avgbuf, 0.0f, 20.0f, ImVec2(0,40));

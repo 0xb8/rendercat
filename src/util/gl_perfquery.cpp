@@ -7,79 +7,71 @@
 
 using namespace gl45core;
 
-static const unsigned PQ_WAIT = 0;
-static const unsigned PQ_RUN  = 1;
-
 PerfQuery::PerfQuery()
 {
-	static_assert(sizeof(gl::GLuint) == sizeof(m_gpu_time_query));
-
-	glCreateQueries(GL_TIME_ELAPSED, 1, &m_gpu_time_query);
-}
-
-PerfQuery::~PerfQuery()
-{
-	glDeleteQueries(1, &m_gpu_time_query);
-}
-
-PerfQuery::PerfQuery(PerfQuery&& o) noexcept :
-	time_avg(o.time_avg),
-	time_last(o.time_last),
-	m_gpu_time_query(std::exchange(o.m_gpu_time_query, 0u)),
-        m_state(o.m_state)
-
-{
-	for(unsigned i = 0; i < num_samples; ++i) // compiler should replace this with memcpy
-		times[i] = o.times[i];
-}
-
-PerfQuery& PerfQuery::operator =(PerfQuery&& o) noexcept
-{
-	if(this != &o) {
-		glDeleteQueries(1, &m_gpu_time_query);
-		m_gpu_time_query = std::exchange(o.m_gpu_time_query, 0);
-		m_state = o.m_state;
-		time_avg = o.time_avg;
-		time_last = o.time_last;
-		for(unsigned i = 0; i < num_samples; ++i) // compiler should replace this with memcpy
-			times[i] = o.times[i];
+	for(int i = 0; i < query_count; ++i) {
+		glCreateQueries(GL_TIME_ELAPSED, 1, m_query[i].get());
+		m_state[i] = QueryState::ResultAvailable;
 	}
-	return *this;
 }
 
 void PerfQuery::begin()
 {
-	assert((m_state == PQ_WAIT) && "Must end() query before calling begin()");
-	m_state = PQ_RUN;
-	glBeginQuery(GL_TIME_ELAPSED, m_gpu_time_query);
+	int qidx = next_query();
+	m_state[qidx] = QueryState::Began;
+	glBeginQuery(GL_TIME_ELAPSED, *m_query[qidx]);
+	current_query = qidx;
 }
 
 void PerfQuery::end()
 {
-	assert((m_state == PQ_RUN) && "Must begin() query before calling end()");
-	m_state = PQ_WAIT;
+	assert((m_state[current_query] == QueryState::Began) && "Must begin() query before calling end()");
+	m_state[current_query] = QueryState::Ended;
 	glEndQuery(GL_TIME_ELAPSED);
 }
 
 void PerfQuery::collect()
 {
-	assert((m_state == PQ_WAIT) && "Must end() query before calling collect()");
-	uint64_t time_elapsed = 0;
-	glGetQueryObjectui64v(m_gpu_time_query, GL_QUERY_RESULT_NO_WAIT, &time_elapsed);
-	if(!time_elapsed)
-		return;
+	for(int i = 0; i < query_count; ++i) {
+		if(m_state[i] != QueryState::Ended)
+			continue;
 
-	float gpu_time = (double)time_elapsed / 1000000.0;
+		uint64_t time_elapsed = 0;
+		glGetQueryObjectui64v(*m_query[i], GL_QUERY_RESULT_NO_WAIT, &time_elapsed);
+		if(!time_elapsed)
+			continue;
+
+		m_state[i] = QueryState::ResultAvailable;
+		float gpu_time = (double)time_elapsed / 1000000.0;
+		push_time(gpu_time, i);
+	}
+
+}
+
+void PerfQuery::push_time(float t, int q)
+{
 	time_avg = 0.0f;
+	time_last = t;
+	query_num = q;
 
 	for(unsigned i = 0; i < std::size(times)-1; ++i) {
 		times[i] = times[i+1];
 		time_avg += times[i+1];
 	}
-	times[std::size(times)-1] = gpu_time;
-	time_avg += gpu_time;
+	times[std::size(times)-1] = t;
+	time_avg += t;
 	time_avg /= std::size(times);
-	time_last = gpu_time;
+
+}
+
+int PerfQuery::next_query()
+{
+	for(int i = 0; i < query_count; ++i) {
+		if(m_state[i] == QueryState::ResultAvailable)
+			return i;
+	}
+	assert(false && "no vacant queries left, increase count!");
+	return -1;
 }
 
 
