@@ -15,6 +15,7 @@
 #include <rendercat/util/gl_meta.hpp>
 
 using namespace gl45core;
+using namespace rc;
 
 static const char* const face_names_hdr[6] = {
 	"right.hdr",

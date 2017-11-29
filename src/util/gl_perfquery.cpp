@@ -6,6 +6,7 @@
 #include <utility>
 
 using namespace gl45core;
+using namespace rc;
 
 PerfQuery::PerfQuery()
 {

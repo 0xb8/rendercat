@@ -1,19 +1,20 @@
 #pragma once
 
 #include <rendercat/common.hpp>
-#include <glbinding/gl/types.h>
 #include <string>
+
+namespace rc {
 
 class ShaderSet
 {
 public:
 
-	explicit ShaderSet(std::string_view directory = rc::path::shader);
+	explicit ShaderSet(std::string_view directory = path::shader);
 	~ShaderSet();
 
 	bool check_updates();
 
-	gl::GLuint* load_program(std::initializer_list<std::string_view>);
+	uint32_t* load_program(std::initializer_list<std::string_view>);
 
 	static constexpr size_t max_programs = 16;
 
@@ -25,3 +26,4 @@ private:
 
 };
 
+} // namespace rc

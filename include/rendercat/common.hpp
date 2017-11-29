@@ -5,15 +5,18 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <cmath>
+#include <cstddef>
 #include <limits>
 #include <glm/gtx/string_cast.hpp>
 
 #if __GNUC__
 #define likely(x)       __builtin_expect((x),1)
 #define unlikely(x)     __builtin_expect((x),0)
+#define unreachable()   __builtin_unreachable()
 #else
 #define likely(x) (x)
 #define unlikely(x) (x)
+#define unreachable() do { } while(0)
 #endif
 
 #define RC_DISABLE_COPY(Class) \
@@ -24,15 +27,23 @@
 	Class(Class &&) = delete;\
 	Class &operator=(Class &&) = delete;
 
-inline std::ostream& operator<<(std::ostream& out, const glm::vec2 g)
+#define RC_DEFAULT_MOVE(Class) \
+	Class(Class&&) = default; \
+	Class& operator =(Class&&) =  default;
+
+#define RC_DEFAULT_MOVE_NOEXCEPT(Class) \
+	Class(Class&&) noexcept = default; \
+	Class& operator =(Class&&) noexcept = default;
+
+inline std::ostream& operator<<(std::ostream& out, const glm::vec2& g)
 {
     return out << glm::to_string(g);
 }
-inline std::ostream& operator<<(std::ostream& out, const glm::vec3 g)
+inline std::ostream& operator<<(std::ostream& out, const glm::vec3& g)
 {
     return out << glm::to_string(g);
 }
-inline std::ostream& operator<<(std::ostream& out, const glm::vec4 g)
+inline std::ostream& operator<<(std::ostream& out, const glm::vec4& g)
 {
     return out << glm::to_string(g);
 }
@@ -77,7 +88,7 @@ namespace math {
 		if(value == T{} || max == T{} || max == min) return T{};
 		return static_cast<double>(value-min) * 100.0 / max - min;
 	}
-}
+} // namespace math
 
 namespace mathconst {
 	inline constexpr double e	= 2.7182818284590452354;
@@ -93,7 +104,7 @@ namespace mathconst {
 	inline constexpr double two_over_sqrt_pi = 1.12837916709551257390;
 	inline constexpr double sqrt2	= 1.41421356237309504880;
 	inline constexpr double sqrt_1_2 = 0.70710678118654752440;
-}
+} // namespace mathconst
 
 namespace path {
 	constexpr char shader[] = "shaders/";
@@ -102,7 +113,8 @@ namespace path {
 		constexpr char model[] = "assets/models/";
 		constexpr char model_material[] = "assets/materials/models/";
 	}
-}
-}
+} // namespace path
+
+} // namespace rc
 
 

@@ -3,13 +3,11 @@
 #include <rendercat/common.hpp>
 #include <rendercat/core/frustum.hpp>
 
-class Scene;
-
 namespace rc {
 
 struct Camera
 {
-	friend class ::Scene;
+	friend class Scene;
 
 	void aim(float dx, float dy) noexcept;
 	void forward(float speed) noexcept;

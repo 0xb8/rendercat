@@ -2,11 +2,15 @@
 #include <rendercat/util/color_temperature.hpp>
 #include <imgui.hpp>
 
+using namespace rc;
+
 Scene::Scene()
 {
-	Material::set_default_diffuse();
-	materials.emplace_back(Material{"missing"});
-	Material::set_texture_cache(&m_texture_cache);
+	{
+		Material::set_default_diffuse("assets/materials/missing.tga");
+		materials.emplace_back(std::move(Material::create_default_material()));
+		Material::set_texture_cache(&m_texture_cache);
+	}
 
 	cubemap.load_textures("assets/materials/cubemaps/field_evening");
 
@@ -14,9 +18,8 @@ Scene::Scene()
 	directional_light.direction = glm::normalize(directional_light.direction);
 	PointLight pl;
 	pl.position({4.0f, 1.0f, 1.0f})
-	  .ambient({0.0f, 0.0f, 0.0f})
 	  .diffuse({1.0f, 0.2f, 0.1f})
-	  .specular({0.3f, 0.05f, 0.0f})
+	  .specular({0.4f, 0.1f, 0.0f})
 	  .radius(3.5f)
 	  .flux(75.0f);
 
@@ -60,6 +63,8 @@ Scene::Scene()
 
 	load_model("sponza_scaled.obj", "sponza_crytek/");
 	load_model("yorha_2b.obj",      "yorha_2b/");
+
+	m_texture_cache.clear();
 }
 
 Model* Scene::load_model(const std::string_view name, const std::string_view basedir)
@@ -114,7 +119,6 @@ static bool edit_light(PunctualLight<T>& pl) noexcept
 {
 	constexpr bool is_spot = std::is_same_v<T, SpotLight>;
 	auto pos = pl.position();
-	auto amb = pl.ambient();
 	auto diff = pl.diffuse();
 	auto spec = pl.specular();
 	float radius = pl.radius();
@@ -158,9 +162,6 @@ static bool edit_light(PunctualLight<T>& pl) noexcept
 	ImGui::Spacing();
 	ImGui::Spacing();
 
-	ImGui::TextUnformatted("Ambient color");
-	ImGui::ColorEdit3("##ambientcol",  glm::value_ptr(amb),
-	                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 	ImGui::TextUnformatted("Diffuse color");
 	ImGui::ColorEdit3("##diffusecol",  glm::value_ptr(diff),
 	                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
@@ -195,7 +196,6 @@ static bool edit_light(PunctualLight<T>& pl) noexcept
 
 	pl.radius(radius)
 	  .position(pos)
-	  .ambient(amb)
 	  .diffuse(diff)
 	  .specular(spec)
 	  .color_temperature(color_temp);
@@ -368,63 +368,98 @@ void Scene::update()
 		for(unsigned i = 0; i < materials.size(); ++i) {
 			ImGui::PushID(i);
 			if(ImGui::TreeNode("Material", "%s", materials[i].name.data())) {
+				auto& material = materials[i];
+
 
 				auto col = ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
+				ImGui::TextUnformatted("Alpha mode:  ");
+				ImGui::SameLine();
 				ImGui::PushStyleColor(ImGuiCol_Text, col);
-				auto type = materials[i].flags;
-				if(type & Material::Opaque) {
+
+				if(material.alpha_mode == Texture::AlphaMode::Opaque) {
 					ImGui::TextUnformatted("Opaque "); ImGui::SameLine();
 				}
-				if(type & Material::Masked) {
-					ImGui::TextUnformatted("Alpha Masked "); ImGui::SameLine();
+				if(material.alpha_mode == Texture::AlphaMode::Mask) {
+					ImGui::TextUnformatted("Alpha Mask "); ImGui::SameLine();
 				}
-				if(type & Material::Blended) {
-					ImGui::TextUnformatted("Blended "); ImGui::SameLine();
+				if(material.alpha_mode == Texture::AlphaMode::Blend) {
+					ImGui::TextUnformatted("Blend "); ImGui::SameLine();
 				}
-				if(type & Material::NormalMapped) {
-					ImGui::TextUnformatted("Normal mapped "); ImGui::SameLine();
-				}
-				if(type & Material::SpecularMapped) {
-					ImGui::TextUnformatted("Specular mapped "); ImGui::SameLine();
-				}
-				ImGui::NewLine();
-				if(type & Material::FaceCullingDisabled)
-					ImGui::TextUnformatted("No face culling ");
-
 				ImGui::PopStyleColor();
+				ImGui::NewLine();
+				ImGui::TextUnformatted("Face culling: ");
+				ImGui::SameLine();
+				ImGui::PushStyleColor(ImGuiCol_Text, col);
+				if(material.face_culling_enabled) {
+					ImGui::TextUnformatted("Enabled ");
+				} else {
+					ImGui::TextUnformatted("Disabled ");
+				}
+				ImGui::PopStyleColor();
+				ImGui::TextUnformatted("Texture maps: ");
 
+				auto display_map_info = [](const auto& map)
+				{
+					auto& storage = map.m_storage;
+					ImGui::Text("Dimensions:      %d x %d (%d mips)",
+						    storage.width(),
+						    storage.height(),
+						    storage.levels());
 
+					ImGui::Text("Color space:     %s", Texture::enum_value_str(storage.color_space()));
+					ImGui::Text("Channels:        %d", storage.channels());
+					ImGui::Text("Internal format: %s", Texture::enum_value_str(storage.format()));
+					ImGui::Text("Mip Mapping:     %s", Texture::enum_value_str(map.m_mipmapping));
+					ImGui::Text("Filtering:       %s", Texture::enum_value_str(map.m_filtering));
+					ImGui::Text("Aniso Samples:   %d", map.m_anisotropic_samples);
+					ImGui::Text("Swizzle Mask:    %s %s %s %s",
+					            Texture::enum_value_str(map.m_swizzle_mask.red),
+					            Texture::enum_value_str(map.m_swizzle_mask.green),
+					            Texture::enum_value_str(map.m_swizzle_mask.blue),
+					            Texture::enum_value_str(map.m_swizzle_mask.alpha));
+					ImGui::Text("GL Handle:       %d", storage.texture_handle());
+
+					if(storage.shared()) {
+						ImGui::TextUnformatted("Shared");
+					}
+
+					if(!storage.valid())
+						return;
+
+					// NOTE: imgui assumes direct3d convention, custom UVs for OpenGL are below
+					const auto uv0 = ImVec2(0.0f, 1.0f);
+					const auto uv1 = ImVec2(1.0f, 0.0f);
+					const auto width = ImGui::GetContentRegionAvailWidth() - 5.0f;
+					const auto height = width * ((float)storage.height() / (float)storage.width());
+					ImGui::Image((ImTextureID)(uintptr_t)storage.texture_handle(), ImVec2(width, height), uv0, uv1);
+				};
+
+				auto display_map = [&material,&display_map_info](const auto& map, auto kind)
+				{
+					ImGui::PushID(Texture::enum_value_str(kind));
+					if(material.hasTextureKind(kind) && ImGui::TreeNode("mapparams", "%s Map", Texture::enum_value_str(kind))) {
+						display_map_info(map);
+						ImGui::TreePop();
+					}
+					ImGui::PopID();
+				};
+
+				display_map(material.m_diffuse_map,  Texture::Kind::Diffuse);
+				display_map(material.m_normal_map,   Texture::Kind::Normal);
+				display_map(material.m_specular_map, Texture::Kind::Specular);
 				ImGui::Spacing();
-				ImGui::Spacing();
-				ImGui::TextUnformatted("Specular color");
-				ImGui::ColorEdit3("##matspeccolor", glm::value_ptr(materials[i].m_specular_color),
+
+				ImGui::TextUnformatted("Diffuse color");
+				ImGui::ColorEdit3("##matdiffcolor", glm::value_ptr(material.m_diffuse_color),
 					ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
-				ImGui::DragFloat("Shininess", &(materials[i].m_shininess), 0.1f, 0.01f, 128.0f);
 
-				int texture_count = 1;
-				if(type & Material::SpecularMapped)
-					++texture_count;
-				if(type & Material::NormalMapped)
-					++texture_count;
+				ImGui::TextUnformatted("Specular color");
+				ImGui::ColorEdit3("##matspeccolor", glm::value_ptr(material.m_specular_color),
+					ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 
-
-				// NOTE: imgui assumes direct3d convention, custom UVs for OpenGL are below
-				const auto uv0 = ImVec2(0.0f, 1.0f);
-				const auto uv1 = ImVec2(1.0f, 0.0f);
-				const auto width = ImGui::GetContentRegionAvailWidth() / texture_count - 5.0f;
-				if(materials[i].m_diffuse_map)
-					ImGui::Image((ImTextureID)(uintptr_t)materials[i].m_diffuse_map, ImVec2(width,width), uv0, uv1);
-
-				if(materials[i].m_normal_map) {
-					ImGui::SameLine();
-					ImGui::Image((ImTextureID)(uintptr_t)materials[i].m_normal_map, ImVec2(width,width), uv0, uv1);
-					show_help_tooltip("This texture looks brighter than it should because it's linear RGB, only displayed here as SRGB.");
-				}
-				if(materials[i].m_specular_map) {
-					ImGui::SameLine();
-					ImGui::Image((ImTextureID)(uintptr_t)materials[i].m_specular_map, ImVec2(width,width), uv0, uv1);
-				}
-
+				ImGui::DragFloat("Shininess",   &(material.m_shininess), 0.1f, 1.0f, 128.0f);
+				ImGui::SliderFloat("Roughness", &(material.m_roughness), 0.0f, 1.0f);
+				ImGui::SliderFloat("Metallic",  &(material.m_metallic),  0.0f, 1.0f);
 				ImGui::TreePop();
 			}
 			ImGui::PopID();

@@ -5,6 +5,7 @@
 #include <glbinding/gl45core/functions.h>
 #include <string_view>
 
+namespace rc {
 namespace unif {
 
 // --- bool --------------------------------------------------------------------
@@ -104,4 +105,5 @@ inline void m4(gl45core::GLuint shader, const std::string_view name, const glm::
 	m4(shader, gl45core::glGetUniformLocation(shader, name.data()), mat);
 }
 
-}
+} // namespace unif
+} // namespace rc

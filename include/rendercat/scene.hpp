@@ -12,6 +12,8 @@
 #include <string_view>
 #include <glm/gtx/euler_angles.hpp>
 
+namespace rc {
+
 struct DirectionalLight
 {
 	glm::vec3 direction;
@@ -27,7 +29,7 @@ struct ExponentialDirectionalFog
 	glm::vec4 dir_inscattering_color;
 
 	/// amount of light scattered by fog
-	float inscattering_density = 0.05f;
+	float inscattering_density = 0.01f;
 
 	/// amount of light absorbed by fog
 	float extinction_density   = 0.005f;
@@ -72,10 +74,10 @@ struct Scene
 	Scene();
 
 	static constexpr size_t missing_material_idx = 0u;
-	TextureCache m_texture_cache;
+	rc::TextureCache m_texture_cache;
 
-	std::vector<Material>    materials;
-	std::vector<model::mesh> submeshes;
+	std::vector<rc::Material>    materials;
+	std::vector<model::Mesh> submeshes;
 	std::vector<Model>       models;
 	std::vector<PointLight>  point_lights;
 	std::vector<SpotLight>   spot_lights;
@@ -107,3 +109,5 @@ struct Scene
 
 	Cubemap cubemap;
 };
+
+}

@@ -14,19 +14,22 @@
 #include <glbinding/gl45core/functions.h>
 
 using namespace gl45core;
+using namespace rc;
 
+namespace rc {
 namespace model {
-	struct vertex {
+	struct Vertex {
 		glm::vec3 position;
 		glm::vec3 normal;
 		glm::vec2 texcoords;
 
-		bool operator==(const vertex& other) const noexcept {
+		bool operator==(const Vertex& other) const noexcept {
 			return position == other.position
 					&& normal == other.normal
 					&& texcoords == other.texcoords;
 		}
 	};
+}
 }
 
 static Material load_obj_material(const tinyobj::material_t& mat, const std::string_view material_path)
@@ -34,11 +37,20 @@ static Material load_obj_material(const tinyobj::material_t& mat, const std::str
 	Material material(mat.name);
 
 	auto spec_color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
+	auto diff_color = glm::vec3(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
 	material.specularColorShininess(spec_color, mat.shininess);
+	material.diffuseColor(diff_color);
 
 	if(!mat.diffuse_texname.empty()) {
 		bool has_alpha_mask = !mat.alpha_texname.empty();
-		material.addDiffuseMap(mat.diffuse_texname, material_path, has_alpha_mask);
+		material.addDiffuseMap(mat.diffuse_texname, material_path);
+		if(material.alpha_mode == Texture::AlphaMode::Unknown) {
+			if(has_alpha_mask) {
+				material.alpha_mode = Texture::AlphaMode::Mask;
+			} else {
+				material.alpha_mode = Texture::AlphaMode::Blend;
+			}
+		}
 	}
 
 	if(!mat.normal_texname.empty()) {
@@ -61,9 +73,8 @@ static Material load_obj_material(const tinyobj::material_t& mat, const std::str
 	if(mat.unknown_parameter.find(cull) != mat.unknown_parameter.end()) {
 		const auto val = mat.unknown_parameter.at(cull);
 		if(val == "0") {
-			material.flags |= Material::FaceCullingDisabled;
+			material.face_culling_enabled = false;
 		}
-		fmt::print(stderr, "   - no face culling\n");
 	}
 
 	return std::move(material);
@@ -76,7 +87,7 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 	std::vector<tinyobj::shape_t> shapes;
 	std::vector<tinyobj::material_t> obj_materials;
 	std::vector<Material> scene_materials;
-	std::vector<model::mesh> scene_meshes;
+	std::vector<model::Mesh> scene_meshes;
 	std::vector<int> scene_mesh_material;
 	std::string err;
 
@@ -151,11 +162,11 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 			}
 		}
 
-		std::vector<vertex> vertices;
+		std::vector<Vertex> vertices;
 		vertices.reserve(shape.mesh.indices.size());
 
 		for(const tinyobj::index_t& index : shape.mesh.indices) {
-			vertex vert;
+			Vertex vert;
 			vert.position = {
 				attrib.vertices[3 * index.vertex_index + 0],
 				attrib.vertices[3 * index.vertex_index + 1],
@@ -178,7 +189,7 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 
 		}
 
-		model::mesh mesh(shape.name, std::move(vertices));
+		model::Mesh mesh(shape.name, std::move(vertices));
 
 		vertex_cout += mesh.numverts;
 		unique_vertex_count += mesh.numverts_unique;
@@ -230,7 +241,7 @@ struct tangent_sign
 
 struct vertex_tangent
 {
-	model::vertex vertex;
+	model::Vertex vertex;
 	tangent_sign tangent;
 
 	bool operator==(const vertex_tangent& other) const noexcept
@@ -241,7 +252,7 @@ struct vertex_tangent
 
 struct interface_data
 {
-	const model::vertex* vertices;
+	const model::Vertex* vertices;
 	tangent_sign* tangents;
 	uint32_t numfaces;
 };
@@ -251,7 +262,7 @@ auto get_data(const SMikkTSpaceContext* ctx)
 	return reinterpret_cast<interface_data*>(ctx->m_pUserData);
 }
 
-std::vector<tangent_sign> calculateMikktSpace(const std::vector<model::vertex>& verts)
+std::vector<tangent_sign> calculateMikktSpace(const std::vector<model::Vertex>& verts)
 {
 	assert(verts.size() % 3 == 0);
 
@@ -356,7 +367,7 @@ namespace std {
 	};
 }
 
-model::mesh::mesh(const std::string& name_, std::vector<vertex> && verts) : name(name_)
+model::Mesh::Mesh(const std::string& name_, std::vector<Vertex> && verts) : name(name_)
 {
 	auto tangents = calculateMikktSpace(verts);
 	assert(verts.size() == tangents.size());
@@ -454,10 +465,10 @@ model::mesh::mesh(const std::string& name_, std::vector<vertex> && verts) : name
 	glCreateBuffers(1, ebo.get());
 	if(likely(use_small_indices)) { // reduces index memory usage by 2x for most of the meshes
 		glNamedBufferStorage(*ebo, small_indices.size() * sizeof(uint16_t), small_indices.data(), GL_NONE_BIT);
-		index_type = GL_UNSIGNED_SHORT;
+		index_type = uint32_t(GL_UNSIGNED_SHORT);
 	} else {
 		glNamedBufferStorage(*ebo, indices.size() * sizeof(uint32_t), indices.data(), GL_NONE_BIT);
-		index_type = GL_UNSIGNED_INT;
+		index_type = uint32_t(GL_UNSIGNED_INT);
 	}
 	glVertexArrayElementBuffer(*vao, *ebo);
 

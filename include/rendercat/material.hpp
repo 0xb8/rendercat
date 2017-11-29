@@ -1,82 +1,73 @@
 #pragma once
 #include <rendercat/common.hpp>
-#include <glbinding/gl/types.h>
+#include <rendercat/texture2d.hpp>
+
+namespace rc {
 
 class TextureCache;
-
 struct Material
 {
 	friend class Scene;
-	enum Flags
-	{
-		Opaque          = 1 << 1,
-		Masked          = 1 << 2,
-		Blended         = 1 << 3,
-
-		NormalMapped    = 1 << 8,
-		SpecularMapped  = 1 << 9,
-		RoughnessMapped = 1 << 10,
-		MetallicMapped  = 1 << 11,
-
-		FaceCullingDisabled = 1 << 24
-	};
-
 	static void set_texture_cache(TextureCache* c);
-	static void set_default_diffuse() noexcept;
+	static void set_default_diffuse(const std::string_view path) noexcept;
+	static Material create_default_material();
 
-	Material(const std::string& name_) noexcept : name(name_), m_diffuse_map(default_diffuse){}
-	~Material();
+	Material(const std::string& name_);
+	~Material() = default;
 
-	Material(const Material&) = delete;
-	Material& operator=(const Material&) = delete;
+	RC_DEFAULT_MOVE(Material)
 
-	Material(Material&& o) noexcept;
-	Material& operator =(Material&& o) noexcept;
+	bool valid() const;
 
-	void bind(gl::GLuint s) const noexcept;
+	bool hasTextureKind(Texture::Kind) const noexcept;
 
-	void specularColorShininess(glm::vec3 color, float shininess = 8.0f) noexcept
+	void bind(uint32_t s) const noexcept;
+
+	void diffuseColor(const glm::vec3& color) noexcept
+	{
+		m_diffuse_color = color;
+		m_flags |= 1 << 6;
+	}
+	void specularColorShininess(const glm::vec3& color, float shininess = 8.0f) noexcept
 	{
 		m_specular_color = color;
 		m_shininess = shininess;
 	}
+	void rougnessMetallic(float rougness, float metallic) noexcept
+	{
+		m_roughness = rougness;
+		m_metallic = metallic;
+	}
+	void emissiveColor(const glm::vec3& color) noexcept
+	{
+		m_emissive_color = color;
+	}
 
-	void addDiffuseMap(const std::string_view name, const std::string_view basedir, bool alpha_masked);
+	void addDiffuseMap(const std::string_view name, const std::string_view basedir);
 	void addNormalMap(const std::string_view name, const std::string_view basedir);
 	void addSpecularMap(const std::string_view name, const std::string_view basedir);
 
-
 	std::string name;
-	Flags       flags = Flags::Opaque;
+	Texture::AlphaMode alpha_mode = Texture::AlphaMode::Unknown;
+	bool face_culling_enabled = true;
 
 private:
+	RC_DISABLE_COPY(Material)
 	static TextureCache* cache;
-	static gl::GLuint default_diffuse;
+	static ImageTexture2D default_diffuse;
 
-	glm::vec3 m_specular_color = {0.0f, 0.0f, 0.0f};
-	float     m_shininess      = 0.0f;
+	uint32_t  m_flags = 0;
 
-	gl::GLuint  m_diffuse_map  = 0; // can't convert to unique_handle because it has shared lifetime with cache
-	gl::GLuint  m_normal_map   = 0;
-	gl::GLuint  m_specular_map = 0;
+	glm::vec3 m_diffuse_color;
+	glm::vec3 m_specular_color;
+	glm::vec3 m_emissive_color;
+	float     m_shininess = 0.0f;
+	float     m_roughness = 1.0f;
+	float     m_metallic  = 0.0f;
+
+	ImageTexture2D  m_diffuse_map;
+	ImageTexture2D  m_normal_map;
+	ImageTexture2D  m_specular_map;
 };
 
-
-inline constexpr Material::Flags operator|(Material::Flags a, Material::Flags b) noexcept
-{
-	return static_cast<Material::Flags>(+a | +b);
-}
-inline constexpr void operator|=(Material::Flags& a, Material::Flags b) noexcept
-{
-	a = static_cast<Material::Flags>(+a | +b);
-}
-
-inline constexpr Material::Flags operator&(Material::Flags a, Material::Flags b) noexcept
-{
-	return static_cast<Material::Flags>(+a & +b);
-}
-
-inline constexpr void clear(Material::Flags& a, Material::Flags b) noexcept
-{
-	a = static_cast<Material::Flags>(+a & ~(+b));
-}
+} // namespace rc

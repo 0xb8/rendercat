@@ -16,6 +16,7 @@
 #include <debug_draw.hpp>
 
 using namespace gl45core;
+using namespace rc;
 
 static GLint max_elements_vertices;
 static GLint max_elements_indices;
@@ -206,7 +207,6 @@ void Renderer::set_uniforms(GLuint shader)
 	for(unsigned i = 0; i < m_scene->point_lights.size() && i < MaxLights;++i) {
 		const auto& light = m_scene->point_lights[i];
 		unif::v3(shader, indexed_uniform("point_light", ".position",  i),  light.position());
-		unif::v3(shader, indexed_uniform("point_light", ".ambient",   i),  light.ambient());
 		unif::v3(shader, indexed_uniform("point_light", ".diffuse",   i),  light.diffuse());
 		unif::v3(shader, indexed_uniform("point_light", ".specular",  i),  light.specular());
 		unif::f1(shader, indexed_uniform("point_light", ".radius",    i),  light.radius());
@@ -217,7 +217,6 @@ void Renderer::set_uniforms(GLuint shader)
 		const auto& light = m_scene->spot_lights[i];
 		unif::v3(shader, indexed_uniform("spot_light", ".direction", i),  light.direction());
 		unif::v3(shader, indexed_uniform("spot_light", ".position",  i),  light.position());
-		unif::v3(shader, indexed_uniform("spot_light", ".ambient",   i),  light.ambient());
 		unif::v3(shader, indexed_uniform("spot_light", ".diffuse",   i),  light.diffuse());
 		unif::v3(shader, indexed_uniform("spot_light", ".specular",  i),  light.specular());
 		unif::f1(shader, indexed_uniform("spot_light", ".radius",    i),  light.radius());
@@ -258,7 +257,7 @@ void Renderer::draw()
 		unif::m3(*m_shader, "normal_matrix", glm::transpose(model.inv_transform));
 
 		for(unsigned submesh_idx = 0; submesh_idx < model.submesh_count; ++submesh_idx) {
-			model::mesh& submesh = m_scene->submeshes[model.submeshes[submesh_idx]];
+			model::Mesh& submesh = m_scene->submeshes[model.submeshes[submesh_idx]];
 
 			auto submesh_aabb = submesh.aabb.transformed(model.transform);
 
@@ -268,11 +267,11 @@ void Renderer::draw()
 			if(m_scene->draw_aabb)
 				dd::aabb(submesh_aabb.min(),submesh_aabb.max(), dd::colors::White);
 
-			const Material& material = m_scene->materials[model.materials[submesh_idx]];
-			if(material.flags & Material::FaceCullingDisabled) {
-				glDisable(GL_CULL_FACE);
-			} else {
+			Material& material = m_scene->materials[model.materials[submesh_idx]];
+			if(material.face_culling_enabled) {
 				glEnable(GL_CULL_FACE);
+			} else {
+				glDisable(GL_CULL_FACE);
 			}
 
 			int point_light_count = 0;
@@ -318,7 +317,7 @@ void Renderer::draw()
 			glBindVertexArray(*submesh.vao);
 			assert(submesh.index_type == GL_UNSIGNED_INT || submesh.index_type == GL_UNSIGNED_SHORT);
 			assert(submesh.index_max > submesh.index_min);
-			glDrawRangeElements(GL_TRIANGLES, submesh.index_min, submesh.index_max, submesh.numverts, submesh.index_type, nullptr);
+			glDrawRangeElements(GL_TRIANGLES, submesh.index_min, submesh.index_max, submesh.numverts, GLenum(submesh.index_type), nullptr);
 		}
 	}
 
@@ -352,7 +351,7 @@ void Renderer::draw()
 	}
 
 	const auto& frustum = m_scene->main_camera.frustum;
-	if(frustum.state & rc::Frustum::ShowWireframe) {
+	if(frustum.state & Frustum::ShowWireframe) {
 		frustum.draw_debug();
 	}
 
@@ -369,6 +368,8 @@ void Renderer::draw()
 	unif::f1(*m_hdr_shader, 0, m_scene->main_camera.exposure);
 	unif::i1(*m_hdr_shader, 1, MSAASampleCount);
 	renderQuad();
+//	glInvalidateTexImage(*m_backbuffer_color_to, 0);
+//	glInvalidateTexImage(*m_backbuffer_depth_to, 0);
 
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);

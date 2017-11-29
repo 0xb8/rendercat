@@ -6,8 +6,10 @@ layout (location = 3) in vec3 aTexCoords; // xy - UVs, z - bitangent sign
 
 out INTERFACE {
 	vec3 FragPos;
-	mat3 TBN;
+	vec3 Normal;
+	vec3 Tangent;
 	vec2 TexCoords;
+	flat float BitangentSign;
 } vs_out;
 
 uniform mat4 model;
@@ -20,8 +22,7 @@ void main()
 	gl_Position = proj_view * vec4(vs_out.FragPos, 1.0);
 	vs_out.TexCoords = aTexCoords.xy;
 
-	vec3 N = normal_matrix * aNormal;
-	vec3 T = normal_matrix * aTangent;
-	vec3 B = normal_matrix * (aTexCoords.z * cross(aNormal,aTangent));
-	vs_out.TBN = mat3(T, B, N);
+	vs_out.Normal = normal_matrix * aNormal;
+	vs_out.Tangent = normal_matrix * aTangent;
+	vs_out.BitangentSign = aTexCoords.z;
 }

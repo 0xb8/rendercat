@@ -1,6 +1,8 @@
 #pragma once
 #include <rendercat/util/gl_unique_handle.hpp>
 
+namespace rc {
+
 struct PerfQuery
 {
 	PerfQuery();
@@ -36,6 +38,8 @@ private:
 	int  next_query();
 	int  current_query = 0;
 
-	rc::query_handle m_query[query_count];
-	QueryState       m_state[query_count];
+	query_handle m_query[query_count];
+	QueryState   m_state[query_count];
 };
+
+} // namespace rc

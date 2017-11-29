@@ -15,13 +15,14 @@ find_package(OpenGL REQUIRED)
 add_subdirectory(third_party)
 
 add_executable(rendercat
+	src/cubemap.cpp
 	src/main.cpp
 	src/material.cpp
 	src/mesh.cpp
 	src/renderer.cpp
 	src/scene.cpp
 	src/shader_set.cpp
-	src/cubemap.cpp
+	src/texture2d.cpp
 	src/core/AABB.cpp
 	src/core/camera.cpp
 	src/core/frustum.cpp

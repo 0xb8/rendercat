@@ -1,25 +1,34 @@
 #pragma once
 #include <unordered_map>
+#include <rendercat/texture2d.hpp>
+namespace rc {
 
 struct TextureCache
 {
-	struct Result
-	{
-		uint32_t to = 0;
-		int num_channels = 0;
-	};
-
 	TextureCache() = default;
-	TextureCache(const TextureCache&) = delete;
-	TextureCache(TextureCache&&)      = default;
+	RC_DISABLE_COPY(TextureCache)
+	RC_DEFAULT_MOVE(TextureCache)
 
-	TextureCache& operator=(const TextureCache&) = delete;
-	TextureCache& operator=(TextureCache&&)      = default;
+	void add(std::string&& path, ImageTexture2D&& tex)
+	{
+		cache.emplace(std::pair<std::string, ImageTexture2D>(std::move(path), std::move(tex)));
+	}
 
-	void add(std::string&& path, uint32_t to, int numchan);
-	Result get(const std::string& path);
+	ImageTexture2D* get(const std::string& path)
+	{
+		auto pos = cache.find(path);
+		if(pos != cache.end())
+			return &pos->second;
+		return nullptr;
+	}
 
-	
+	void clear()
+	{
+		cache.clear();
+	}
+
 private:
-	std::unordered_map<std::string, Result> cache;
+	std::unordered_map<std::string, ImageTexture2D> cache;
 };
+
+}

@@ -13,6 +13,7 @@
 #include <glbinding/gl45core/functions.h>
 
 using namespace gl45core;
+using namespace rc;
 
 namespace {
 

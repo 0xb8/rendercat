@@ -7,41 +7,41 @@
 #include <string_view>
 #include <vector>
 
+namespace rc {
 namespace model {
 
-	struct vertex;
-	struct mesh
+	struct Vertex;
+	struct Mesh
 	{
 		std::string name;
-		rc::buffer_handle ebo;
-		rc::buffer_handle dynamic_vbo;
-		rc::buffer_handle static_vbo;
-		rc::vertex_array_handle vao;
-		gl::GLuint numverts = 0;
-		gl::GLuint numverts_unique = 0;
-		gl::GLuint index_min = 0; // always 0 for now
-		gl::GLuint index_max = 0;
-		gl::GLuint touched_lights = 0;
-		gl::GLenum index_type{};
-		rc::AABB aabb;
+		buffer_handle ebo;
+		buffer_handle dynamic_vbo;
+		buffer_handle static_vbo;
+		vertex_array_handle vao;
+		uint32_t numverts = 0;
+		uint32_t numverts_unique = 0;
+		uint32_t index_min = 0; // always 0 for now
+		uint32_t index_max = 0;
+		uint32_t touched_lights = 0;
+		uint32_t index_type{};
+		AABB aabb;
 
 		bool valid() const noexcept
 		{
 			return numverts != 0 && vao;
 		}
 
-		mesh(const std::string & name_, std::vector<vertex>&& verts);
-		~mesh() = default;
+		Mesh(const std::string & name_, std::vector<Vertex>&& verts);
+		~Mesh() = default;
 
-		mesh(mesh&& o) noexcept = default;
-		mesh& operator=(mesh&& o) noexcept = default;
-		RC_DISABLE_COPY(mesh)
+		RC_DEFAULT_MOVE_NOEXCEPT(Mesh)
+		RC_DISABLE_COPY(Mesh)
 	};
 
 	struct data
 	{
 		std::vector<Material> materials;
-		std::vector<mesh>     submeshes;
+		std::vector<Mesh>     submeshes;
 		std::vector<int>      submesh_material;
 	};
 
@@ -55,4 +55,5 @@ namespace model {
 	                    const std::string_view name,
 			    const std::string_view basedir = std::string_view{});
 } // namespace model
+} // namespace rc
 

@@ -5,10 +5,23 @@ layout(early_fragment_tests) in;
 layout(binding=0) uniform sampler2D material_diffuse;
 layout(binding=1) uniform sampler2D material_normal;
 layout(binding=2) uniform sampler2D material_specular_map;
+layout(binding=3) uniform sampler2D material_roughness_metallic_occlusion;
+layout(binding=4) uniform sampler2D material_emission;
+
+const int MATERIAL_DIFFUSE_MAPPED   = 1 << 7;
+const int MATERIAL_NORMAL_MAPPED    = 1 << 8;
+const int MATERIAL_SPECULAR_MAPPED  = 1 << 9;
+const int MATERIAL_ROUGHNESS_MAPPED = 1 << 10;
+const int MATERIAL_METALLIC_MAPPED  = 1 << 11;
+const int MATERIAL_OCCLUSION_MAPPED = 1 << 12;
+const int MATERIAL_EMISSION_MAPPED  = 1 << 13;
 
 struct Material {
+	vec3      diffuse;
 	vec3      specular;
 	float     shininess;
+	float     roughness;
+	float     metallic;
 	int       type;
 };
 
@@ -17,7 +30,6 @@ struct DirectionalLight {
 	vec3 ambient;
 	vec3 diffuse;
 	vec3 specular;
-
 };
 
 struct ExponentialDirectionalFog {
@@ -33,7 +45,6 @@ struct ExponentialDirectionalFog {
 
 struct PointLight {
 	vec3 position;
-	vec3 ambient;
 	vec3 diffuse;
 	vec3 specular;
 	float radius;
@@ -43,7 +54,6 @@ struct PointLight {
 struct SpotLight {
 	vec3 direction;
 	vec3 position;
-	vec3 ambient;
 	vec3 diffuse;
 	vec3 specular;
 	float radius;
@@ -54,15 +64,16 @@ struct SpotLight {
 
 in INTERFACE {
 	vec3 FragPos;
-	mat3 TBN;
+	vec3 Normal;
+	vec3 Tangent;
 	vec2 TexCoords;
+	flat float BitangentSign;
 } fs_in;
 
 out	vec4 FragColor;
 
 const int MAX_LIGHTS = 16;
-const int MATERIAL_NORMAL_MAPPED = 1 << 8;
-const int MATERIAL_SPECULAR_MAPPED = 1 << 9;
+
 
 uniform vec3 viewPos;
 
@@ -79,6 +90,15 @@ uniform int spot_light_indices[MAX_LIGHTS];
 uniform int num_point_lights;
 uniform int num_spot_lights;
 
+vec3 getMaterialDiffuse()
+{
+	if((material.type & MATERIAL_DIFFUSE_MAPPED) != 0) {
+		return texture(material_diffuse, fs_in.TexCoords).rgb;
+	} else {
+		return material.diffuse;
+	}
+}
+
 vec3 getMaterialSpecular()
 {
 	if((material.type & MATERIAL_SPECULAR_MAPPED) != 0) {
@@ -91,13 +111,13 @@ vec3 getMaterialSpecular()
 vec3 getNormal()
 {
 	if((material.type & MATERIAL_NORMAL_MAPPED) != 0) {
-		vec3 normal = texture(material_normal, fs_in.TexCoords).rgb;
-		//vec3 normal = vec3(0.5, 0.5, 1.0);
 		// NOTE: texture conversion could be normalized, but doesn't affect the quality much
-		return normalize(fs_in.TBN * (normal * 2.0 - 1.0));
+		vec3 normal = texture(material_normal, fs_in.TexCoords).rgb;
+		mat3 TBN = mat3(fs_in.Tangent, fs_in.BitangentSign * cross(fs_in.Normal, fs_in.Tangent), fs_in.Normal);
+		return normalize(TBN * (normal * 2.0 - 1.0));
 	} else {
 		// normalize interpolated normals to prevent issues with specular pixel flicker.
-		return normalize(fs_in.TBN[2]);
+		return normalize(fs_in.Normal);
 	}
 }
 
@@ -123,7 +143,7 @@ vec3 calcFog(const in ExponentialDirectionalFog fog,
 
 // prevent light leaking from behind the face when normal mapped
 float check_light_side(vec3 lightDir) {
-	float x	= dot(fs_in.TBN[2], lightDir);
+	float x	= dot(fs_in.Normal, lightDir);
 	const float y = 0.0;
 	// ref: http://theorangeduck.com/page/avoiding-shader-conditionals
 	return max(sign(x - y), 0.0);
@@ -180,7 +200,6 @@ vec3 calcPointLight(const in PointLight light,
 	vec3 color = materialParams[0];
 	vec3 normal = materialParams[2];
 	vec3 diffuse = color * light.intensity * light.diffuse * max(dot(normal, lightDir), 0.0);
-	vec3 ambient = color * light.intensity * light.ambient;
 
 	// specular (blinn-phong)
 	vec3 halfwayDir = normalize(lightDir + viewDir);
@@ -189,7 +208,7 @@ vec3 calcPointLight(const in PointLight light,
 
 	// attenuation
 	float att = distance_attenuation(lightDistance, light.radius);
-	return att * (ambient + diffuse + specular);
+	return att * (diffuse + specular);
 }
 
 vec3 calcSpotLight(const in SpotLight light,
@@ -202,7 +221,6 @@ vec3 calcSpotLight(const in SpotLight light,
 	vec3 color = materialParams[0];
 	vec3 normal = materialParams[2];
 	vec3 diffuse = color * light.intensity * light.diffuse * max(dot(normal, lightDir), 0.0);
-	vec3 ambient = color * light.intensity * light.ambient;
 
 	// specular (blinn-phong)
 	vec3 halfwayDir = normalize(lightDir + viewDir);
@@ -210,10 +228,9 @@ vec3 calcSpotLight(const in SpotLight light,
 	vec3 specular = light.intensity * light.specular * spec * materialParams[1] * check_light_side(lightDir);
 
 	// attenuation
-
 	float att = distance_attenuation(lightDistance, light.radius);
 	att *= direction_attenuation(lightDir, light.direction, light.angle_scale, light.angle_offset);
-	return att * (ambient + diffuse + specular);
+	return att * (diffuse + specular);
 }
 
 void main()
@@ -222,9 +239,7 @@ void main()
 	float viewRayLength = length(viewRay);
 	vec3 viewDir = viewRay / viewRayLength;
 	vec3 normal = getNormal();
-	vec3 materialSpecular = getMaterialSpecular();
-	vec3 materialDiffuse = texture(material_diffuse, fs_in.TexCoords).rgb;
-	mat3 materialParams = mat3(materialDiffuse, materialSpecular, normal);
+	mat3 materialParams = mat3(getMaterialDiffuse(), getMaterialSpecular(), normal);
 
 	vec3 directional = calcDirectionalLight(directional_light, viewDir, materialParams);
 	vec3 point = vec3(0.0);

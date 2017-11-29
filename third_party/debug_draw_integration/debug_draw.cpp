@@ -22,6 +22,7 @@
 #include <glm/gtc/type_ptr.hpp>
 
 using namespace gl45core;
+using namespace rc;
 
 const char * DDRenderInterfaceCoreGL::linePointVertShaderSrc = "\n"
 "#version 150\n"

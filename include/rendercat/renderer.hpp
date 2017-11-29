@@ -5,6 +5,8 @@
 #include <rendercat/util/gl_unique_handle.hpp>
 #include <debug_draw.hpp>
 
+namespace rc {
+
 class Scene;
 
 class Renderer
@@ -13,9 +15,9 @@ class Renderer
 	PerfQuery m_perfquery;
 	Scene*  m_scene;
 
-	gl::GLuint* m_shader = nullptr;
-	gl::GLuint* m_cubemap_shader = nullptr;
-	gl::GLuint* m_hdr_shader = nullptr;
+	uint32_t* m_shader = nullptr;
+	uint32_t* m_cubemap_shader = nullptr;
+	uint32_t* m_hdr_shader = nullptr;
 
 	uint32_t m_backbuffer_width  = 0;
 	uint32_t m_backbuffer_height = 0;
@@ -27,7 +29,7 @@ class Renderer
 	rc::texture_handle     m_backbuffer_color_to;
 	rc::texture_handle     m_backbuffer_depth_to;
 
-	void set_uniforms(gl::GLuint shader);
+	void set_uniforms(uint32_t shader);
 	void draw_skybox();
 
 	DDRenderInterfaceCoreGL debug_draw_ctx;
@@ -50,3 +52,5 @@ public:
 	void draw();
 	void draw_gui();
 };
+
+} // namespace rc

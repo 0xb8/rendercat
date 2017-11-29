@@ -1,87 +1,25 @@
 #include <rendercat/material.hpp>
 #include <rendercat/texture_cache.hpp>
 #include <rendercat/uniform.hpp>
-#include <stb_image.h>
-#include <cmath>
-#include <utility>
 #include <fmt/format.h>
+#include <stb_image.h>
 
-#include <glbinding/gl45core/boolean.h>
-#include <glbinding/gl45core/types.h>
-#include <glbinding/gl45core/enum.h>
-#include <glbinding/gl45core/functions.h>
-#include <glbinding/gl45ext/enum.h>
 
-using namespace gl45core;
-static constexpr auto GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT = gl45ext::GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT;
-static constexpr auto GL_TEXTURE_MAX_ANISOTROPY_EXT = gl45ext::GL_TEXTURE_MAX_ANISOTROPY_EXT;
-static float max_anisotropic_filtering_samples = 2.0f; // required by spec
-
-GLuint        Material::default_diffuse = 0;
-TextureCache* Material::cache = nullptr;
-
-static GLuint load_texture(const std::string& path, bool linear, int desired_channels = 0, int* num_channels = nullptr, bool gen_mipmap = true)
+template<typename T, typename = std::enable_if_t<std::is_enum_v<T>>>
+static inline constexpr auto repr(T e)
 {
-	static const int   max_levels = 14;
-	if(max_anisotropic_filtering_samples == 2.0f) {
-		glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &max_anisotropic_filtering_samples);
-		GLint max_tex_size{}, max_buffer_size;
-		glGetIntegerv(GL_MAX_RECTANGLE_TEXTURE_SIZE, &max_tex_size);
-		glGetIntegerv(GL_MAX_TEXTURE_BUFFER_SIZE, &max_buffer_size);
-		fmt::print("[material] limits:\n"
-		           "    AF samples:          {}\n"
-		           "    Texture size:        {}\n"
-		           "    Texture buf:         {}\n",
-		           max_anisotropic_filtering_samples,
-		           max_tex_size,
-		           max_buffer_size);
-	}
-
-	GLuint tex = 0;
-	int width, height, nrChannels;
-	auto data = stbi_load(path.data(), &width, &height, &nrChannels, desired_channels);
-	if (data) {
-		int nr_levels = std::min((int)std::round(std::log2(std::min(width, height))), max_levels);
-
-		glCreateTextures(GL_TEXTURE_2D, 1, &tex);
-		glTextureParameteri(tex, GL_TEXTURE_WRAP_S,     GL_REPEAT);
-		glTextureParameteri(tex, GL_TEXTURE_WRAP_T,     GL_REPEAT);
-		glTextureParameteri(tex, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-		glTextureParameteri(tex, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTextureParameterf(tex, GL_TEXTURE_MAX_ANISOTROPY_EXT, max_anisotropic_filtering_samples);
-
-		if(desired_channels == 0) desired_channels = 1000;
-
-		switch (std::min(nrChannels, desired_channels)) {
-		case 1:
-			static const GLenum swizzleMask[] = {GL_RED, GL_RED, GL_RED, GL_ONE};
-			glTextureParameteriv(tex, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
-			glTextureStorage2D(tex, nr_levels, GL_R8, width, height); // always linear
-			glTextureSubImage2D(tex, 0, 0, 0, width, height, GL_RED, GL_UNSIGNED_BYTE, data);
-			break;
-		case 3:
-			glTextureStorage2D(tex, nr_levels, (linear ? GL_RGB8 : GL_SRGB8), width, height);
-			glTextureSubImage2D(tex, 0, 0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, data);
-			break;
-		case 4:
-			glTextureStorage2D(tex, nr_levels, (linear ? GL_RGBA8 : GL_SRGB8_ALPHA8), width, height);
-			glTextureSubImage2D(tex, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, data);
-			break;
-		default:
-			fmt::print(stderr, "[material] invalid channel count: {} in [{}]\n", nrChannels, path);
-			assert(false);
-			break;
-		}
-		stbi_image_free(data);
-		if(gen_mipmap) {
-			glGenerateTextureMipmap(tex);
-		}
-		if(num_channels) {
-			*num_channels = nrChannels;
-		}
-	}
-	return tex;
+	return static_cast<std::underlying_type_t<T>>(e);
 }
+
+static inline constexpr uint32_t clear_mask(uint32_t val, uint32_t mask)
+{
+	return val & ~mask;
+}
+
+using namespace rc;
+
+ImageTexture2D  Material::default_diffuse;
+TextureCache*          Material::cache = nullptr;
 
 void Material::set_texture_cache(TextureCache * c)
 {
@@ -89,108 +27,125 @@ void Material::set_texture_cache(TextureCache * c)
 	cache = c;
 }
 
-void Material::set_default_diffuse() noexcept
+void Material::set_default_diffuse(const std::string_view path) noexcept
 {
 	stbi_set_flip_vertically_on_load(1);
-	auto diffuse = load_texture("assets/materials/missing.tga", false, 3, nullptr, false);
+	default_diffuse = ImageTexture2D::fromFile(path, Texture::ColorSpace::sRGB);
 
-	assert(diffuse && "invalid default diffuse");
+	assert(default_diffuse.valid() && "invalid default diffuse");
 
-	glTextureParameteri(diffuse, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTextureParameteri(diffuse, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTextureParameterf(diffuse, GL_TEXTURE_MAX_ANISOTROPY_EXT, 1.0f);
-
-	default_diffuse = diffuse;
+	default_diffuse.setFilteringParams(Texture::MipMapping::Disable, Texture::Filtering::Nearest);
+	default_diffuse.setAnisotropy(1);
 }
 
-Material::~Material() {
-	glDeleteTextures(1, &m_diffuse_map);
-	glDeleteTextures(1, &m_normal_map);
-	glDeleteTextures(1, &m_specular_map);
-}
-
-Material &Material::operator =(Material&& o) noexcept
+Material Material::create_default_material()
 {
-	assert(this != &o);
-	m_specular_color = o.m_specular_color;
-	m_shininess      = o.m_shininess;
-	flags            = o.flags;
-
-	name = std::move(o.name);
-	glDeleteTextures(1, &m_diffuse_map);
-	glDeleteTextures(1, &m_normal_map);
-	glDeleteTextures(1, &m_specular_map);
-	m_diffuse_map = std::exchange(o.m_diffuse_map, 0);
-	m_normal_map = std::exchange(o.m_normal_map, 0);
-	m_specular_map = std::exchange(o.m_specular_map, 0);
-
-	return *this;
+	assert(default_diffuse.valid() && "default diffuse not yet set or invalid");
+	Material missing{"missing"};
+	missing.m_diffuse_map = default_diffuse.share();
+	return missing;
 }
 
-Material::Material(Material&& o) noexcept :
-	name(std::move(o.name)),
-	flags(o.flags),
-	m_specular_color(o.m_specular_color),
-	m_shininess(o.m_shininess),
-	m_diffuse_map(std::exchange(o.m_diffuse_map, 0)),
-	m_normal_map(std::exchange(o.m_normal_map, 0)),
-	m_specular_map(std::exchange(o.m_specular_map, 0)) { }
-
-void Material::bind(GLuint s) const noexcept
+Material::Material(const std::string & name_) : name(name_)
 {
+
+}
+
+static bool test(uint32_t f, Texture::Kind t) noexcept
+{
+	return f & repr(t);
+}
+
+bool Material::valid() const
+{
+	using namespace Texture;
+	bool ret = true;
+	if(alpha_mode == AlphaMode::Unknown) {
+		fmt::print(stderr, "[material] invalid material: has alpha channel but AlphaMode is Unknown\n");
+		ret = false;
+	}
+	if(test(m_flags, Kind::Specular)) {
+		if(test(m_flags, Kind::Roughness) || test(m_flags, Kind::Metallic) || test(m_flags, Kind::Occlusion)) {
+			fmt::print(stderr, "[material] invalid material: Has PBR and Phong texture maps!\n");
+			ret = false;
+		}
+	}
+	return ret;
+}
+
+void Material::bind(uint32_t s) const noexcept
+{
+	using namespace Texture;
+	if(m_flags & (1<<6)) {
+		unif::v3(s,  "material.diffuse",   m_diffuse_color);
+	}
 	unif::v3(s,  "material.specular",  m_specular_color);
 	unif::f1(s,  "material.shininess", m_shininess);
-	unif::i1(s,  "material.type",      flags);
 
-	glBindTextureUnit(0, m_diffuse_map);
-	glBindTextureUnit(1, m_normal_map);
-	glBindTextureUnit(2, m_specular_map);
+	if(!test(m_flags, Kind::Roughness)) {
+		unif::f1(s,  "material.roughness", m_roughness);
+	}
+	if(!test(m_flags, Kind::Metallic)) {
+		unif::f1(s,  "material.metallic",  m_metallic);
+	}
+
+	unif::i1(s,  "material.type",      m_flags);
+
+	if(test(m_flags, Kind::Diffuse)) {
+		if(!m_diffuse_map.bindToUnit(0)) {
+			default_diffuse.bindToUnit(0);
+		}
+	}
+	if(test(m_flags, Kind::Normal)) {
+		m_normal_map.bindToUnit(1);
+	}
+	if(test(m_flags, Kind::Specular)) {
+		m_specular_map.bindToUnit(2);
+	}
 }
 
-void Material::addDiffuseMap(const std::string_view name, const std::string_view basedir, bool alpha_masked)
+bool Material::hasTextureKind(Texture::Kind k) const noexcept
 {
+	return m_flags & repr(k);
+}
 
+static ImageTexture2D try_from_cache_or_load(TextureCache* cache, std::string&& path, Texture::ColorSpace space)
+{
+	assert(cache != nullptr);
+	ImageTexture2D *cached = nullptr;
+	ImageTexture2D ret;
+	cached = cache->get(path);
+	if(cached) {
+		ret = cached->share();
+	} else {
+		ret = ImageTexture2D::fromFile(path, space);
+		if(ret.valid()) {
+			cache->add(std::move(path), ret.share());
+		}
+	}
+	return ret;
+}
+
+
+void Material::addDiffuseMap(const std::string_view name, const std::string_view basedir)
+{
 	std::string diffuse_path;
 	diffuse_path = basedir;
 	if(basedir.find_last_of('/') != basedir.length()-1)
 		diffuse_path.push_back('/');
 	diffuse_path.append(name);
 
-	assert(cache != nullptr);
-
-	m_diffuse_map = default_diffuse;
+	m_diffuse_map = try_from_cache_or_load(cache, std::move(diffuse_path), Texture::ColorSpace::sRGB);
 
 
-	auto set_type = [this, alpha_masked](int nrChannels)
+	if(m_diffuse_map.valid())
 	{
-		clear(flags, Opaque | Masked | Blended);
-		if(nrChannels == 3) {
-			if(alpha_masked)
-				fmt::print(stderr, "[material] specified alpha masked, but texture does not have alpha channel!\n");
-			flags |= Opaque;
+		m_flags |= repr(Texture::Kind::Diffuse);
+		if(m_diffuse_map.channels() == 4) {
+			alpha_mode = Texture::AlphaMode::Unknown;
+		} else {
+			alpha_mode = Texture::AlphaMode::Opaque;
 		}
-		if(nrChannels == 4) {
-			if(alpha_masked)
-				flags |= Masked;
-			else
-				flags |= Blended;
-		}
-	};
-
-	if(auto res = cache->get(diffuse_path); res.to) {
-		m_diffuse_map = res.to;
-		set_type(res.num_channels);
-		return;
-	}
-
-	int num_channels = 0;
-	auto res = load_texture(diffuse_path, false, 0, &num_channels);
-	if(res) {
-		m_diffuse_map = res;
-		set_type(num_channels);
-		cache->add(std::move(diffuse_path), res, num_channels);
-	} else {
-		fmt::print(stderr, "[material] failed to load diffuse map from: [{}]\n", diffuse_path);
 	}
 }
 
@@ -202,22 +157,10 @@ void Material::addNormalMap(const std::string_view name, const std::string_view 
 		normal_path.push_back('/');
 	normal_path.append(name);
 
-	assert(cache != nullptr);
+	m_normal_map = try_from_cache_or_load(cache, std::move(normal_path), Texture::ColorSpace::Linear);
 
-	if(auto res = cache->get(normal_path); res.to) {
-		m_normal_map = res.to;
-		flags |= NormalMapped;
-		return;
-	}
-
-	int num_channels = 0;
-	auto res = load_texture(normal_path, true, 3, &num_channels);
-	if(res) {
-		m_normal_map = res;
-		flags |= NormalMapped;
-		cache->add(std::move(normal_path), res, num_channels);
-	} else {
-		fmt::print(stderr, "[material] failed to load normal map from: [{}]\n", normal_path);
+	if(m_normal_map.valid()) {
+		m_flags |= repr(Texture::Kind::Normal);
 	}
 }
 
@@ -229,34 +172,10 @@ void Material::addSpecularMap(const std::string_view name, const std::string_vie
 		specular_path.push_back('/');
 	specular_path.append(name);
 
-	assert(cache != nullptr);
+	m_specular_map = try_from_cache_or_load(cache, std::move(specular_path), Texture::ColorSpace::Linear);
 
-	if(auto res = cache->get(specular_path); res.to) {
-		m_specular_map = res.to;
-		flags |= SpecularMapped;
-		return;
-	}
-
-	int num_channels = 0;
-	auto res = load_texture(specular_path, true, 0, &num_channels);
-	if(res) {
-		m_specular_map = res;
-		flags |= SpecularMapped;
-		cache->add(std::move(specular_path), res, num_channels);
-	} else {
-		fmt::print(stderr,"[material] failed to load specular map from: [{}]\n", specular_path);
+	if(m_specular_map.valid()) {
+		m_flags |= repr(Texture::Kind::Specular);
 	}
 }
 
-void TextureCache::add(std::string && path, uint32_t to, int numchan)
-{
-	cache.emplace(std::make_pair(std::move(path), Result{to, numchan}));
-}
-
-TextureCache::Result TextureCache::get(const std::string & path)
-{
-	const auto p = cache.find(path);
-	if(p != cache.end())
-		return p->second;
-	return Result{};
-}

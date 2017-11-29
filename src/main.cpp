@@ -182,7 +182,7 @@ static void glfw_mouse_click_callback(GLFWwindow* window, int button, int action
 	}
 }
 
-static void glfw_process_input(Scene* s)
+static void glfw_process_input(rc::Scene* s)
 {
 	float cameraSpeed = 0.04;
 
@@ -329,7 +329,7 @@ int main() try
 
 	glbinding::Binding::initialize(false);
 
-	//rc::glmeta::log_all_supported_extensions("logs/gl_extensions.log");
+	rc::glmeta::log_all_supported_extensions("logs/gl_extensions.log");
 	check_required_extensions();
 	check_gl_default_framebuffer_is_srgb();
 	enable_gl_debug_callback();
@@ -345,14 +345,14 @@ int main() try
 		st.ScrollbarRounding = 0.0f;
 	}
 
-	Scene scene;
-	Renderer renderer(&scene);
+	rc::Scene scene;
+	rc::Renderer renderer(&scene);
 	renderer.resize(globals::glfw_framebuffer_width,
 	                globals::glfw_framebuffer_height);
 
 	init_glfw_callbacks(window);
 
-		globals::last_frame_time = glfwGetTime();
+	globals::last_frame_time = glfwGetTime();
 
 	while(!glfwWindowShouldClose(window))
 	{

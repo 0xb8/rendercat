@@ -2,11 +2,12 @@
 
 #include <rendercat/common.hpp>
 
+namespace rc {
+
 template<typename T>
 class PunctualLight // CRTP base class
 {
 	glm::vec3 m_position = {0.0f, 0.0f, 0.0f};
-	glm::vec3 m_ambient  = {0.0f, 0.0f, 0.0f};
 	glm::vec3 m_diffuse  = {1.0f, 1.0f, 1.0f};
 	glm::vec3 m_specular = {0.1f, 0.1f, 0.1f};
 	float m_radius = 5.0f;
@@ -33,16 +34,6 @@ public:
 	T& position(glm::vec3 pos) noexcept
 	{
 		m_position = pos;
-		return *static_cast<T*>(this);
-	}
-
-	glm::vec3 ambient() const noexcept
-	{
-		return m_ambient;
-	}
-	T& ambient(glm::vec3 amb) noexcept
-	{
-		m_ambient = glm::clamp(amb, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f});
 		return *static_cast<T*>(this);
 	}
 
@@ -217,3 +208,4 @@ public:
 	}
 };
 
+}

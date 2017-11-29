@@ -11,6 +11,8 @@ using ddVec3_Out = ddVec3&;
 
 #include "debug-draw/debug_draw.hpp"
 
+namespace rc {
+
 class DDRenderInterfaceCoreGL final : public dd::RenderInterface
 {
 public:
@@ -39,3 +41,5 @@ private:
 	static const char * linePointFragShaderSrc;
 
 };
+
+} // namespace rc

@@ -3,11 +3,13 @@
 #include <rendercat/util/gl_unique_handle.hpp>
 #include <string_view>
 
+namespace rc {
+
 class Cubemap
 {
-	rc::buffer_handle        m_vbo;
-	rc::vertex_array_handle  m_vao;
-	rc::texture_handle       m_cubemap;
+	buffer_handle        m_vbo;
+	vertex_array_handle  m_vao;
+	texture_handle       m_cubemap;
 
 	RC_DISABLE_COPY(Cubemap)
 
@@ -21,3 +23,5 @@ public:
 	void load_textures(std::string_view basedir);
 	void draw(uint32_t shader, const glm::mat4& view, const glm::mat4& projection) noexcept;
 };
+
+} // namespace rc
