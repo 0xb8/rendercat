@@ -341,7 +341,7 @@ int main() try
 
 		st.GrabRounding = 0.0f;
 		st.WindowRounding = 0.0f;
-		st.ChildWindowRounding = 0.0f;
+		st.ChildRounding = 0.0f;
 		st.ScrollbarRounding = 0.0f;
 	}
 

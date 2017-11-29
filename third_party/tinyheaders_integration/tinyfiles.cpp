@@ -1,2 +1,2 @@
-#define TINYFILES_IMPL
+#define TINYFILES_IMPLEMENTATION
 #include <tinyheaders/tinyfiles.h>
