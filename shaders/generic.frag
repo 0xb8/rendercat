@@ -47,7 +47,6 @@ struct ExponentialDirectionalFog {
 	bool enabled;
 };
 
-
 struct PointLight {
 	vec4 position; // .xyz - pos,   .w - radius
 	vec4 color;    // .rgb - color, .a - luminous intensity (candela)

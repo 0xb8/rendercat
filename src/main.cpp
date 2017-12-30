@@ -288,6 +288,7 @@ static void init_glfw_callbacks(GLFWwindow* window)
 static void process_screenshot()
 {
 	if(input::screenshot_requested && input::screenshot_timeout == 0) {
+		fmt::print("taken screenshot\n");
 		input::screenshot_requested = false;
 		input::screenshot_timeout = 200;
 		rc::util::gl_screenshot(globals::glfw_framebuffer_width,
