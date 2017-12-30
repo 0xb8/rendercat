@@ -1,5 +1,7 @@
 #version 440 core
-layout(early_fragment_tests) in;
+#pragma rc_external_defines
+
+//layout(early_fragment_tests) in;
 
 // cannot put samplers into material because we need explicit texture unit binding
 layout(binding=0) uniform sampler2D material_diffuse;
@@ -8,6 +10,8 @@ layout(binding=2) uniform sampler2D material_specular_map;
 layout(binding=3) uniform sampler2D material_roughness_metallic_occlusion;
 layout(binding=4) uniform sampler2D material_emission;
 
+const int MATERIAL_BLENDED          = 1 << 5;
+const int MATERIAL_ALPHA_MASKED     = 1 << 6;
 const int MATERIAL_DIFFUSE_MAPPED   = 1 << 7;
 const int MATERIAL_NORMAL_MAPPED    = 1 << 8;
 const int MATERIAL_SPECULAR_MAPPED  = 1 << 9;
@@ -16,12 +20,14 @@ const int MATERIAL_METALLIC_MAPPED  = 1 << 11;
 const int MATERIAL_OCCLUSION_MAPPED = 1 << 12;
 const int MATERIAL_EMISSION_MAPPED  = 1 << 13;
 
+const int MAX_DYNAMIC_LIGHTS = 16;
+
+
 struct Material {
-	vec3      diffuse;
-	vec3      specular;
-	float     shininess;
-	float     roughness;
-	float     metallic;
+	vec4      diffuse;
+	vec4      specular; // .rgb - color, .a - shininess
+	vec4      rougness_metallic_emission;
+	float     alpha_cutoff;
 	int       type;
 };
 
@@ -35,30 +41,22 @@ struct DirectionalLight {
 struct ExponentialDirectionalFog {
 	vec4 dir_inscattering_color;
 	vec4 inscattering_color;
-	vec3 direction;
+	vec4 direction; // .xyz - direction, .w - exponent
 	float inscattering_density;
 	float extinction_density;
-	float dir_exponent;
 	bool enabled;
 };
 
 
 struct PointLight {
-	vec3 position;
-	vec3 diffuse;
-	vec3 specular;
-	float radius;
-	float intensity; // luminous intensity (candela)
+	vec4 position; // .xyz - pos,   .w - radius
+	vec4 color;    // .rgb - color, .a - luminous intensity (candela)
 };
 
 struct SpotLight {
-	vec3 direction;
-	vec3 position;
-	vec3 diffuse;
-	vec3 specular;
-	float radius;
-	float intensity; // luminous intensity (candela)
-	float angle_scale;
+	vec4 direction; // .xyz - dir,   .w - angle scale
+	vec4 position;  // .xyz - pos,   .w - radius
+	vec4 color;     // .rgb - color, .a - luminous intensity (candela)
 	float angle_offset;
 };
 
@@ -72,28 +70,38 @@ in INTERFACE {
 
 out	vec4 FragColor;
 
-const int MAX_LIGHTS = 16;
-
-
 uniform vec3 viewPos;
 
 uniform Material material;
+
 uniform DirectionalLight directional_light;
 uniform ExponentialDirectionalFog directional_fog;
 
-uniform PointLight point_light[MAX_LIGHTS];
-uniform SpotLight  spot_light[MAX_LIGHTS];
+uniform PointLight point_light[MAX_DYNAMIC_LIGHTS];
+uniform SpotLight  spot_light[MAX_DYNAMIC_LIGHTS];
 
-uniform int point_light_indices[MAX_LIGHTS];
-uniform int spot_light_indices[MAX_LIGHTS];
+uniform int point_light_indices[MAX_DYNAMIC_LIGHTS];
+uniform int spot_light_indices[MAX_DYNAMIC_LIGHTS];
 
 uniform int num_point_lights;
 uniform int num_spot_lights;
+uniform int num_msaa_samples;
 
-vec3 getMaterialDiffuse()
+vec4 getMaterialDiffuse()
 {
 	if((material.type & MATERIAL_DIFFUSE_MAPPED) != 0) {
-		return texture(material_diffuse, fs_in.TexCoords).rgb;
+		vec4 diffuse = texture(material_diffuse, fs_in.TexCoords);
+		if((material.type & MATERIAL_ALPHA_MASKED) != 0) {
+			if(num_msaa_samples > 1) {
+				diffuse.a = (diffuse.a - material.alpha_cutoff) / max(fwidth(diffuse.a), 0.0001) + 0.5;
+
+			} else if(diffuse.a < material.alpha_cutoff) {
+				discard;
+			}
+		} else {
+			diffuse.a = 1.0;
+		}
+		return diffuse;
 	} else {
 		return material.diffuse;
 	}
@@ -104,7 +112,7 @@ vec3 getMaterialSpecular()
 	if((material.type & MATERIAL_SPECULAR_MAPPED) != 0) {
 		return texture(material_specular_map, fs_in.TexCoords).rgb;
 	} else {
-		return material.specular;
+		return material.specular.rgb;
 	}
 }
 
@@ -128,9 +136,9 @@ vec3 calcFog(const in ExponentialDirectionalFog fog,
 {
 	vec3 fogColor;
 	if(fog.dir_inscattering_color.a > 0.0) {
-		float directional_amount = max(dot(viewDir, fog.direction), 0.0);
+		float directional_amount = max(dot(viewDir, fog.direction.xyz), 0.0);
 		directional_amount *= fog.dir_inscattering_color.a;
-		fogColor = mix(fog.inscattering_color.rgb, fog.dir_inscattering_color.rgb, pow(directional_amount, fog.dir_exponent));
+		fogColor = mix(fog.inscattering_color.rgb, fog.dir_inscattering_color.rgb, pow(directional_amount, fog.direction.w));
 	} else {
 		fogColor = fog.inscattering_color.rgb;
 	}
@@ -184,7 +192,7 @@ vec3 calcDirectionalLight(const in DirectionalLight light,
 	vec3 halfwayDir = normalize(lightDir + viewDir);
 	// saturating dot product seems to greatly reduce specular pixel flicker
 	// with MSAA, but does not solve it completely (due to other light sources' contribution).
-	float spec = pow(clamp(dot(normal, halfwayDir), 0.0, 1.0), material.shininess);
+	float spec = pow(clamp(dot(normal, halfwayDir), 0.0, 1.0), material.specular.a);
 	vec3 specular = spec * light.specular * materialParams[1];
 
 	return ambient + (diffuse + specular)  * check_light_side(lightDir);
@@ -192,45 +200,40 @@ vec3 calcDirectionalLight(const in DirectionalLight light,
 
 vec3 calcPointLight(const in PointLight light,
                     const in vec3 viewDir,
-                    const in mat3 materialParams)
+                    const in mat3 materialParams,
+		    out vec3 lightDir)
 {
-	vec3 lightv = light.position - fs_in.FragPos;
+	vec3 lightv = light.position.xyz - fs_in.FragPos;
 	float lightDistance = length(lightv);
-	vec3 lightDir = lightv / lightDistance;
-	vec3 color = materialParams[0];
+	lightDir = lightv / lightDistance;
+
+	vec3 albedo = materialParams[0];
+	vec3 mat_spec = materialParams[1];
 	vec3 normal = materialParams[2];
-	vec3 diffuse = color * light.intensity * light.diffuse * max(dot(normal, lightDir), 0.0);
+
+	vec3 diffuse = albedo * max(dot(normal, lightDir), 0.0);
 
 	// specular (blinn-phong)
 	vec3 halfwayDir = normalize(lightDir + viewDir);
-	float spec = pow(clamp(dot(normal, halfwayDir), 0.0, 1.0), material.shininess);
-	vec3 specular = light.intensity * light.specular * spec * materialParams[1] * check_light_side(lightDir);
+	float spec = pow(clamp(dot(normal, halfwayDir), 0.0, 1.0), material.specular.a);
+	vec3 specular = spec * mat_spec * check_light_side(lightDir);
 
-	// attenuation
-	float att = distance_attenuation(lightDistance, light.radius);
-	return att * (diffuse + specular);
+	vec3 light_val = light.color.a * light.color.rgb;
+	float att = distance_attenuation(lightDistance, light.position.w);
+	return att * light_val * (diffuse + specular);
 }
 
 vec3 calcSpotLight(const in SpotLight light,
                    const in vec3 viewDir,
                    const in mat3 materialParams)
 {
-	vec3 lightv = light.position - fs_in.FragPos;
-	float lightDistance = length(lightv);
-	vec3 lightDir = lightv / lightDistance;
-	vec3 color = materialParams[0];
-	vec3 normal = materialParams[2];
-	vec3 diffuse = color * light.intensity * light.diffuse * max(dot(normal, lightDir), 0.0);
-
-	// specular (blinn-phong)
-	vec3 halfwayDir = normalize(lightDir + viewDir);
-	float spec = pow(clamp(dot(normal, halfwayDir), 0.0, 1.0), material.shininess);
-	vec3 specular = light.intensity * light.specular * spec * materialParams[1] * check_light_side(lightDir);
-
-	// attenuation
-	float att = distance_attenuation(lightDistance, light.radius);
-	att *= direction_attenuation(lightDir, light.direction, light.angle_scale, light.angle_offset);
-	return att * (diffuse + specular);
+	PointLight pl;
+	pl.position = light.position;
+	pl.color = light.color;
+	vec3 lightDir;
+	vec3 pl_color = calcPointLight(pl, viewDir, materialParams, lightDir);
+	float dir_att = direction_attenuation(lightDir, light.direction.xyz, light.direction.w, light.angle_offset);
+	return pl_color * dir_att;
 }
 
 void main()
@@ -238,14 +241,17 @@ void main()
 	vec3 viewRay = viewPos - fs_in.FragPos;
 	float viewRayLength = length(viewRay);
 	vec3 viewDir = viewRay / viewRayLength;
-	vec3 normal = getNormal();
-	mat3 materialParams = mat3(getMaterialDiffuse(), getMaterialSpecular(), normal);
+
+	vec4 diffuse = getMaterialDiffuse();
+	mat3 materialParams = mat3(diffuse.rgb, getMaterialSpecular(), getNormal());
 
 	vec3 directional = calcDirectionalLight(directional_light, viewDir, materialParams);
 	vec3 point = vec3(0.0);
 	vec3 spot = vec3(0.0);
-	for(int i = 0; i < num_point_lights; ++i)
-		point += calcPointLight(point_light[point_light_indices[i]], viewDir, materialParams);
+	for(int i = 0; i < num_point_lights; ++i) {
+		vec3 lightDir;
+		point += calcPointLight(point_light[point_light_indices[i]], viewDir, materialParams, lightDir);
+	}
 
 	for(int i = 0; i < num_spot_lights; ++i)
 		spot += calcSpotLight(spot_light[spot_light_indices[i]], viewDir, materialParams);
@@ -257,6 +263,6 @@ void main()
 	} else {
 		final_color = orig_color;
 	}
-	FragColor = vec4(final_color, 1.0);
-}
 
+	FragColor = vec4(final_color, diffuse.a);
+}

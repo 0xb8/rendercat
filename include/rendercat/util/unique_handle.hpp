@@ -71,6 +71,11 @@ public:
 		return m_handle;
 	}
 
+	T operator *() const noexcept
+	{
+		return m_handle;
+	}
+
 	T* get() noexcept
 	{
 		return &m_handle;

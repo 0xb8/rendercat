@@ -26,7 +26,7 @@ namespace Texture
 		Emission  = RC_SHADER_TEXTURE_KIND_EMISSION,
 	};
 
-	enum class ColorSpace : std::int8_t
+	enum class ColorSpace : int8_t
 	{
 		Linear,
 		sRGB
@@ -253,8 +253,8 @@ struct ImageTexture2D
 
 	bool bindToUnit(uint32_t unit) const noexcept;
 
-	void setFilteringParams(Texture::MipMapping, Texture::Filtering)  noexcept;
-	void setSamplingParams(Texture::Wrapping r, Texture::Wrapping s) noexcept;
+	void setFiltering(Texture::MipMapping, Texture::Filtering)  noexcept;
+	void setWrapping(Texture::Wrapping) noexcept;
 
 	void setAnisotropy(unsigned samples)  noexcept;
 	void setBorderColor(const glm::vec4&) noexcept;
@@ -273,8 +273,7 @@ private:
 	Texture::SwizzleMask  m_swizzle_mask{};
 	Texture::MipMapping   m_mipmapping = Texture::MipMapping::MipLinear;
 	Texture::Filtering    m_filtering  = Texture::Filtering::Linear;
-	Texture::Wrapping     m_wrapping_r = Texture::Wrapping::Repeat;
-	Texture::Wrapping     m_wrapping_s = Texture::Wrapping::Repeat;
+	Texture::Wrapping     m_wrapping = Texture::Wrapping::Repeat;
 	uint8_t               m_anisotropic_samples = 16; // min value required by spec
 };
 

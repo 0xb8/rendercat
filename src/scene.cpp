@@ -19,7 +19,6 @@ Scene::Scene()
 	PointLight pl;
 	pl.position({4.0f, 1.0f, 1.0f})
 	  .diffuse({1.0f, 0.2f, 0.1f})
-	  .specular({0.4f, 0.1f, 0.0f})
 	  .radius(3.5f)
 	  .flux(75.0f);
 
@@ -38,13 +37,11 @@ Scene::Scene()
 	point_lights.push_back(pl);
 
 	pl.position({1.0f, 1.5f, -1.0f})
-	  .diffuse({0.1, 0.2, 1.0})
-	  .specular({0.0, 0.05, 0.3});
+	  .diffuse({0.1, 0.2, 1.0});
 	point_lights.push_back(pl);
 
 	SpotLight sp;
 	sp.diffuse({0.9f, 0.86f, 0.88f})
-	  .specular({0.4f, 0.395f, 0.395f})
 	  .direction({0.0f, 1.0f, 0.0f})
 	  .radius(4.0f)
 	  .flux(60.0f);
@@ -120,7 +117,6 @@ static bool edit_light(PunctualLight<T>& pl) noexcept
 	constexpr bool is_spot = std::is_same_v<T, SpotLight>;
 	auto pos = pl.position();
 	auto diff = pl.diffuse();
-	auto spec = pl.specular();
 	float radius = pl.radius();
 	float color_temp = pl.color_temperature();
 
@@ -171,16 +167,6 @@ static bool edit_light(PunctualLight<T>& pl) noexcept
 		diff = rc::util::temperature_to_linear_color(color_temp);
 	}
 
-	ImGui::TextUnformatted("Specular color");
-	ImGui::PushItemWidth(-50.0f);
-	ImGui::ColorEdit3("##specularcol", glm::value_ptr(spec),
-	                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
-	ImGui::SameLine();
-	if(ImGui::Button("Use Diff")) {
-		spec = diff;
-	}
-
-	ImGui::PopItemWidth();
 	ImGui::PopItemWidth();
 	ImGui::Spacing();
 	ImGui::Spacing();
@@ -197,7 +183,6 @@ static bool edit_light(PunctualLight<T>& pl) noexcept
 	pl.radius(radius)
 	  .position(pos)
 	  .diffuse(diff)
-	  .specular(spec)
 	  .color_temperature(color_temp);
 
 	pl.state = PunctualLight<T>::NoState;
@@ -376,13 +361,13 @@ void Scene::update()
 				ImGui::SameLine();
 				ImGui::PushStyleColor(ImGuiCol_Text, col);
 
-				if(material.alpha_mode == Texture::AlphaMode::Opaque) {
+				if(material.alphaMode() == Texture::AlphaMode::Opaque) {
 					ImGui::TextUnformatted("Opaque "); ImGui::SameLine();
 				}
-				if(material.alpha_mode == Texture::AlphaMode::Mask) {
+				if(material.alphaMode() == Texture::AlphaMode::Mask) {
 					ImGui::TextUnformatted("Alpha Mask "); ImGui::SameLine();
 				}
-				if(material.alpha_mode == Texture::AlphaMode::Blend) {
+				if(material.alphaMode() == Texture::AlphaMode::Blend) {
 					ImGui::TextUnformatted("Blend "); ImGui::SameLine();
 				}
 				ImGui::PopStyleColor();

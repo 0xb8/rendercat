@@ -9,7 +9,6 @@ class PunctualLight // CRTP base class
 {
 	glm::vec3 m_position = {0.0f, 0.0f, 0.0f};
 	glm::vec3 m_diffuse  = {1.0f, 1.0f, 1.0f};
-	glm::vec3 m_specular = {0.1f, 0.1f, 0.1f};
 	float m_radius = 5.0f;
 	float m_luminous_intensity = 11.9366f; // in candelas, equiv. 150 lm
 	float m_color_temperature = 6500.0f;   // in Kelvin, ranges from ~1000 to ~22000
@@ -44,16 +43,6 @@ public:
 	T& diffuse(glm::vec3 dif) noexcept
 	{
 		m_diffuse = glm::clamp(dif, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f});;
-		return *static_cast<T*>(this);
-	}
-
-	glm::vec3 specular() const noexcept
-	{
-		return m_specular;
-	}
-	T& specular(glm::vec3 spec) noexcept
-	{
-		m_specular = glm::clamp(spec, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f});
 		return *static_cast<T*>(this);
 	}
 

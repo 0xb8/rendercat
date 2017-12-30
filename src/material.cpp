@@ -19,7 +19,7 @@ static inline constexpr uint32_t clear_mask(uint32_t val, uint32_t mask)
 using namespace rc;
 
 ImageTexture2D  Material::default_diffuse;
-TextureCache*          Material::cache = nullptr;
+TextureCache*   Material::cache = nullptr;
 
 void Material::set_texture_cache(TextureCache * c)
 {
@@ -34,7 +34,7 @@ void Material::set_default_diffuse(const std::string_view path) noexcept
 
 	assert(default_diffuse.valid() && "invalid default diffuse");
 
-	default_diffuse.setFilteringParams(Texture::MipMapping::Disable, Texture::Filtering::Nearest);
+	default_diffuse.setFiltering(Texture::MipMapping::Disable, Texture::Filtering::Nearest);
 	default_diffuse.setAnisotropy(1);
 }
 
@@ -60,7 +60,7 @@ bool Material::valid() const
 {
 	using namespace Texture;
 	bool ret = true;
-	if(alpha_mode == AlphaMode::Unknown) {
+	if(m_alpha_mode == AlphaMode::Unknown) {
 		fmt::print(stderr, "[material] invalid material: has alpha channel but AlphaMode is Unknown\n");
 		ret = false;
 	}
@@ -73,23 +73,28 @@ bool Material::valid() const
 	return ret;
 }
 
+void Material::setAlphaMode(Texture::AlphaMode m, float alpha_cutoff) noexcept
+{
+	m_alpha_mode = m;
+	m_alpha_cutoff = alpha_cutoff;
+}
+
 void Material::bind(uint32_t s) const noexcept
 {
 	using namespace Texture;
-	if(m_flags & (1<<6)) {
-		unif::v3(s,  "material.diffuse",   m_diffuse_color);
-	}
-	unif::v3(s,  "material.specular",  m_specular_color);
-	unif::f1(s,  "material.shininess", m_shininess);
 
-	if(!test(m_flags, Kind::Roughness)) {
-		unif::f1(s,  "material.roughness", m_roughness);
-	}
-	if(!test(m_flags, Kind::Metallic)) {
-		unif::f1(s,  "material.metallic",  m_metallic);
-	}
+	unif::v4(s, "material.diffuse",   m_diffuse_color);
+	unif::v4(s, "material.specular",  glm::vec4(m_specular_color, m_shininess));
+	unif::f1(s, "material.alpha_cutoff", m_alpha_cutoff);
 
-	unif::i1(s,  "material.type",      m_flags);
+	auto flags = m_flags;
+	if(m_alpha_mode == Texture::AlphaMode::Mask) {
+		flags |= RC_SHADER_TEXTURE_ALPHA_MASK;
+	}
+	if(m_alpha_mode == Texture::AlphaMode::Blend) {
+		flags |= RC_SHADER_TEXTURE_BLEND;
+	}
+	unif::i1(s,  "material.type", flags);
 
 	if(test(m_flags, Kind::Diffuse)) {
 		if(!m_diffuse_map.bindToUnit(0)) {
@@ -142,9 +147,9 @@ void Material::addDiffuseMap(const std::string_view name, const std::string_view
 	{
 		m_flags |= repr(Texture::Kind::Diffuse);
 		if(m_diffuse_map.channels() == 4) {
-			alpha_mode = Texture::AlphaMode::Unknown;
+			m_alpha_mode = Texture::AlphaMode::Unknown;
 		} else {
-			alpha_mode = Texture::AlphaMode::Opaque;
+			m_alpha_mode = Texture::AlphaMode::Opaque;
 		}
 	}
 }

@@ -244,8 +244,7 @@ ImageTexture2D ImageTexture2D::share()
 	copy.m_filtering = m_filtering;
 	copy.m_mipmapping = m_mipmapping;
 	copy.m_swizzle_mask = m_swizzle_mask;
-	copy.m_wrapping_r = m_wrapping_r;
-	copy.m_wrapping_s = m_wrapping_s;
+	copy.m_wrapping = m_wrapping;
 	copy.m_storage = m_storage.share();
 	copy.setAllParams();
 	return copy;
@@ -299,7 +298,7 @@ static void set_min_filter(GLuint tex, Texture::MipMapping m, Texture::Filtering
 	glTextureParameteri(tex, GL_TEXTURE_MIN_FILTER, filter);
 }
 
-void ImageTexture2D::setFilteringParams(Texture::MipMapping m, Texture::Filtering f) noexcept
+void ImageTexture2D::setFiltering(Texture::MipMapping m, Texture::Filtering f) noexcept
 {
 	m_mipmapping = m;
 	m_filtering = f;
@@ -320,12 +319,11 @@ void ImageTexture2D::setFilteringParams(Texture::MipMapping m, Texture::Filterin
 	glTextureParameteri(m_storage.texture_handle(), GL_TEXTURE_MAG_FILTER, mag_filtering);
 }
 
-void ImageTexture2D::setSamplingParams(Texture::Wrapping r, Texture::Wrapping s) noexcept
+void ImageTexture2D::setWrapping(Texture::Wrapping w) noexcept
 {
-	m_wrapping_r = r;
-	m_wrapping_s = s;
+	m_wrapping = w;
 	if(unlikely(!m_storage.valid())) return;
-	GLenum wrapping_s{GL_INVALID_ENUM}, wrapping_r{GL_INVALID_ENUM};
+	GLenum wrapping{GL_INVALID_ENUM};
 
 	auto get_wrapping = [](Texture::Wrapping w)
 	{
@@ -341,13 +339,12 @@ void ImageTexture2D::setSamplingParams(Texture::Wrapping r, Texture::Wrapping s)
 		return apival[static_cast<uint8_t>(w)];
 	};
 
-	wrapping_s = get_wrapping(s);
-	wrapping_r = get_wrapping(r);
+	wrapping = get_wrapping(w);
 
-	assert(wrapping_r != GL_INVALID_ENUM && wrapping_s != GL_INVALID_ENUM);
+	assert(wrapping != GL_INVALID_ENUM);
 
-	glTextureParameteri(m_storage.texture_handle(), GL_TEXTURE_WRAP_S, wrapping_s);
-	glTextureParameteri(m_storage.texture_handle(), GL_TEXTURE_WRAP_R, wrapping_r);
+	glTextureParameteri(m_storage.texture_handle(), GL_TEXTURE_WRAP_S, wrapping);
+	glTextureParameteri(m_storage.texture_handle(), GL_TEXTURE_WRAP_R, wrapping);
 }
 
 void ImageTexture2D::setAnisotropy(unsigned samples) noexcept
@@ -409,8 +406,8 @@ void ImageTexture2D::setAllParams()
 {
 	if(unlikely(!valid())) return;
 
-	setFilteringParams(m_mipmapping, m_filtering);
-	setSamplingParams(m_wrapping_r, m_wrapping_s);
+	setFiltering(m_mipmapping, m_filtering);
+	setWrapping(m_wrapping);
 	setAnisotropy(m_anisotropic_samples);
 	setBorderColor(m_border_color);
 	setSwizzleMask(m_swizzle_mask);

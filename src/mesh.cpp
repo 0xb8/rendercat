@@ -37,18 +37,18 @@ static Material load_obj_material(const tinyobj::material_t& mat, const std::str
 	Material material(mat.name);
 
 	auto spec_color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
-	auto diff_color = glm::vec3(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
+	auto diff_color = glm::vec4(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2], mat.dissolve);
 	material.specularColorShininess(spec_color, mat.shininess);
 	material.diffuseColor(diff_color);
 
 	if(!mat.diffuse_texname.empty()) {
 		bool has_alpha_mask = !mat.alpha_texname.empty();
 		material.addDiffuseMap(mat.diffuse_texname, material_path);
-		if(material.alpha_mode == Texture::AlphaMode::Unknown) {
+		if(material.alphaMode() == Texture::AlphaMode::Unknown) {
 			if(has_alpha_mask) {
-				material.alpha_mode = Texture::AlphaMode::Mask;
+				material.setAlphaMode(Texture::AlphaMode::Mask);
 			} else {
-				material.alpha_mode = Texture::AlphaMode::Blend;
+				material.setAlphaMode(Texture::AlphaMode::Blend);
 			}
 		}
 	}

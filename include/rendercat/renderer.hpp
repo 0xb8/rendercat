@@ -4,6 +4,7 @@
 #include <rendercat/util/gl_perfquery.hpp>
 #include <rendercat/util/gl_unique_handle.hpp>
 #include <debug_draw.hpp>
+#include <vector>
 
 namespace rc {
 
@@ -29,10 +30,21 @@ class Renderer
 	rc::texture_handle     m_backbuffer_color_to;
 	rc::texture_handle     m_backbuffer_depth_to;
 
+	rc::framebuffer_handle m_backbuffer_resolve_fbo;
+	rc::texture_handle     m_backbuffer_resolve_color_to;
+
 	void set_uniforms(uint32_t shader);
 	void draw_skybox();
 
 	DDRenderInterfaceCoreGL debug_draw_ctx;
+
+	struct ModelMeshIdx
+	{
+		uint32_t model_idx;
+		uint32_t submesh_idx;
+	};
+	std::vector<ModelMeshIdx> m_masked_meshes;
+	std::vector<ModelMeshIdx> m_blended_meshes;
 
 public:
 	static const unsigned int ShadowMapWidth = 1024;

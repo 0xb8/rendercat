@@ -34,7 +34,7 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 
 	m_shader = m_shader_set.load_program({"generic.vert", "generic.frag"});
 	m_cubemap_shader = m_shader_set.load_program({"cubemap.vert", "cubemap.frag"});
-	m_hdr_shader = m_shader_set.load_program({"hdr.vert", "hdr.frag"});
+	m_hdr_shader = m_shader_set.load_program({"fullscreen_quad.vert", "hdr.frag"});
 
 	glEnable(GL_FRAMEBUFFER_SRGB);
 
@@ -125,9 +125,25 @@ void Renderer::resize(uint32_t width, uint32_t height, bool force)
 		return;
 	}
 
+	rc::texture_handle resolve_to;
+	glCreateTextures(GL_TEXTURE_2D, 1, resolve_to.get());
+	glTextureStorage2D(*resolve_to, 1, GL_RGBA16F, backbuffer_width, backbuffer_height);
+
+	rc::framebuffer_handle resolve_fbo;
+	glCreateFramebuffers(1, resolve_fbo.get());
+	glNamedFramebufferTexture(*resolve_fbo, GL_COLOR_ATTACHMENT0, *resolve_to, 0);
+
+	if (glCheckNamedFramebufferStatus(*resolve_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+		fmt::print(stderr, "[renderer] could not resize resolve backbuffer!");
+		std::fflush(stderr);
+		return;
+	}
+
 	m_backbuffer_fbo = std::move(fbo);
 	m_backbuffer_color_to = std::move(color_to);
 	m_backbuffer_depth_to = std::move(depth_to);
+	m_backbuffer_resolve_fbo = std::move(resolve_fbo);
+	m_backbuffer_resolve_color_to = std::move(resolve_to);
 	m_backbuffer_scale = m_scene->desired_render_scale;
 	msaa_level = m_scene->desired_msaa_level;
 	MSAASampleCount = samples;
@@ -191,6 +207,7 @@ void Renderer::set_uniforms(GLuint shader)
 
 	unif::m4(shader, "proj_view", m_scene->main_camera.view_projection);
 	unif::v3(shader, "viewPos",   m_scene->main_camera.pos);
+
 	unif::v3(shader, "directional_light.direction", m_scene->directional_light.direction);
 	unif::v3(shader, "directional_light.ambient",   m_scene->directional_light.ambient);
 	unif::v3(shader, "directional_light.diffuse",   m_scene->directional_light.diffuse);
@@ -198,33 +215,96 @@ void Renderer::set_uniforms(GLuint shader)
 
 	unif::v4(shader, "directional_fog.inscattering_color",     m_scene->fog.inscattering_color);
 	unif::v4(shader, "directional_fog.dir_inscattering_color", m_scene->fog.dir_inscattering_color);
-	unif::v3(shader, "directional_fog.direction",             -m_scene->directional_light.direction);
+
+	auto fog_dir_unif = glm::vec4{-m_scene->directional_light.direction, m_scene->fog.dir_exponent};
+	unif::v4(shader, "directional_fog.direction", fog_dir_unif);
 	unif::f1(shader, "directional_fog.inscattering_density",   m_scene->fog.inscattering_density);
 	unif::f1(shader, "directional_fog.extinction_density",     m_scene->fog.extinction_density);
-	unif::f1(shader, "directional_fog.dir_exponent",           m_scene->fog.dir_exponent);
 	unif::b1(shader, "directional_fog.enabled",               (m_scene->fog.state & ExponentialDirectionalFog::Enabled));
+
+	unif::i1(shader, "num_msaa_samples", MSAASampleCount);
 
 	for(unsigned i = 0; i < m_scene->point_lights.size() && i < MaxLights;++i) {
 		const auto& light = m_scene->point_lights[i];
-		unif::v3(shader, indexed_uniform("point_light", ".position",  i),  light.position());
-		unif::v3(shader, indexed_uniform("point_light", ".diffuse",   i),  light.diffuse());
-		unif::v3(shader, indexed_uniform("point_light", ".specular",  i),  light.specular());
-		unif::f1(shader, indexed_uniform("point_light", ".radius",    i),  light.radius());
-		unif::f1(shader, indexed_uniform("point_light", ".intensity", i),  light.intensity());
+		unif::v4(shader, indexed_uniform("point_light", ".position", i), glm::vec4{light.position(), light.radius()});
+		unif::v4(shader, indexed_uniform("point_light", ".color",    i), glm::vec4{light.diffuse(), light.intensity()});
 	}
 
 	for(unsigned i = 0; i < m_scene->spot_lights.size() && i < MaxLights;++i) {
 		const auto& light = m_scene->spot_lights[i];
-		unif::v3(shader, indexed_uniform("spot_light", ".direction", i),  light.direction());
-		unif::v3(shader, indexed_uniform("spot_light", ".position",  i),  light.position());
-		unif::v3(shader, indexed_uniform("spot_light", ".diffuse",   i),  light.diffuse());
-		unif::v3(shader, indexed_uniform("spot_light", ".specular",  i),  light.specular());
-		unif::f1(shader, indexed_uniform("spot_light", ".radius",    i),  light.radius());
-		unif::f1(shader, indexed_uniform("spot_light", ".intensity", i),  light.intensity());
-		unif::f1(shader, indexed_uniform("spot_light", ".angle_scale", i),light.angle_scale());
-		unif::f1(shader, indexed_uniform("spot_light", ".angle_offset",i),light.angle_offset());
+		unif::v4(shader, indexed_uniform("spot_light", ".direction", i),   glm::vec4{light.direction(), light.angle_scale()});
+		unif::v4(shader, indexed_uniform("spot_light", ".position",  i),   glm::vec4{light.position(), light.radius()});
+		unif::v4(shader, indexed_uniform("spot_light", ".color",     i),   glm::vec4{light.diffuse(), light.intensity()});
+		unif::f1(shader, indexed_uniform("spot_light", ".angle_offset",i), light.angle_offset());
 	}
 }
+
+static void process_point_lights(const std::vector<PointLight>& point_lights,
+                                 const Frustum& frustum,
+                                 const AABB& submesh_aabb,
+                                 uint32_t shader)
+{
+	int point_light_count = 0;
+	for(unsigned i = 0; i < point_lights.size() && i < Renderer::MaxLights; ++i) {
+		const auto& light = point_lights[i];
+		if(!(light.state & PointLight::Enabled))
+			continue;
+		if(frustum.sphere_culled(light.position(), light.radius()))
+			continue;
+
+		// TODO: implement per-light AABB cutoff to prevent light leaking
+		if(submesh_aabb.intersects_sphere(light.position(), light.radius())) {
+			auto dist = glm::length(light.position() - submesh_aabb.closest_point(light.position()));
+			if(light.distance_attenuation(dist) > 0.0f) {
+				unif::i1(shader, indexed_uniform("point_light_indices", "", point_light_count++), i);
+			}
+		}
+	}
+	unif::i1(shader, "num_point_lights", point_light_count);
+}
+
+static void process_spot_lights(const std::vector<SpotLight>& spot_lights,
+                                const Frustum& frustum,
+                                const AABB& submesh_aabb,
+                                uint32_t shader)
+{
+	int spot_light_count = 0;
+	for(unsigned i = 0; i < spot_lights.size() && i < Renderer::MaxLights; ++i) {
+		const auto& light = spot_lights[i];
+		if(!(light.state & SpotLight::Enabled))
+			continue;
+
+		if(frustum.sphere_culled(light.position(), light.radius()))
+			continue;
+
+		// TODO: implement cone-AABB collision check
+		if(submesh_aabb.intersects_sphere(light.position(), light.radius())) {
+			auto dist = glm::length(light.position() - submesh_aabb.closest_point(light.position()));
+			if(light.distance_attenuation(dist) > 0.0f) {
+				unif::i1(shader, indexed_uniform("spot_light_indices", "", spot_light_count++), i);
+			}
+		}
+	}
+	unif::i1(shader, "num_spot_lights", spot_light_count);
+}
+
+static void render_generic(const model::Mesh& submesh,
+                           const Material& material,
+                           uint32_t shader)
+{
+	if(material.face_culling_enabled) {
+		glEnable(GL_CULL_FACE);
+	} else {
+		glDisable(GL_CULL_FACE);
+	}
+
+	material.bind(shader);
+	glBindVertexArray(*submesh.vao);
+	assert(submesh.index_type == GL_UNSIGNED_INT || submesh.index_type == GL_UNSIGNED_SHORT);
+	assert(submesh.index_max > submesh.index_min);
+	glDrawRangeElements(GL_TRIANGLES, submesh.index_min, submesh.index_max, submesh.numverts, GLenum(submesh.index_type), nullptr);
+}
+
 
 void Renderer::draw()
 {
@@ -233,6 +313,10 @@ void Renderer::draw()
 
 	if(unlikely(m_scene->desired_render_scale != m_backbuffer_scale || m_scene->desired_msaa_level != msaa_level))
 		resize(m_window_width, m_window_height, true);
+
+	// clear masked and blended queue
+	m_masked_meshes.clear();
+	m_blended_meshes.clear();
 
 	m_perfquery.begin();
 
@@ -247,6 +331,8 @@ void Renderer::draw()
 	glViewport(0, 0, m_backbuffer_width, m_backbuffer_height);
 	glClear(GL_DEPTH_BUFFER_BIT); // NOTE: no need to clear color attachment bacause skybox will be drawn over it anyway
 
+
+	// render opaque submeshes first and put masked and blended submeshes in respective queues
 	glUseProgram(*m_shader);
 	set_uniforms(*m_shader);
 
@@ -257,68 +343,61 @@ void Renderer::draw()
 		unif::m3(*m_shader, "normal_matrix", glm::transpose(model.inv_transform));
 
 		for(unsigned submesh_idx = 0; submesh_idx < model.submesh_count; ++submesh_idx) {
-			model::Mesh& submesh = m_scene->submeshes[model.submeshes[submesh_idx]];
+			const model::Mesh& submesh = m_scene->submeshes[model.submeshes[submesh_idx]];
+			const Material& material   = m_scene->materials[model.materials[submesh_idx]];
+
+			if(material.alphaMode() == Texture::AlphaMode::Mask) {
+				m_masked_meshes.push_back(ModelMeshIdx{model_idx, submesh_idx});
+				continue;
+			}
+			if(material.alphaMode() == Texture::AlphaMode::Blend) {
+				m_blended_meshes.push_back(ModelMeshIdx{model_idx, submesh_idx});
+				continue;
+			}
 
 			auto submesh_aabb = submesh.aabb.transformed(model.transform);
-
 			if(m_scene->main_camera.frustum.aabb_culled(submesh_aabb))
 				continue;
 
+			process_point_lights(m_scene->point_lights, m_scene->main_camera.frustum, submesh_aabb, *m_shader);
+			process_spot_lights(m_scene->spot_lights, m_scene->main_camera.frustum, submesh_aabb, *m_shader);
+			render_generic(submesh, material, *m_shader);
+
+
 			if(m_scene->draw_aabb)
-				dd::aabb(submesh_aabb.min(),submesh_aabb.max(), dd::colors::White);
-
-			Material& material = m_scene->materials[model.materials[submesh_idx]];
-			if(material.face_culling_enabled) {
-				glEnable(GL_CULL_FACE);
-			} else {
-				glDisable(GL_CULL_FACE);
-			}
-
-			int point_light_count = 0;
-			for(unsigned i = 0; i < m_scene->point_lights.size() && i < MaxLights; ++i) {
-				const auto& light = m_scene->point_lights[i];
-				if(!(light.state & PointLight::Enabled))
-					continue;
-				if(m_scene->main_camera.frustum.sphere_culled(light.position(), light.radius()))
-					continue;
-
-				// TODO: implement per-light AABB cutoff to prevent light leaking
-				if(submesh_aabb.intersects_sphere(light.position(), light.radius())) {
-					auto dist = glm::length(light.position() - submesh_aabb.closest_point(light.position()));
-					if(light.distance_attenuation(dist) > 0.0f) {
-						unif::i1(*m_shader, indexed_uniform("point_light_indices", "", point_light_count++), i);
-					}
-				}
-			}
-			unif::i1(*m_shader, "num_point_lights", point_light_count);
-
-			int spot_light_count = 0;
-			for(unsigned i = 0; i < m_scene->spot_lights.size() && i < MaxLights; ++i) {
-				const auto& light = m_scene->spot_lights[i];
-				if(!(light.state & SpotLight::Enabled))
-					continue;
-
-				if(m_scene->main_camera.frustum.sphere_culled(light.position(), light.radius()))
-					continue;
-
-				// TODO: implement cone-AABB collision check
-				if(submesh_aabb.intersects_sphere(light.position(), light.radius())) {
-					auto dist = glm::length(light.position() - submesh_aabb.closest_point(light.position()));
-					if(light.distance_attenuation(dist) > 0.0f) {
-						unif::i1(*m_shader, indexed_uniform("spot_light_indices", "", spot_light_count++), i);
-					}
-				}
-			}
-			unif::i1(*m_shader, "num_spot_lights", spot_light_count);
-
-			submesh.touched_lights = point_light_count + spot_light_count;
-
-			material.bind(*m_shader);
-			glBindVertexArray(*submesh.vao);
-			assert(submesh.index_type == GL_UNSIGNED_INT || submesh.index_type == GL_UNSIGNED_SHORT);
-			assert(submesh.index_max > submesh.index_min);
-			glDrawRangeElements(GL_TRIANGLES, submesh.index_min, submesh.index_max, submesh.numverts, GLenum(submesh.index_type), nullptr);
+				dd::aabb(submesh_aabb.min(), submesh_aabb.max(), dd::colors::White);
 		}
+	}
+
+	if(MSAASampleCount > 1) {
+		glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+	} else {
+		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+	}
+
+	for(const auto& idx : m_masked_meshes) {
+		const Model& model = m_scene->models[idx.model_idx];
+		const model::Mesh& submesh = m_scene->submeshes[model.submeshes[idx.submesh_idx]];
+		const Material& material   = m_scene->materials[model.materials[idx.submesh_idx]];
+
+		auto submesh_aabb = submesh.aabb.transformed(model.transform);
+		if(m_scene->main_camera.frustum.aabb_culled(submesh_aabb))
+			continue;
+
+		unif::m4(*m_shader, "model", model.transform);
+		unif::m3(*m_shader, "normal_matrix", glm::transpose(model.inv_transform));
+
+		process_point_lights(m_scene->point_lights, m_scene->main_camera.frustum, submesh_aabb, *m_shader);
+		process_spot_lights(m_scene->spot_lights, m_scene->main_camera.frustum, submesh_aabb, *m_shader);
+		render_generic(submesh, material, *m_shader);
+
+		if(m_scene->draw_aabb)
+			dd::aabb(submesh_aabb.min(),submesh_aabb.max(), dd::colors::Aquamarine);
+
+	}
+
+	if(MSAASampleCount > 1) {
+		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
 	}
 
 	for(auto&& light : m_scene->point_lights) {
@@ -360,6 +439,14 @@ void Renderer::draw()
 
 	dd::flush();
 
+//	glBlitNamedFramebuffer(*m_backbuffer_fbo,
+//	                       *m_backbuffer_resolve_fbo,
+//	                       0, 0, m_backbuffer_width, m_backbuffer_height,
+//	                       0, 0, m_backbuffer_width, m_backbuffer_height,
+//	                       GL_COLOR_BUFFER_BIT,
+//	                       GL_NEAREST);
+
+
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glViewport(0, 0, m_window_width, m_window_height);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -368,8 +455,6 @@ void Renderer::draw()
 	unif::f1(*m_hdr_shader, 0, m_scene->main_camera.exposure);
 	unif::i1(*m_hdr_shader, 1, MSAASampleCount);
 	renderQuad();
-//	glInvalidateTexImage(*m_backbuffer_color_to, 0);
-//	glInvalidateTexImage(*m_backbuffer_depth_to, 0);
 
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);

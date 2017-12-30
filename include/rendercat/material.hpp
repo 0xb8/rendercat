@@ -23,7 +23,7 @@ struct Material
 
 	void bind(uint32_t s) const noexcept;
 
-	void diffuseColor(const glm::vec3& color) noexcept
+	void diffuseColor(const glm::vec4& color) noexcept
 	{
 		m_diffuse_color = color;
 		m_flags |= 1 << 6;
@@ -47,8 +47,13 @@ struct Material
 	void addNormalMap(const std::string_view name, const std::string_view basedir);
 	void addSpecularMap(const std::string_view name, const std::string_view basedir);
 
+	Texture::AlphaMode alphaMode() const noexcept
+	{
+		return m_alpha_mode;
+	}
+	void setAlphaMode(Texture::AlphaMode m, float alpha_cutoff = 0.5f) noexcept;
+
 	std::string name;
-	Texture::AlphaMode alpha_mode = Texture::AlphaMode::Unknown;
 	bool face_culling_enabled = true;
 
 private:
@@ -58,16 +63,20 @@ private:
 
 	uint32_t  m_flags = 0;
 
-	glm::vec3 m_diffuse_color;
+	glm::vec4 m_diffuse_color;
 	glm::vec3 m_specular_color;
 	glm::vec3 m_emissive_color;
+	float     m_alpha_cutoff = 0.5f;
 	float     m_shininess = 0.0f;
 	float     m_roughness = 1.0f;
 	float     m_metallic  = 0.0f;
 
+
 	ImageTexture2D  m_diffuse_map;
 	ImageTexture2D  m_normal_map;
 	ImageTexture2D  m_specular_map;
+
+	Texture::AlphaMode m_alpha_mode = Texture::AlphaMode::Unknown;
 };
 
 } // namespace rc
