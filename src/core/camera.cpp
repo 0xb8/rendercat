@@ -47,6 +47,11 @@ void Camera::zoom(float newfov) noexcept
 	projection = make_reversed_z_projection(glm::radians(fov), aspect, znear);
 }
 
+void Camera::zoom_scroll_offset(float offset) noexcept
+{
+	zoom(glm::clamp(fov + offset, fov_min, fov_max));
+}
+
 glm::mat4 Camera::make_reversed_z_projection(float fovY_radians, float aspectWbyH, float zNear) noexcept
 {
 	float f = 1.0f / std::tan(fovY_radians / 2.0f);

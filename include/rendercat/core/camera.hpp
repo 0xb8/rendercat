@@ -15,6 +15,12 @@ struct Camera
 	void left(float speed) noexcept;
 	void right(float speed) noexcept;
 	void zoom(float newfov) noexcept;
+	void zoom_scroll_offset(float offset) noexcept;
+
+	static constexpr float fov_min = 10.0f;
+	static constexpr float fov_max = 110.0f;
+
+	static constexpr float znear_min = 0.001f;
 
 	static glm::mat4 make_reversed_z_projection(float fovY_radians, float aspectWbyH, float zNear) noexcept;
 	void update_view() noexcept;

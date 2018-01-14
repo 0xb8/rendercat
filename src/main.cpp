@@ -34,14 +34,12 @@ namespace globals {
 
 namespace input {
 	static bool captured = true;
-	static bool mouse_init = true;
+	static bool mouse_just_captured;
 	static float sensitivity = 0.02f;
 
 	static float xoffset = 0.0f;
 	static float yoffset = 0.0f;
-	static float fov   = 90.0f;
-	static const float minfov = 10.0f;
-	static const float maxfov = 110.0f;
+	static float scroll_offset = 0.0f;
 
 
 	static bool forward  = false;
@@ -62,7 +60,13 @@ namespace consts {
 }
 
 // ---------------------------------- helpers  ---------------------------------
-void GLAPIENTRY gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei /*length*/, const GLchar *message, const void */*userParam*/)
+void GLAPIENTRY gl_debug_callback(GLenum source,
+                                  GLenum type,
+                                  GLuint id,
+                                  GLenum severity,
+                                  GLsizei /*length*/,
+                                  const GLchar *message,
+                                  const void* /*userParam*/)
 {
 
 	fmt::MemoryWriter ss;
@@ -109,29 +113,39 @@ void GLAPIENTRY gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum 
 
 static void glfw_mouse_motion_callback(GLFWwindow* window, double dx, double dy);
 static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
-static void glfw_mouse_click_callback(GLFWwindow* window, int button, int action, int mods);
 static void glfw_scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 static void glfw_framebuffer_resized_callback(GLFWwindow* window, int width, int height);
+
+
+static void rc_set_input_captured(GLFWwindow* window, bool value)
+{
+	input::captured = value;
+	if(input::captured) {
+		input::mouse_just_captured = true;
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+		glfwSetCursorDeltaCallback(window, glfw_mouse_motion_callback);
+		glfwSetCursorPosCallback(window, nullptr);
+		glfwSetCharCallback(window, nullptr);
+		glfwSetMouseButtonCallback(window, nullptr);
+		glfwSetScrollCallback(window, glfw_scroll_callback);
+	} else {
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		glfwSetCharCallback(window, ImGui_ImplGlfwGL3_CharCallback);
+		glfwSetCursorDeltaCallback(window, nullptr);
+		glfwSetCursorPosCallback(window, ImGui_ImplGlfwGL3_CursorPosCallback);
+		glfwSetMouseButtonCallback(window, ImGui_ImplGlfwGL3_MouseButtonCallback);
+		glfwSetScrollCallback(window, ImGui_ImplGlfwGL3_ScrollCallback);
+	}
+}
 
 
 static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
 	if(key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE) {
-		input::captured = !input::captured;
-		if(input::captured) {
-			input::mouse_init = true;
-			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-			glfwSetCursorDeltaCallback(window, glfw_mouse_motion_callback);
-			glfwSetCursorPosCallback(window, nullptr);
-			glfwSetCharCallback(window, nullptr);
-		} else {
-			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-			glfwSetCharCallback(window, ImGui_ImplGlfwGL3_CharCallback);
-			glfwSetCursorDeltaCallback(window, nullptr);
-			glfwSetCursorPosCallback(window, ImGui_ImplGlfwGL3_CursorPosCallback);
-		}
+		rc_set_input_captured(window, !input::captured);
 	}
 
+	// if not capturing input, just call GUI key callback
 	if(!input::captured) {
 		ImGui_ImplGlfwGL3_KeyCallback(window, key, scancode, action, mods);
 		return;
@@ -166,22 +180,6 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 	}
 }
 
-static void glfw_mouse_click_callback(GLFWwindow* window, int button, int action, int mods)
-{
-	if(!input::captured) {
-		if(action == GLFW_PRESS && (mods & GLFW_MOD_SHIFT)) {
-
-			return;
-		}
-		ImGui_ImplGlfwGL3_MouseButtonCallback(window, button, action, mods);
-		return;
-	}
-
-	if(button == GLFW_MOUSE_BUTTON_3 && action == GLFW_PRESS) {
-		input::fov = 90.0f;
-	}
-}
-
 static void glfw_process_input(rc::Scene* s)
 {
 	float cameraSpeed = 0.04;
@@ -200,34 +198,28 @@ static void glfw_process_input(rc::Scene* s)
 	if (input::right)
 		s->main_camera.right(cameraSpeed);
 
-	s->main_camera.aim(input::xoffset, input::yoffset);
-	s->main_camera.zoom(input::fov);
+	s->main_camera.aim(input::xoffset, -input::yoffset);
+	s->main_camera.zoom_scroll_offset(-input::scroll_offset);
 	input::xoffset = 0.0f;
 	input::yoffset = 0.0f;
+	input::scroll_offset = 0.0f;
 }
 
 void glfw_mouse_motion_callback(GLFWwindow* /*window*/, double dx, double dy)
 {
-	if(unlikely(input::mouse_init)) // this bool variable is initially set to true
+	if(unlikely(input::mouse_just_captured)) // this bool variable is initially set to true
 	{
-		input::mouse_init = false;
+		input::mouse_just_captured = false;
 		return;
 	}
 
 	input::xoffset += dx * input::sensitivity;
-	input::yoffset += -dy * input::sensitivity;
+	input::yoffset += dy * input::sensitivity;
 }
 
-static void glfw_scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+static void glfw_scroll_callback(GLFWwindow* /*window*/, double /*xoffset*/, double yoffset)
 {
-	if(!input::captured) {
-		ImGui_ImplGlfwGL3_ScrollCallback(window, xoffset, yoffset);
-		return;
-	}
-
-	if (input::fov >= input::minfov && input::fov <= input::maxfov)
-		input::fov -= yoffset;
-	input::fov = glm::clamp(input::fov, input::minfov, input::maxfov);
+	input::scroll_offset += yoffset;
 }
 
 static void glfw_framebuffer_resized_callback(GLFWwindow* /*window*/, int width, int height)
@@ -277,11 +269,8 @@ static void check_required_extensions()
 
 static void init_glfw_callbacks(GLFWwindow* window)
 {
-	glfwSetKeyCallback(window, glfw_key_callback);
-	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-	glfwSetCursorDeltaCallback(window, glfw_mouse_motion_callback);
-	glfwSetMouseButtonCallback(window, glfw_mouse_click_callback);
-	glfwSetScrollCallback(window, glfw_scroll_callback);
+	rc_set_input_captured(window, input::captured);
+	glfwSetKeyCallback(window, glfw_key_callback); // required because we always need to toggle input capture
 	glfwSetFramebufferSizeCallback(window, glfw_framebuffer_resized_callback);
 }
 

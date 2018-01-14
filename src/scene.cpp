@@ -239,8 +239,8 @@ void Scene::update()
 
 	if(ImGui::CollapsingHeader("Camera")) {
 		ImGui::InputFloat3("Position", glm::value_ptr(main_camera.pos));
-		ImGui::SliderFloat("FOV", &main_camera.fov, 30.0f, 120.0f);
-		ImGui::SliderFloat("Near Z", &main_camera.znear, 0.001f, 10.0f);
+		ImGui::SliderFloat("FOV", &main_camera.fov, Camera::fov_min, Camera::fov_max);
+		ImGui::SliderFloat("Near Z", &main_camera.znear, Camera::znear_min, 10.0f);
 		ImGui::SliderFloat("Far Z", &main_camera.zfar, main_camera.znear, 1000.0f);
 		ImGui::SliderFloat("Exposure", &main_camera.exposure, 0.001f, 10.0f);
 
