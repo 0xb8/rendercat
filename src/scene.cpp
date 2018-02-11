@@ -405,7 +405,7 @@ void Scene::update()
 					ImGui::Text("GL Handle:       %d", storage.texture_handle());
 
 					if(storage.shared()) {
-						ImGui::TextUnformatted("Shared");
+						ImGui::Text("Shared: %d", storage.share_count());
 					}
 
 					if(!storage.valid())

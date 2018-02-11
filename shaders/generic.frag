@@ -194,7 +194,7 @@ vec3 calcDirectionalLight(const in DirectionalLight light,
 	float spec = pow(clamp(dot(normal, halfwayDir), 0.0, 1.0), material.specular.a);
 	vec3 specular = spec * light.specular * materialParams[1];
 
-	return ambient + (diffuse + specular)  * check_light_side(lightDir);
+	return ambient + (diffuse + specular);
 }
 
 vec3 calcPointLight(const in PointLight light,

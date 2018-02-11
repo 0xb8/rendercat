@@ -80,8 +80,9 @@ ImageTextureStorage2D ImageTextureStorage2D::share_view(unsigned minlevel, unsig
 	glGenTextures(1, ret.m_handle.get()); // must not bind to target here
 	if(ret.m_handle) {
 		glTextureView(*ret.m_handle, GL_TEXTURE_2D, *m_handle, static_cast<GLenum>(ret.m_internal_format), minlevel, ret.m_mip_levels, 0, 1);
+		// if this is first time we share this texture, remember original handle
 		m_shared = increment_clamp(m_shared);
-		ret.m_shared = 1;
+		ret.m_shared = m_shared;
 	}
 
 	return ret;

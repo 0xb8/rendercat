@@ -76,6 +76,6 @@ add_dependencies(rendercat shaders)
 option(RC_BUILD_TESTS "Enable test building" ON)
 if(RC_BUILD_TESTS)
 	enable_testing()
-	add_subdirectory(tests)
+	add_subdirectory(tests EXCLUDE_FROM_ALL)
 endif()
 

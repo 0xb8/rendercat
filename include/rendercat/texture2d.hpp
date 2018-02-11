@@ -148,6 +148,11 @@ struct ImageTextureStorage2D
 		return m_shared;
 	}
 
+	int share_count() const noexcept
+	{
+		return m_shared;
+	}
+
 	void subImage2D(uint16_t level,
 	                uint16_t width,
 	                uint16_t height,

@@ -1,3 +1,4 @@
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
 #include <rendercat/mesh.hpp>
 #include <rendercat/material.hpp>
@@ -77,7 +78,7 @@ static Material load_obj_material(const tinyobj::material_t& mat, const std::str
 		}
 	}
 
-	return std::move(material);
+	return material;
 }
 
 bool model::load_obj_file(data * res, const std::string_view name, const std::string_view basedir)
