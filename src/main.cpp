@@ -326,11 +326,13 @@ int main() try
 	enable_gl_clip_control();
 
 	{
+		ImGui::CreateContext();
 		ImGui_ImplGlfwGL3_Init(window);
 		ImGuiStyle& st = ImGui::GetStyle();
 
 		st.GrabRounding = 0.0f;
 		st.WindowRounding = 0.0f;
+		st.WindowBorderSize = 0.0f;
 		st.ChildRounding = 0.0f;
 		st.ScrollbarRounding = 0.0f;
 	}
@@ -371,6 +373,7 @@ int main() try
 	}
 
 	ImGui_ImplGlfwGL3_Shutdown();
+	ImGui::DestroyContext();
 	glfwTerminate();
 	return 0;
 
