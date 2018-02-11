@@ -328,8 +328,12 @@ int main() try
 	{
 		ImGui::CreateContext();
 		ImGui_ImplGlfwGL3_Init(window);
-		ImGuiStyle& st = ImGui::GetStyle();
 
+		auto& io = ImGui::GetIO();
+		io.NavFlags |= ImGuiNavFlags_EnableKeyboard;
+
+		auto& st = ImGui::GetStyle();
+		ImGui::StyleColorsDark(&st);
 		st.GrabRounding = 0.0f;
 		st.WindowRounding = 0.0f;
 		st.WindowBorderSize = 0.0f;
