@@ -115,7 +115,7 @@ bool Frustum::sphere_culled(const glm::vec3 & pos, float r) const noexcept
 	return false;
 }
 
-bool Frustum::aabb_culled(const AABB & box) const noexcept
+bool Frustum::bbox_culled(const bbox3 & box) const noexcept
 {
 	// check box outside/inside of frustum
 	for(int i = 0; i < 5; i++) {

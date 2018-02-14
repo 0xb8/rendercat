@@ -407,7 +407,7 @@ model::Mesh::Mesh(const std::string& name_, std::vector<Vertex> && verts) : name
 	uniqueVerts.reserve(vtans.capacity());
 
 	for(uint32_t i = 0; i < verts.size(); ++i) {
-		aabb.include(verts[i].position);
+		bbox.include(verts[i].position);
 
 		vertex_tangent vt{verts[i], tangents[i]};
 

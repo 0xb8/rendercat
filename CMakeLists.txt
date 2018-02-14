@@ -23,7 +23,7 @@ add_executable(rendercat
 	src/scene.cpp
 	src/shader_set.cpp
 	src/texture2d.cpp
-	src/core/AABB.cpp
+	src/core/bbox.cpp
 	src/core/camera.cpp
 	src/core/frustum.cpp
 	src/util/color_temperature.cpp

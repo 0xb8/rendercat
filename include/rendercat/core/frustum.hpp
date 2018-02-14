@@ -1,7 +1,7 @@
 #pragma once
 
 #include <rendercat/common.hpp>
-#include <rendercat/core/AABB.hpp>
+#include <rendercat/core/bbox.hpp>
 
 namespace rc {
 
@@ -41,7 +41,7 @@ struct Frustum
 	void draw_debug() const noexcept;
 
 	bool sphere_culled(const glm::vec3& pos, float r) const noexcept;
-	bool aabb_culled(const AABB& box) const noexcept;
+	bool bbox_culled(const bbox3& box) const noexcept;
 };
 
 }

@@ -83,7 +83,7 @@ struct Scene
 	std::vector<SpotLight>   spot_lights;
 
 	bool  window_shown = true;
-	bool  draw_aabb = false;
+	bool  draw_bbox = false;
 	int   desired_msaa_level = 0;
 	float desired_render_scale = 1.0f;
 

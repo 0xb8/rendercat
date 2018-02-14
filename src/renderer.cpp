@@ -241,7 +241,7 @@ void Renderer::set_uniforms(GLuint shader)
 
 static void process_point_lights(const std::vector<PointLight>& point_lights,
                                  const Frustum& frustum,
-                                 const AABB& submesh_aabb,
+                                 const bbox3& submesh_bbox,
                                  uint32_t shader)
 {
 	int point_light_count = 0;
@@ -253,8 +253,8 @@ static void process_point_lights(const std::vector<PointLight>& point_lights,
 			continue;
 
 		// TODO: implement per-light AABB cutoff to prevent light leaking
-		if(submesh_aabb.intersects_sphere(light.position(), light.radius())) {
-			auto dist = glm::length(light.position() - submesh_aabb.closest_point(light.position()));
+		if(submesh_bbox.intersects_sphere(light.position(), light.radius())) {
+			auto dist = glm::length(light.position() - submesh_bbox.closest_point(light.position()));
 			if(light.distance_attenuation(dist) > 0.0f) {
 				unif::i1(shader, indexed_uniform("point_light_indices", "", point_light_count++), i);
 			}
@@ -265,7 +265,7 @@ static void process_point_lights(const std::vector<PointLight>& point_lights,
 
 static void process_spot_lights(const std::vector<SpotLight>& spot_lights,
                                 const Frustum& frustum,
-                                const AABB& submesh_aabb,
+                                const bbox3& submesh_bbox,
                                 uint32_t shader)
 {
 	int spot_light_count = 0;
@@ -278,8 +278,8 @@ static void process_spot_lights(const std::vector<SpotLight>& spot_lights,
 			continue;
 
 		// TODO: implement cone-AABB collision check
-		if(submesh_aabb.intersects_sphere(light.position(), light.radius())) {
-			auto dist = glm::length(light.position() - submesh_aabb.closest_point(light.position()));
+		if(submesh_bbox.intersects_sphere(light.position(), light.radius())) {
+			auto dist = glm::length(light.position() - submesh_bbox.closest_point(light.position()));
 			if(light.distance_attenuation(dist) > 0.0f) {
 				unif::i1(shader, indexed_uniform("spot_light_indices", "", spot_light_count++), i);
 			}
@@ -355,17 +355,17 @@ void Renderer::draw()
 				continue;
 			}
 
-			auto submesh_aabb = submesh.aabb.transformed(model.transform);
-			if(m_scene->main_camera.frustum.aabb_culled(submesh_aabb))
+			auto submesh_bbox = submesh.bbox.transformed(model.transform);
+			if(m_scene->main_camera.frustum.bbox_culled(submesh_bbox))
 				continue;
 
-			process_point_lights(m_scene->point_lights, m_scene->main_camera.frustum, submesh_aabb, *m_shader);
-			process_spot_lights(m_scene->spot_lights, m_scene->main_camera.frustum, submesh_aabb, *m_shader);
+			process_point_lights(m_scene->point_lights, m_scene->main_camera.frustum, submesh_bbox, *m_shader);
+			process_spot_lights(m_scene->spot_lights, m_scene->main_camera.frustum, submesh_bbox, *m_shader);
 			render_generic(submesh, material, *m_shader);
 
 
-			if(m_scene->draw_aabb)
-				dd::aabb(submesh_aabb.min(), submesh_aabb.max(), dd::colors::White);
+			if(m_scene->draw_bbox)
+				dd::aabb(submesh_bbox.min(), submesh_bbox.max(), dd::colors::White);
 		}
 	}
 
@@ -380,19 +380,19 @@ void Renderer::draw()
 		const model::Mesh& submesh = m_scene->submeshes[model.submeshes[idx.submesh_idx]];
 		const Material& material   = m_scene->materials[model.materials[idx.submesh_idx]];
 
-		auto submesh_aabb = submesh.aabb.transformed(model.transform);
-		if(m_scene->main_camera.frustum.aabb_culled(submesh_aabb))
+		auto submesh_bbox = submesh.bbox.transformed(model.transform);
+		if(m_scene->main_camera.frustum.bbox_culled(submesh_bbox))
 			continue;
 
 		unif::m4(*m_shader, "model", model.transform);
 		unif::m3(*m_shader, "normal_matrix", glm::transpose(model.inv_transform));
 
-		process_point_lights(m_scene->point_lights, m_scene->main_camera.frustum, submesh_aabb, *m_shader);
-		process_spot_lights(m_scene->spot_lights, m_scene->main_camera.frustum, submesh_aabb, *m_shader);
+		process_point_lights(m_scene->point_lights, m_scene->main_camera.frustum, submesh_bbox, *m_shader);
+		process_spot_lights(m_scene->spot_lights, m_scene->main_camera.frustum, submesh_bbox, *m_shader);
 		render_generic(submesh, material, *m_shader);
 
-		if(m_scene->draw_aabb)
-			dd::aabb(submesh_aabb.min(),submesh_aabb.max(), dd::colors::Aquamarine);
+		if(m_scene->draw_bbox)
+			dd::aabb(submesh_bbox.min(),submesh_bbox.max(), dd::colors::Aquamarine);
 
 	}
 

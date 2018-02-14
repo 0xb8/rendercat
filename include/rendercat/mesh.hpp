@@ -1,7 +1,7 @@
 #pragma once
 
 #include <rendercat/common.hpp>
-#include <rendercat/core/AABB.hpp>
+#include <rendercat/core/bbox.hpp>
 #include <rendercat/material.hpp>
 #include <rendercat/util/gl_unique_handle.hpp>
 #include <string_view>
@@ -24,7 +24,7 @@ namespace model {
 		uint32_t index_max = 0;
 		uint32_t touched_lights = 0;
 		uint32_t index_type{};
-		AABB aabb;
+		bbox3 bbox;
 
 		bool valid() const noexcept
 		{
