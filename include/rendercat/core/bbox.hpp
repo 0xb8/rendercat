@@ -1,5 +1,6 @@
 #pragma once
 
+#define GLM_FORCE_CXX14
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <glm/fwd.hpp>
@@ -30,6 +31,7 @@ class bbox2 : _bbox_base
 {
 public:
 
+	/// Builds a null bbox.
 	bbox2() = default;
 
 	/// Builds an bbox that contains the two points.
@@ -124,8 +126,8 @@ public:
 	}
 
 private:
-	glm::vec2 mMin = glm::vec2(std::numeric_limits<glm::float_t>::max());
-	glm::vec2 mMax = glm::vec2(std::numeric_limits<glm::float_t>::min());
+	glm::vec2 mMin = glm::vec2(std::numeric_limits<glm::float_t>::max());    ///< Minimum point.
+	glm::vec2 mMax = glm::vec2(std::numeric_limits<glm::float_t>::lowest()); ///< Maximum point.
 
 };
 
@@ -283,8 +285,8 @@ public:
 
 private:
 
-	glm::vec3 mMin = glm::vec3(std::numeric_limits<glm::float_t>::max());   ///< Minimum point.
-	glm::vec3 mMax = glm::vec3(std::numeric_limits<glm::float_t>::min());   ///< Maximum point.
+	glm::vec3 mMin = glm::vec3(std::numeric_limits<glm::float_t>::max());    ///< Minimum point.
+	glm::vec3 mMax = glm::vec3(std::numeric_limits<glm::float_t>::lowest()); ///< Maximum point.
 };
 
 }

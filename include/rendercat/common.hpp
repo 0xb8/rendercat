@@ -50,35 +50,33 @@ inline std::ostream& operator<<(std::ostream& out, const glm::vec4& g)
 
 namespace rc {
 namespace math {
-	inline constexpr bool between(float f, float min, float max)
+	template<typename T>
+	inline constexpr bool within_closed_interval(T val, T min, T max)
 	{
-		return f >= min && f <= max;
+		static_assert(std::is_fundamental_v<T>, "T must be fundamental type");
+		return val >= min && val <= max;
 	}
-	inline constexpr bool between(double f, double min, double max)
-	{
-		return f >= min && f <= max;
-	}
-	inline bool between(glm::vec2 v, glm::vec2 min, glm::vec2 max)
+	inline bool within_closed_interval(glm::vec2 v, glm::vec2 min, glm::vec2 max)
 	{
 		assert(min != max);
-		return between(v[0], min[0], max[0]) && between(v[1], min[1], max[1]);
+		return within_closed_interval(v[0], min[0], max[0]) && within_closed_interval(v[1], min[1], max[1]);
 	}
 
-	inline bool between(glm::vec3 v, glm::vec3 min, glm::vec3 max)
+	inline bool within_closed_interval(glm::vec3 v, glm::vec3 min, glm::vec3 max)
 	{
 		assert(min != max);
-		return between(v[0], min[0], max[0])
-			&& between(v[1], min[1], max[1])
-			&& between(v[2], min[2], max[2]);
+		return within_closed_interval(v[0], min[0], max[0])
+			&& within_closed_interval(v[1], min[1], max[1])
+			&& within_closed_interval(v[2], min[2], max[2]);
 	}
 
-	inline bool between(glm::vec4 v, glm::vec4 min, glm::vec4 max)
+	inline bool within_closed_interval(glm::vec4 v, glm::vec4 min, glm::vec4 max)
 	{
 		assert(min != max);
-		return between(v[0], min[0], max[0])
-			&& between(v[1], min[1], max[1])
-			&& between(v[2], min[2], max[2])
-			&& between(v[3], min[3], max[3]);
+		return within_closed_interval(v[0], min[0], max[0])
+			&& within_closed_interval(v[1], min[1], max[1])
+			&& within_closed_interval(v[2], min[2], max[2])
+			&& within_closed_interval(v[3], min[3], max[3]);
 	}
 
 	template<typename T>

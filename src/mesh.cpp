@@ -103,7 +103,7 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 
 	fmt::print(stderr, "\n--- loading model '{}' from '{}' ------------------------\n",
 	                   name,model_path);
-	size_t vertex_cout = 0, unique_vertex_count = 0;
+	size_t vertex_count = 0, unique_vertex_count = 0;
 
 
 	if(!tinyobj::LoadObj(&attrib, &shapes, &obj_materials, &err, model_path_full.data(), model_path.data())) {
@@ -192,7 +192,7 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 
 		model::Mesh mesh(shape.name, std::move(vertices));
 
-		vertex_cout += mesh.numverts;
+		vertex_count += mesh.numverts;
 		unique_vertex_count += mesh.numverts_unique;
 
 		if(unlikely(!mesh.valid())) {
@@ -211,9 +211,9 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 	}
 	fmt::print(stderr, " ~ final vertex count: {}, unique: {} ({}% saved)\n"
 	                   "\n--- model '{}' loaded -------------------------------\n",
-	           vertex_cout,
+	           vertex_count,
 	           unique_vertex_count,
-	           100-rc::math::percent(unique_vertex_count, vertex_cout),
+	           100-rc::math::percent(unique_vertex_count, vertex_count),
 	           name);
 
 	for(auto& m : scene_materials) {
