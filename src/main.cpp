@@ -330,10 +330,12 @@ int main() try
 		ImGui_ImplGlfwGL3_Init(window);
 
 		auto& io = ImGui::GetIO();
-		io.NavFlags |= ImGuiNavFlags_EnableKeyboard;
+		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+		io.ConfigFlags |= ImGuiConfigFlags_IsSRGB;
 
 		auto& st = ImGui::GetStyle();
 		ImGui::StyleColorsDark(&st);
+		st.Colors[ImGuiCol_WindowBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.60f);
 		st.GrabRounding = 0.0f;
 		st.WindowRounding = 0.0f;
 		st.WindowBorderSize = 0.0f;
@@ -366,6 +368,7 @@ int main() try
 		renderer.draw();
 		renderer.draw_gui();
 		ImGui::Render();
+		ImGui_ImplGlfwGL3_RenderDrawData(ImGui::GetDrawData());
 		process_screenshot();
 
 		glfwSwapBuffers(window);
