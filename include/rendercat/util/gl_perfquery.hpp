@@ -27,7 +27,7 @@ struct PerfQuery
 	void collect();
 
 private:
-	static constexpr int query_count = 2;
+	static constexpr int query_count = 8;
 	enum class QueryState {
 		Began,
 		Ended,
