@@ -6,6 +6,7 @@
 #include <glm/fwd.hpp>
 #include <glm/common.hpp>
 #include <limits>
+#include <rendercat/core/ray.hpp>
 
 namespace rc {
 
@@ -18,19 +19,56 @@ struct _bbox_base
 		glm::float_t max;
 	};
 
-	/// Returns range from two values. If invalid, returns null range.
-	static range _make_range(glm::float_t min, glm::float_t max) noexcept
+	/// Type returned from call to intersect.
+	enum class Intersection : uint8_t
 	{
-		if(min > max) return range{glm::float_t{}, glm::float_t{}};
-		return range{min, max};
-	}
+		Outside = 0,
+		Intersect = 1,
+		Inside = 2,
+	};
 };
 
+#ifdef __cpp_fold_expressions
 
-class bbox2 : _bbox_base
+namespace _bbox_detail {
+
+	// wrapper holding a value
+	template <typename T>
+	struct vminmax_wrapper {
+		T value;
+	};
+
+	// min operator
+	template <typename T, typename U, typename V=std::common_type_t<T,U>>
+	inline constexpr vminmax_wrapper<V> operator<<=(const vminmax_wrapper<T>& lhs, const vminmax_wrapper<U>& rhs) noexcept
+	{
+		return {glm::min(lhs.value, rhs.value)};
+	}
+
+	// max operator
+	template <typename T, typename U, typename V=std::common_type_t<T,U>>
+	inline constexpr vminmax_wrapper<V> operator>>=(const vminmax_wrapper<T>& lhs, const vminmax_wrapper<U>& rhs) noexcept
+	{
+		return {glm::max(lhs.value, rhs.value)};
+	}
+
+	template <typename... Ts>
+	inline constexpr auto min(Ts&&... args) noexcept {
+		return (vminmax_wrapper<Ts>{args} <<= ...).value;
+	}
+
+	template <typename... Ts>
+	inline constexpr auto max(Ts&&... args) noexcept {
+		return (vminmax_wrapper<Ts>{args} >>= ...).value;
+	}
+}
+
+#endif
+
+
+class bbox2 : public _bbox_base
 {
 public:
-
 	/// Builds a null bbox.
 	bbox2() = default;
 
@@ -49,6 +87,36 @@ public:
 	{
 		mMin = glm::min(mMin, p);
 		mMax = glm::max(mMax, p);
+	}
+
+#ifdef __cpp_fold_expressions
+
+	/// Expand the bbox to include all of the \p points.
+	template<typename... Ts>
+	void include(const glm::vec2& p1, const Ts&... points) noexcept
+	{
+		mMin = _bbox_detail::min(mMin, p1, points...);
+		mMax = _bbox_detail::max(mMax, p1, points...);
+	}
+
+#endif
+
+	/// Expand the bbox to encompass the given \p bbox.
+	void include(const bbox2& bbox) noexcept
+	{
+		mMin = glm::min(mMin, bbox.mMin);
+		mMax = glm::max(mMax, bbox.mMax);
+	}
+
+	/// Expand the bbox to include a circle centered at \p center and of radius \p
+	/// radius.
+	/// \param[in]  center Center of circle.
+	/// \param[in]  radius Radius of circle.
+	void include_circle(const glm::vec2& p, glm::float_t radius) noexcept
+	{
+		glm::vec2 r(radius);
+		mMin = glm::min(p - r, mMin);
+		mMax = glm::max(p + r, mMax);
 	}
 
 	/// Extend the bounding box on all sides by \p val.
@@ -84,7 +152,7 @@ public:
 
 	/// Returns transformed version of this bbox.
 	/// \param[in]  mat  A transformation matrix.
-	bbox2 transformed(const glm::mat3& mat) const noexcept;
+	static bbox2 transformed(const bbox2& bbox, const glm::mat3& mat) noexcept;
 
 	/// Retrieves the center of the bbox.
 	glm::vec2 center() const noexcept;
@@ -116,14 +184,32 @@ public:
 	/// Retrieves the X range of bbox.
 	range x_range() const noexcept
 	{
-		return _make_range(mMin.x, mMax.x);
+		return range{mMin.x, mMax.x};
 	}
 
 	/// Retrieves the Y range of bbox.
 	range y_range() const noexcept
 	{
-		return _make_range(mMin.y, mMax.y);
+		return range{mMin.y, mMax.y};
 	}
+
+	/// If \p point is outside bbox, returns closest point to \p point on bbox.
+	/// Otherwise, returns \p point itself.
+	glm::vec2 closest_point(glm::vec2 point) const noexcept
+	{
+		return glm::clamp(point, mMin, mMax);
+	}
+
+
+	/// Returns one of the intersection types. If either of the bboxes are invalid,
+	/// then OUTSIDE is returned.
+	static Intersection intersects(const bbox2& a, const bbox2& b) noexcept;
+
+	/// Tests if sphere positioned at \p pos with radius \p r intersects bbox.
+	static Intersection intersects_sphere(const bbox2& bbox, const glm::vec2& center, glm::float_t radius) noexcept;
+
+	/// Tests if \p ray intersects \p bbox.
+	static Intersection intersects_ray(const bbox2& bbox, const ray2_inv& ray) noexcept;
 
 private:
 	glm::vec2 mMin = glm::vec2(std::numeric_limits<glm::float_t>::max());    ///< Minimum point.
@@ -132,19 +218,12 @@ private:
 };
 
 
-class bbox3 : _bbox_base
+class bbox3 : public _bbox_base
 {
 public:
+
 	/// Builds a null bbox.
 	bbox3() = default;
-
-	/// Builds an bbox that encompasses a sphere.
-	/// \param[in]  center Center of the sphere.
-	/// \param[in]  radius Radius of the sphere.
-	bbox3(const glm::vec3& center, glm::float_t radius) noexcept
-	{
-		include_sphere(center, radius);
-	}
 
 	/// Builds an bbox that contains the two points.
 	bbox3(const glm::vec3& p1, const glm::vec3& p2) noexcept
@@ -172,6 +251,25 @@ public:
 		mMax = glm::max(p, mMax);
 	}
 
+#ifdef __cpp_fold_expressions
+
+	/// Expand the bbox to include all of the \p points.
+	template<typename... Ts>
+	void include(const glm::vec3& p1, const Ts&... points) noexcept
+	{
+		mMin = _bbox_detail::min(mMin, p1, points...);
+		mMax = _bbox_detail::max(mMax, p1, points...);
+	}
+
+#endif
+
+	/// Expand the bbox to encompass the given \p bbox.
+	void include(const bbox3& bbox) noexcept
+	{
+		mMin = glm::min(mMin, bbox.mMin);
+		mMax = glm::max(mMax, bbox.mMax);
+	}
+
 	/// Expand the bbox to include a sphere centered at \p center and of radius \p
 	/// radius.
 	/// \param[in]  center Center of sphere.
@@ -181,13 +279,6 @@ public:
 		glm::vec3 r(radius);
 		mMin = glm::min(p - r, mMin);
 		mMax = glm::max(p + r, mMax);
-	}
-
-	/// Expand the bbox to encompass the given \p bbox.
-	void include(const bbox3& bbox) noexcept
-	{
-		include(bbox.mMin);
-		include(bbox.mMax);
 	}
 
 	/// Translates bbox by vector \p v.
@@ -200,7 +291,7 @@ public:
 
 	/// Returns transformed version of this bbox.
 	/// \param[in]  mat  A transformation matrix.
-	bbox3 transformed(const glm::mat4& mat) const noexcept;
+	static bbox3 transformed(const bbox3& bbox, const glm::mat4& mat) noexcept;
 
 	/// Scale the bbox by \p scale, centered around \p origin.
 	/// \param[in]  scale  3D vector specifying scale along each axis.
@@ -246,32 +337,20 @@ public:
 	/// Retrieves the X range of bbox.
 	range x_range() const noexcept
 	{
-		return _make_range(mMin.x, mMax.x);
+		return range{mMin.x, mMax.x};
 	}
 
 	/// Retrieves the Y range of bbox.
 	range y_range() const noexcept
 	{
-		return _make_range(mMin.y, mMax.y);
+		return range{mMin.y, mMax.y};
 	}
 
 	/// Retrieves the Z range of bbox.
 	range z_range() const noexcept
 	{
-		return _make_range(mMin.z, mMax.z);
+		return range{mMin.z, mMax.z};
 	}
-
-	/// Type returned from call to intersect.
-	enum class Intersection
-	{
-		Inside,
-		Intersect,
-		Outside
-	};
-
-	/// Returns one of the intersection types. If either of the bboxes are invalid,
-	/// then OUTSIDE is returned.
-	Intersection intersects(const bbox3& b) const noexcept;
 
 	/// If \p point is outside bbox, returns closest point to \p point on bbox.
 	/// Otherwise, returns \p point itself.
@@ -280,8 +359,15 @@ public:
 		return glm::clamp(point, mMin, mMax);
 	}
 
+	/// Returns one of the intersection types. If either of the bboxes are invalid,
+	/// then OUTSIDE is returned.
+	static Intersection intersects(const bbox3& a, const bbox3& b) noexcept;
+
 	/// Tests if sphere positioned at \p pos with radius \p r intersects bbox.
-	bool intersects_sphere(const glm::vec3& pos, glm::float_t radius) const noexcept;
+	static Intersection intersects_sphere(const bbox3& bbox, const glm::vec3& center, glm::float_t radius) noexcept;
+
+	/// Tests if \p ray intersects \p bbox.
+	static Intersection intersects_ray(const bbox3& bbox, const ray3_inv& ray) noexcept;
 
 private:
 

@@ -253,7 +253,7 @@ static void process_point_lights(const std::vector<PointLight>& point_lights,
 			continue;
 
 		// TODO: implement per-light AABB cutoff to prevent light leaking
-		if(submesh_bbox.intersects_sphere(light.position(), light.radius())) {
+		if(bbox3::intersects_sphere(submesh_bbox, light.position(), light.radius()) != bbox3::Intersection::Outside) {
 			auto dist = glm::length(light.position() - submesh_bbox.closest_point(light.position()));
 			if(light.distance_attenuation(dist) > 0.0f) {
 				unif::i1(shader, indexed_uniform("point_light_indices", "", point_light_count++), i);
@@ -278,7 +278,7 @@ static void process_spot_lights(const std::vector<SpotLight>& spot_lights,
 			continue;
 
 		// TODO: implement cone-AABB collision check
-		if(submesh_bbox.intersects_sphere(light.position(), light.radius())) {
+		if(bbox3::intersects_sphere(submesh_bbox, light.position(), light.radius()) != bbox3::Intersection::Outside) {
 			auto dist = glm::length(light.position() - submesh_bbox.closest_point(light.position()));
 			if(light.distance_attenuation(dist) > 0.0f) {
 				unif::i1(shader, indexed_uniform("spot_light_indices", "", spot_light_count++), i);
@@ -355,7 +355,7 @@ void Renderer::draw()
 				continue;
 			}
 
-			auto submesh_bbox = submesh.bbox.transformed(model.transform);
+			auto submesh_bbox = bbox3::transformed(submesh.bbox, model.transform);
 			if(m_scene->main_camera.frustum.bbox_culled(submesh_bbox))
 				continue;
 
@@ -380,7 +380,7 @@ void Renderer::draw()
 		const model::Mesh& submesh = m_scene->submeshes[model.submeshes[idx.submesh_idx]];
 		const Material& material   = m_scene->materials[model.materials[idx.submesh_idx]];
 
-		auto submesh_bbox = submesh.bbox.transformed(model.transform);
+		auto submesh_bbox = bbox3::transformed(submesh.bbox, model.transform);
 		if(m_scene->main_camera.frustum.bbox_culled(submesh_bbox))
 			continue;
 

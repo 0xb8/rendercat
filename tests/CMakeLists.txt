@@ -15,6 +15,19 @@ endif()
 add_executable(unique_handle_test unique_handle.cpp)
 target_link_libraries(unique_handle_test PRIVATE Catch)
 target_include_directories(unique_handle_test PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_include_directories(unique_handle_test PRIVATE ${PROJECT_SOURCE_DIR}/include)
+
+add_executable(bbox_test bbox_test.cpp ${PROJECT_SOURCE_DIR}/src/core/bbox.cpp)
+target_include_directories(bbox_test PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(bbox_test PRIVATE Catch)
+
+set_target_properties(bbox_test
+	PROPERTIES
+		CXX_STANDARD 17
+		CXX_STANDARD_REQUIRED ON
+		CXX_EXTENSIONS OFF
+)
+
 
 set_target_properties(unique_handle_test Catch
 	PROPERTIES
@@ -25,3 +38,4 @@ set_target_properties(unique_handle_test Catch
 
 include(ParseAndAddCatchTests)
 ParseAndAddCatchTests(unique_handle_test)
+ParseAndAddCatchTests(bbox_test)
