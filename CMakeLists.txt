@@ -50,6 +50,7 @@ target_link_libraries(rendercat
 		fmt::fmt
 		debug::draw
 		glbinding::glbinding
+		glbinding::glbinding-aux
 		glfw
 		glm
 		imgui::imgui

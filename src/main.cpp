@@ -1,6 +1,7 @@
 #include <chrono>
 #include <thread>
 #include <fmt/format.h>
+#include <ios>
 
 #include <glbinding/gl45core/boolean.h>
 #include <glbinding/gl45core/types.h>
@@ -293,7 +294,7 @@ static void process_screenshot()
 //------------------------------------------------------------------------------
 int main() try
 {
-	std::ios::sync_with_stdio(false);
+	std::ios_base::sync_with_stdio(false);
 	glfwInit();
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
@@ -317,7 +318,9 @@ int main() try
 
 	glfwMakeContextCurrent(window);
 
-	glbinding::Binding::initialize(false);
+	glbinding::Binding::initialize([](const char * name) {
+		return glfwGetProcAddress(name);
+	    }, false);
 
 	rc::glmeta::log_all_supported_extensions("logs/gl_extensions.log");
 	check_required_extensions();

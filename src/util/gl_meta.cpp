@@ -1,6 +1,6 @@
 #include <atomic>
-#include <glbinding/ContextInfo.h>
-#include <glbinding/Meta.h>
+#include <glbinding-aux/ContextInfo.h>
+#include <glbinding-aux/Meta.h>
 #include <rendercat/util/gl_meta.hpp>
 #include <rendercat/util/unique_file_handle.hpp>
 #include <fmt/format.h>
@@ -10,18 +10,18 @@ static std::atomic_flag extensions_ready;
 
 std::string rc::glmeta::renderer()
 {
-	return glbinding::ContextInfo::renderer();
+	return glbinding::aux::ContextInfo::renderer();
 }
 
 std::string rc::glmeta::vendor()
 {
-	return glbinding::ContextInfo::vendor();
+	return glbinding::aux::ContextInfo::vendor();
 }
 
 bool rc::glmeta::extension_supported(gl::GLextension ext)
 {
 	if(!extensions_ready.test_and_set()) {
-		extensions = glbinding::ContextInfo::extensions();
+		extensions = glbinding::aux::ContextInfo::extensions();
 	}
 	return extensions.find(ext) != extensions.end();
 }
@@ -29,12 +29,12 @@ bool rc::glmeta::extension_supported(gl::GLextension ext)
 std::string rc::glmeta::supported_extensions()
 {
 	if(!extensions_ready.test_and_set()) {
-		extensions = glbinding::ContextInfo::extensions();
+		extensions = glbinding::aux::ContextInfo::extensions();
 	}
 	std::string res;
 	res.reserve(extensions.size() * 96);
 	for(const auto& ext : extensions) {
-		res.append(glbinding::Meta::getString(ext));
+		res.append(glbinding::aux::Meta::getString(ext));
 		res.push_back('\n');
 	}
 	return res;
@@ -64,6 +64,6 @@ void rc::glmeta::require_extension(gl::GLextension ext)
 	if(!extension_supported(ext)) {
 		throw std::runtime_error(
 			fmt::format("required OpenGL extension is not supported by {} ({}): {}\n",
-				renderer(), vendor(), glbinding::Meta::getString(ext)));
+				renderer(), vendor(), glbinding::aux::Meta::getString(ext)));
 	}
 }

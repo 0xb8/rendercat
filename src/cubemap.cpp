@@ -11,7 +11,7 @@
 #include <glbinding/gl45core/enum.h>
 #include <glbinding/gl45core/types.h>
 #include <glbinding/gl45core/functions.h>
-#include <glbinding/Meta.h>
+#include <glbinding-aux/Meta.h>
 #include <rendercat/util/gl_meta.hpp>
 
 using namespace gl45core;
@@ -86,8 +86,9 @@ Cubemap::Cubemap() noexcept
 		           "        Global:          {}\n"
 		           "        Per-texture:     {}\n",
 		           max_texture_size,
-		           glbinding::Meta::getString(has_seamless_filtering),
-		           glbinding::Meta::getString(has_seamless_filtering_per_texture));
+
+		           glbinding::aux::Meta::getString(has_seamless_filtering),
+		           glbinding::aux::Meta::getString(has_seamless_filtering_per_texture));
 	}
 
 	if(!m_vao && !m_vbo) {

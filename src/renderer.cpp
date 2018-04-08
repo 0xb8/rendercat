@@ -11,7 +11,7 @@
 #include <glbinding/gl45core/types.h>
 #include <glbinding/gl45core/enum.h>
 #include <glbinding/gl45core/functions.h>
-#include <glbinding/Meta.h>
+#include <glbinding-aux/Meta.h>
 
 #include <debug_draw.hpp>
 
@@ -64,7 +64,7 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 	           max_elements_vertices,
 	           max_elements_indices,
 	           max_uniform_locations,
-	           glbinding::Meta::getString(frag_derivative_quality_hint));
+	           glbinding::aux::Meta::getString(frag_derivative_quality_hint));
 	std::fflush(stdout);
 
 	dd::initialize(&debug_draw_ctx);
