@@ -10,22 +10,12 @@
 
 namespace rc {
 
-struct _bbox_base
+/// Type returned from call to intersect.
+enum class Intersection : uint8_t
 {
-	/// Range of axis' coordinates.
-	struct range
-	{
-		glm::float_t min;
-		glm::float_t max;
-	};
-
-	/// Type returned from call to intersect.
-	enum class Intersection : uint8_t
-	{
-		Outside = 0,
-		Intersect = 1,
-		Inside = 2,
-	};
+	Outside = 0,
+	Intersect = 1,
+	Inside = 2,
 };
 
 #ifdef __cpp_fold_expressions
@@ -66,9 +56,18 @@ namespace _bbox_detail {
 #endif
 
 
-class bbox2 : public _bbox_base
+class bbox2
 {
 public:
+
+	/// Range of axis' coordinates.
+	struct range
+	{
+		glm::float_t min;
+		glm::float_t max;
+	};
+
+
 	/// Builds a null bbox.
 	bbox2() = default;
 
@@ -79,14 +78,14 @@ public:
 		include(p2);
 	}
 
-	/// Returns true if bbox is NULL (not set).
-	bool is_null() const noexcept {return mMin.x > mMax.x || mMin.y > mMax.y;}
+	/// Returns true if bbox is NULL (not set), or bbox is invalid (has nan).
+	bool is_null() const noexcept {return !(mMin.x <= mMax.x && mMin.y <= mMax.y);}
 
 	/// Expand the bbox to include point \p p.
 	void include(const glm::vec2& p) noexcept
 	{
-		mMin = glm::min(mMin, p);
-		mMax = glm::max(mMax, p);
+		mMin = glm::min(p, mMin);
+		mMax = glm::max(p, mMax);
 	}
 
 #ifdef __cpp_fold_expressions
@@ -95,8 +94,8 @@ public:
 	template<typename... Ts>
 	void include(const glm::vec2& p1, const Ts&... points) noexcept
 	{
-		mMin = _bbox_detail::min(mMin, p1, points...);
-		mMax = _bbox_detail::max(mMax, p1, points...);
+		mMin = _bbox_detail::min(p1, points..., mMin);
+		mMax = _bbox_detail::max(p1, points..., mMax);
 	}
 
 #endif
@@ -104,8 +103,8 @@ public:
 	/// Expand the bbox to encompass the given \p bbox.
 	void include(const bbox2& bbox) noexcept
 	{
-		mMin = glm::min(mMin, bbox.mMin);
-		mMax = glm::max(mMax, bbox.mMax);
+		mMin = glm::min(bbox.mMin, mMin);
+		mMax = glm::max(bbox.mMax, mMax);
 	}
 
 	/// Expand the bbox to include a circle centered at \p center and of radius \p
@@ -123,15 +122,15 @@ public:
 	void extend(glm::float_t val) noexcept
 	{
 		assert(!is_null());
+		assert(!std::isnan(val));
 		mMin -= glm::vec2(val);
 		mMax += glm::vec2(val);
-
 	}
 
 	/// Translates bbox by vector \p v.
 	void translate(const glm::vec2& v) noexcept
 	{
-		assert(!is_null());
+		assert(!is_null()); // TODO: nan-safety
 		mMin += v;
 		mMax += v;
 	}
@@ -218,9 +217,16 @@ private:
 };
 
 
-class bbox3 : public _bbox_base
+class bbox3
 {
 public:
+
+	/// Range of axis' coordinates.
+	struct range
+	{
+		glm::float_t min;
+		glm::float_t max;
+	};
 
 	/// Builds a null bbox.
 	bbox3() = default;
@@ -233,12 +239,13 @@ public:
 	}
 
 	/// Returns true if bbox is NULL (not set).
-	bool is_null() const noexcept {return mMin.x > mMax.x || mMin.y > mMax.y || mMin.z > mMax.z;}
+	bool is_null() const noexcept {return !(mMin.x <= mMax.x && mMin.y <= mMax.y && mMin.z <= mMax.z);}
 
 	/// Extend the bounding box on all sides by \p val.
 	void extend(glm::float_t val) noexcept
 	{
 		assert(!is_null());
+		assert(!std::isnan(val));
 		mMin -= glm::vec3(val);
 		mMax += glm::vec3(val);
 
@@ -257,8 +264,8 @@ public:
 	template<typename... Ts>
 	void include(const glm::vec3& p1, const Ts&... points) noexcept
 	{
-		mMin = _bbox_detail::min(mMin, p1, points...);
-		mMax = _bbox_detail::max(mMax, p1, points...);
+		mMin = _bbox_detail::min(p1, points..., mMin);
+		mMax = _bbox_detail::max(p1, points..., mMax);
 	}
 
 #endif
@@ -266,8 +273,8 @@ public:
 	/// Expand the bbox to encompass the given \p bbox.
 	void include(const bbox3& bbox) noexcept
 	{
-		mMin = glm::min(mMin, bbox.mMin);
-		mMax = glm::max(mMax, bbox.mMax);
+		mMin = glm::min(bbox.mMin, mMin);
+		mMax = glm::max(bbox.mMax, mMax);
 	}
 
 	/// Expand the bbox to include a sphere centered at \p center and of radius \p

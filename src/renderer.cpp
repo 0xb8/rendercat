@@ -253,7 +253,7 @@ static void process_point_lights(const std::vector<PointLight>& point_lights,
 			continue;
 
 		// TODO: implement per-light AABB cutoff to prevent light leaking
-		if(bbox3::intersects_sphere(submesh_bbox, light.position(), light.radius()) != bbox3::Intersection::Outside) {
+		if(bbox3::intersects_sphere(submesh_bbox, light.position(), light.radius()) != Intersection::Outside) {
 			auto dist = glm::length(light.position() - submesh_bbox.closest_point(light.position()));
 			if(light.distance_attenuation(dist) > 0.0f) {
 				unif::i1(shader, indexed_uniform("point_light_indices", "", point_light_count++), i);
@@ -278,7 +278,7 @@ static void process_spot_lights(const std::vector<SpotLight>& spot_lights,
 			continue;
 
 		// TODO: implement cone-AABB collision check
-		if(bbox3::intersects_sphere(submesh_bbox, light.position(), light.radius()) != bbox3::Intersection::Outside) {
+		if(bbox3::intersects_sphere(submesh_bbox, light.position(), light.radius()) != Intersection::Outside) {
 			auto dist = glm::length(light.position() - submesh_bbox.closest_point(light.position()));
 			if(light.distance_attenuation(dist) > 0.0f) {
 				unif::i1(shader, indexed_uniform("spot_light_indices", "", spot_light_count++), i);

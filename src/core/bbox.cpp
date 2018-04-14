@@ -125,7 +125,7 @@ glm::float_t bbox3::shortest_edge() const noexcept
 	return glm::compMin(diagonal());
 }
 
-bbox2::Intersection bbox2::intersects(const bbox2 & a, const bbox2 & b) noexcept
+Intersection bbox2::intersects(const bbox2 & a, const bbox2 & b) noexcept
 {
 	if (a.is_null() || b.is_null())
 		return Intersection::Outside;
@@ -145,7 +145,7 @@ bbox2::Intersection bbox2::intersects(const bbox2 & a, const bbox2 & b) noexcept
 	return Intersection::Intersect;
 }
 
-bbox3::Intersection bbox3::intersects(const bbox3& a, const bbox3& b) noexcept
+Intersection bbox3::intersects(const bbox3& a, const bbox3& b) noexcept
 {
 	if (a.is_null() || b.is_null())
 		return Intersection::Outside;
@@ -167,17 +167,16 @@ bbox3::Intersection bbox3::intersects(const bbox3& a, const bbox3& b) noexcept
 	return Intersection::Intersect;
 }
 
-static _bbox_base::Intersection
-intersects_sphere_impl(glm::vec3 closest_to_center,
+static Intersection intersects_sphere_impl(glm::vec3 closest_to_center,
                        glm::vec3 center,
                        glm::float_t radius) noexcept
 {
 	double distance2 = glm::length2(center - closest_to_center);
 	auto radius2 = radius*radius;
-	return static_cast<_bbox_base::Intersection>(distance2 <= radius2);
+	return static_cast<Intersection>(distance2 <= radius2);
 }
 
-bbox2::Intersection bbox2::intersects_sphere(const bbox2& bbox, const glm::vec2& center, glm::float_t radius) noexcept
+Intersection bbox2::intersects_sphere(const bbox2& bbox, const glm::vec2& center, glm::float_t radius) noexcept
 {
 	if(bbox.is_null()) return Intersection::Outside;
 	return intersects_sphere_impl(glm::vec3(bbox.closest_point(center), 0.0f),
@@ -185,7 +184,7 @@ bbox2::Intersection bbox2::intersects_sphere(const bbox2& bbox, const glm::vec2&
 	                              radius);
 }
 
-bbox3::Intersection bbox3::intersects_sphere(const bbox3& bbox, const glm::vec3& center, glm::float_t radius) noexcept
+Intersection bbox3::intersects_sphere(const bbox3& bbox, const glm::vec3& center, glm::float_t radius) noexcept
 {
 	if(bbox.is_null()) return Intersection::Outside;
 	return intersects_sphere_impl(bbox.closest_point(center),
@@ -193,7 +192,7 @@ bbox3::Intersection bbox3::intersects_sphere(const bbox3& bbox, const glm::vec3&
 	                              radius);
 }
 
-bbox2::Intersection bbox2::intersects_ray(const bbox2& bbox, const ray2_inv& ray) noexcept
+Intersection bbox2::intersects_ray(const bbox2& bbox, const ray2_inv& ray) noexcept
 {
 	auto t1 = (bbox.mMin[0] - ray.origin[0])*ray.dir_inv[0];
 	auto t2 = (bbox.mMax[0] - ray.origin[0])*ray.dir_inv[0];
@@ -209,10 +208,10 @@ bbox2::Intersection bbox2::intersects_ray(const bbox2& bbox, const ray2_inv& ray
 		tmax = glm::min(tmax, glm::max(glm::max(t1, t2), tmin));
 	}
 
-	return static_cast<bbox2::Intersection>(tmax > glm::max(tmin, 0.0f));
+	return static_cast<Intersection>(tmax > glm::max(tmin, 0.0f));
 }
 
-bbox3::Intersection bbox3::intersects_ray(const bbox3& bbox, const ray3_inv& ray) noexcept
+Intersection bbox3::intersects_ray(const bbox3& bbox, const ray3_inv& ray) noexcept
 {
 	auto t1 = (bbox.mMin[0] - ray.origin[0])*ray.dir_inv[0];
 	auto t2 = (bbox.mMax[0] - ray.origin[0])*ray.dir_inv[0];
@@ -228,6 +227,6 @@ bbox3::Intersection bbox3::intersects_ray(const bbox3& bbox, const ray3_inv& ray
 		tmax = glm::min(tmax, glm::max(glm::max(t1, t2), tmin));
 	}
 
-	return static_cast<bbox3::Intersection>(tmax > glm::max(tmin, 0.0f));
+	return static_cast<Intersection>(tmax > glm::max(tmin, 0.0f));
 }
 
