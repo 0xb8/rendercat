@@ -64,7 +64,7 @@ namespace Texture
 		Compressed_SRGB_ALPHA_DXT5 = 0x8C4F
 	};
 
-	enum class PixelDataType : uint32_t
+	enum class TexelDataType : uint32_t
 	{
 		UnsignedByte  = 0x1401,
 		Byte          = 0x1400,
@@ -156,7 +156,7 @@ struct ImageTextureStorage2D
 	void subImage2D(uint16_t level,
 	                uint16_t width,
 	                uint16_t height,
-	                Texture::PixelDataType type,
+	                Texture::TexelDataType type,
 	                const void* pixels);
 
 	void compressedSubImage2D(uint16_t level,
@@ -191,7 +191,7 @@ struct ImageTextureStorage2D
 
 	bool valid() const noexcept
 	{
-		return m_handle.operator bool();
+		return m_handle.operator bool() && m_internal_format != Texture::InternalFormat::InvalidFormat;
 	}
 
 	uint32_t texture_handle() const noexcept

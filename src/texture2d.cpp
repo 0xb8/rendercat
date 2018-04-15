@@ -27,10 +27,15 @@ ImageTextureStorage2D::ImageTextureStorage2D(uint16_t width,
 		max_size = max_tex_size;
 	}
 
-	if(width <= 2 || height <= 2 || width > max_size || height > max_size)
+	if(width <= 2
+	   || height <= 2
+	   || width > max_size
+	   || height > max_size
+	   || format == Texture::InternalFormat::InvalidFormat
+	   || format == Texture::InternalFormat::InvalidFormat)
 		return;
 
-	m_mip_levels = (uint8_t)std::floor(std::log2(std::max(width, height))) + 1;
+	m_mip_levels = static_cast<std::uint8_t>(std::floor(std::log2(std::max(width, height))) + 1);
 	m_width = width;
 	m_height = height;
 	m_internal_format = format;
@@ -134,7 +139,7 @@ static GLenum components(Texture::InternalFormat format)
 void ImageTextureStorage2D::subImage2D(uint16_t level,
                                        uint16_t width,
                                        uint16_t height,
-                                       Texture::PixelDataType type,
+                                       Texture::TexelDataType type,
                                        const void * pixels)
 {
 	if(unlikely(!m_handle)) return;
@@ -147,9 +152,27 @@ void ImageTextureStorage2D::subImage2D(uint16_t level,
 	glTextureSubImage2D(*m_handle, level, 0, 0, width, height, component_format, static_cast<GLenum>(type), pixels);
 }
 
-void ImageTextureStorage2D::compressedSubImage2D(uint16_t, uint16_t, uint16_t, size_t, const void *)
+void ImageTextureStorage2D::compressedSubImage2D(uint16_t level, uint16_t width, uint16_t height, size_t data_size, const void *data)
 {
-	// not implemented
+	switch (m_internal_format) {
+	case Texture::InternalFormat::Compressed_RGB_DXT1:
+	case Texture::InternalFormat::Compressed_RGBA_DXT1:
+	case Texture::InternalFormat::Compressed_RGBA_DXT3:
+	case Texture::InternalFormat::Compressed_RGBA_DXT5:
+	case Texture::InternalFormat::Compressed_SRGB_DXT1:
+	case Texture::InternalFormat::Compressed_SRGB_ALPHA_DXT1:
+	case Texture::InternalFormat::Compressed_SRGB_ALPHA_DXT3:
+	case Texture::InternalFormat::Compressed_SRGB_ALPHA_DXT5:
+		break;
+	default:
+		return;
+	}
+	if(unlikely(!m_handle)) return;
+	if(m_shared) {
+		fmt::print(stderr, "[texture2d.storage] attempted to mutate shared texture: not implemented\n");
+		return;
+	}
+	glCompressedTextureSubImage2D(*m_handle, level, 0, 0, width, height, static_cast<GLenum>(m_internal_format), data_size, data);
 }
 
 uint16_t ImageTextureStorage2D::channels() const noexcept
@@ -204,7 +227,7 @@ ImageTexture2D ImageTexture2D::fromFile(const std::string_view path,
 	{
 
 		ImageTextureStorage2D storage(width, height, InternalFormat::R_8);
-		storage.subImage2D(0, width, height, PixelDataType::UnsignedByte, data);
+		storage.subImage2D(0, width, height, TexelDataType::UnsignedByte, data);
 		ret.m_storage = std::move(storage);
 		ret.setSwizzleMask(SwizzleMask{ChannelValue::Red, ChannelValue::Red, ChannelValue::Red, ChannelValue::One});
 		break;
@@ -213,7 +236,7 @@ ImageTexture2D ImageTexture2D::fromFile(const std::string_view path,
 	{
 		auto format = color_space == ColorSpace::Linear ? InternalFormat::RGB_8 : InternalFormat::SRGB_8;
 		ImageTextureStorage2D storage(width, height, format);
-		storage.subImage2D(0, width, height, PixelDataType::UnsignedByte, data);
+		storage.subImage2D(0, width, height, TexelDataType::UnsignedByte, data);
 		ret.m_storage = std::move(storage);
 		break;
 	}
@@ -221,7 +244,7 @@ ImageTexture2D ImageTexture2D::fromFile(const std::string_view path,
 	{
 		auto format = color_space == ColorSpace::Linear ? InternalFormat::RGBA_8 : InternalFormat::SRGB_8_ALPHA_8;
 		ImageTextureStorage2D storage(width, height, format);
-		storage.subImage2D(0, width, height, PixelDataType::UnsignedByte, data);
+		storage.subImage2D(0, width, height, TexelDataType::UnsignedByte, data);
 		ret.m_storage = std::move(storage);
 		break;
 	}
