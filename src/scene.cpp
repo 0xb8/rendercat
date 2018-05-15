@@ -361,13 +361,13 @@ void Scene::update()
 				ImGui::SameLine();
 				ImGui::PushStyleColor(ImGuiCol_Text, col);
 
-				if(material.alphaMode() == Texture::AlphaMode::Opaque) {
+				if(material.alpha_mode() == Texture::AlphaMode::Opaque) {
 					ImGui::TextUnformatted("Opaque "); ImGui::SameLine();
 				}
-				if(material.alphaMode() == Texture::AlphaMode::Mask) {
+				if(material.alpha_mode() == Texture::AlphaMode::Mask) {
 					ImGui::TextUnformatted("Alpha Mask "); ImGui::SameLine();
 				}
-				if(material.alphaMode() == Texture::AlphaMode::Blend) {
+				if(material.alpha_mode() == Texture::AlphaMode::Blend) {
 					ImGui::TextUnformatted("Blend "); ImGui::SameLine();
 				}
 				ImGui::PopStyleColor();
@@ -385,23 +385,23 @@ void Scene::update()
 
 				auto display_map_info = [](const auto& map)
 				{
-					auto& storage = map.m_storage;
+					auto& storage = map.storage();
 					ImGui::Text("Dimensions:      %d x %d (%d mips)",
-						    storage.width(),
-						    storage.height(),
-						    storage.levels());
+						    map.width(),
+						    map.height(),
+						    map.levels());
 
 					ImGui::Text("Color space:     %s", Texture::enum_value_str(storage.color_space()));
 					ImGui::Text("Channels:        %d", storage.channels());
 					ImGui::Text("Internal format: %s", Texture::enum_value_str(storage.format()));
-					ImGui::Text("Mip Mapping:     %s", Texture::enum_value_str(map.m_mipmapping));
-					ImGui::Text("Filtering:       %s", Texture::enum_value_str(map.m_filtering));
-					ImGui::Text("Aniso Samples:   %d", map.m_anisotropic_samples);
+					ImGui::Text("Mip Mapping:     %s", Texture::enum_value_str(map.mipmapping()));
+					ImGui::Text("Filtering:       %s", Texture::enum_value_str(map.filtering()));
+					ImGui::Text("Aniso Samples:   %d", map.anisotropy());
 					ImGui::Text("Swizzle Mask:    %s %s %s %s",
-					            Texture::enum_value_str(map.m_swizzle_mask.red),
-					            Texture::enum_value_str(map.m_swizzle_mask.green),
-					            Texture::enum_value_str(map.m_swizzle_mask.blue),
-					            Texture::enum_value_str(map.m_swizzle_mask.alpha));
+					            Texture::enum_value_str(map.swizzle_mask().red),
+					            Texture::enum_value_str(map.swizzle_mask().green),
+					            Texture::enum_value_str(map.swizzle_mask().blue),
+					            Texture::enum_value_str(map.swizzle_mask().alpha));
 					ImGui::Text("GL Handle:       %d", storage.texture_handle());
 
 					if(storage.shared()) {
@@ -422,7 +422,7 @@ void Scene::update()
 				auto display_map = [&material,&display_map_info](const auto& map, auto kind)
 				{
 					ImGui::PushID(Texture::enum_value_str(kind));
-					if(material.hasTextureKind(kind) && ImGui::TreeNode("mapparams", "%s Map", Texture::enum_value_str(kind))) {
+					if(material.has_texture_kind(kind) && ImGui::TreeNode("mapparams", "%s Map", Texture::enum_value_str(kind))) {
 						display_map_info(map);
 						ImGui::TreePop();
 					}

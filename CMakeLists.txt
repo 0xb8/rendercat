@@ -22,6 +22,7 @@ add_executable(rendercat
 	src/renderer.cpp
 	src/scene.cpp
 	src/shader_set.cpp
+	src/texture.cpp
 	src/texture2d.cpp
 	src/core/bbox.cpp
 	src/core/camera.cpp

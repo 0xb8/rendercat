@@ -30,7 +30,7 @@ static GLint max_texture_size;                       // spec requires 16384+, bu
 static GLboolean has_seamless_filtering;             // GL_ARB_seamless_cube_map is widely supported
 static GLboolean has_seamless_filtering_per_texture; // requires GL_ARB_seamless_cubemap_per_texture, checked below
 
-Cubemap::Cubemap() noexcept
+Cubemap::Cubemap()
 {
 	static const float cubemap_vertices[] = {
 		-1.0f,  1.0f, -1.0f,

@@ -12,52 +12,54 @@ struct Material
 	static void set_default_diffuse(const std::string_view path) noexcept;
 	static Material create_default_material();
 
-	Material(const std::string& name_);
+	explicit Material(const std::string_view name_) : name(name_) { }
 	~Material() = default;
 
 	RC_DEFAULT_MOVE(Material)
+	RC_DISABLE_COPY(Material)
 
 	bool valid() const;
-
-	bool hasTextureKind(Texture::Kind) const noexcept;
+	bool has_texture_kind(Texture::Kind) const noexcept;
 
 	void bind(uint32_t s) const noexcept;
 
-	void diffuseColor(const glm::vec4& color) noexcept
+	void set_diffuse_color(const glm::vec4& color) noexcept
 	{
 		m_diffuse_color = color;
-		m_flags |= 1 << 6;
 	}
-	void specularColorShininess(const glm::vec3& color, float shininess = 8.0f) noexcept
+
+	void set_specular_color_shininess(const glm::vec3& color, float shininess = 8.0f) noexcept
 	{
 		m_specular_color = color;
 		m_shininess = shininess;
 	}
-	void rougnessMetallic(float rougness, float metallic) noexcept
+
+	void set_rougness_metallic(float rougness, float metallic) noexcept
 	{
 		m_roughness = rougness;
 		m_metallic = metallic;
 	}
-	void emissiveColor(const glm::vec3& color) noexcept
+
+	void set_emissive_color(const glm::vec3& color) noexcept
 	{
 		m_emissive_color = color;
 	}
 
-	void addDiffuseMap(const std::string_view name, const std::string_view basedir);
-	void addNormalMap(const std::string_view name, const std::string_view basedir);
-	void addSpecularMap(const std::string_view name, const std::string_view basedir);
+	void add_diffuse_map(const std::string_view name, const std::string_view basedir);
+	void add_normal_map(const std::string_view name, const std::string_view basedir);
+	void add_specular_map(const std::string_view name, const std::string_view basedir);
 
-	Texture::AlphaMode alphaMode() const noexcept
+	Texture::AlphaMode alpha_mode() const noexcept
 	{
 		return m_alpha_mode;
 	}
-	void setAlphaMode(Texture::AlphaMode m, float alpha_cutoff = 0.5f) noexcept;
+	void set_alpha_mode(Texture::AlphaMode m, float alpha_cutoff = 0.5f) noexcept;
 
 	std::string name;
 	bool face_culling_enabled = true;
 
 private:
-	RC_DISABLE_COPY(Material)
+
 	static TextureCache* cache;
 	static ImageTexture2D default_diffuse;
 

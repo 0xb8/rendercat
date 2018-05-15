@@ -346,11 +346,11 @@ void Renderer::draw()
 			const model::Mesh& submesh = m_scene->submeshes[model.submeshes[submesh_idx]];
 			const Material& material   = m_scene->materials[model.materials[submesh_idx]];
 
-			if(material.alphaMode() == Texture::AlphaMode::Mask) {
+			if(material.alpha_mode() == Texture::AlphaMode::Mask) {
 				m_masked_meshes.push_back(ModelMeshIdx{model_idx, submesh_idx});
 				continue;
 			}
-			if(material.alphaMode() == Texture::AlphaMode::Blend) {
+			if(material.alpha_mode() == Texture::AlphaMode::Blend) {
 				m_blended_meshes.push_back(ModelMeshIdx{model_idx, submesh_idx});
 				continue;
 			}

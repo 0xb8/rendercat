@@ -11,7 +11,7 @@ struct TextureCache
 
 	void add(std::string&& path, ImageTexture2D&& tex)
 	{
-		cache.emplace(std::pair<std::string, ImageTexture2D>(std::move(path), std::move(tex)));
+		cache.emplace(std::make_pair(std::move(path), std::move(tex)));
 	}
 
 	ImageTexture2D* get(const std::string& path)

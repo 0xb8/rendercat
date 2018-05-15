@@ -35,6 +35,14 @@
 	Class(Class&&) noexcept = default; \
 	Class& operator =(Class&&) noexcept = default;
 
+#define RC_DEFAULT_COPY(Class) \
+	Class(Class&) = default; \
+	Class& operator =(Class&) =  default;
+
+#define RC_DEFAULT_COPY_NOEXCEPT(Class) \
+	Class(Class&) noexcept = default; \
+	Class& operator =(Class&) noexcept = default;
+
 inline std::ostream& operator<<(std::ostream& out, const glm::vec2& g)
 {
     return out << glm::to_string(g);

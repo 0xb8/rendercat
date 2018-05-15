@@ -34,8 +34,8 @@ void Material::set_default_diffuse(const std::string_view path) noexcept
 
 	assert(default_diffuse.valid() && "invalid default diffuse");
 
-	default_diffuse.setFiltering(Texture::MipMapping::Disable, Texture::Filtering::Nearest);
-	default_diffuse.setAnisotropy(1);
+	default_diffuse.set_filtering(Texture::MipMapping::Disable, Texture::Filtering::Nearest);
+	default_diffuse.set_anisotropy(1);
 }
 
 Material Material::create_default_material()
@@ -44,11 +44,6 @@ Material Material::create_default_material()
 	Material missing{"missing"};
 	missing.m_diffuse_map = default_diffuse.share();
 	return missing;
-}
-
-Material::Material(const std::string & name_) : name(name_)
-{
-
 }
 
 static bool test(uint32_t f, Texture::Kind t) noexcept
@@ -73,7 +68,7 @@ bool Material::valid() const
 	return ret;
 }
 
-void Material::setAlphaMode(Texture::AlphaMode m, float alpha_cutoff) noexcept
+void Material::set_alpha_mode(Texture::AlphaMode m, float alpha_cutoff) noexcept
 {
 	m_alpha_mode = m;
 	m_alpha_cutoff = alpha_cutoff;
@@ -97,19 +92,19 @@ void Material::bind(uint32_t s) const noexcept
 	unif::i1(s,  "material.type", flags);
 
 	if(test(m_flags, Kind::Diffuse)) {
-		if(!m_diffuse_map.bindToUnit(0)) {
-			default_diffuse.bindToUnit(0);
+		if(!m_diffuse_map.bind_to_unit(0)) {
+			default_diffuse.bind_to_unit(0);
 		}
 	}
 	if(test(m_flags, Kind::Normal)) {
-		m_normal_map.bindToUnit(1);
+		m_normal_map.bind_to_unit(1);
 	}
 	if(test(m_flags, Kind::Specular)) {
-		m_specular_map.bindToUnit(2);
+		m_specular_map.bind_to_unit(2);
 	}
 }
 
-bool Material::hasTextureKind(Texture::Kind k) const noexcept
+bool Material::has_texture_kind(Texture::Kind k) const noexcept
 {
 	return m_flags & repr(k);
 }
@@ -132,7 +127,7 @@ static ImageTexture2D try_from_cache_or_load(TextureCache* cache, std::string&& 
 }
 
 
-void Material::addDiffuseMap(const std::string_view name, const std::string_view basedir)
+void Material::add_diffuse_map(const std::string_view name, const std::string_view basedir)
 {
 	std::string diffuse_path;
 	diffuse_path = basedir;
@@ -154,7 +149,7 @@ void Material::addDiffuseMap(const std::string_view name, const std::string_view
 	}
 }
 
-void Material::addNormalMap(const std::string_view name, const std::string_view basedir)
+void Material::add_normal_map(const std::string_view name, const std::string_view basedir)
 {
 	std::string normal_path;
 	normal_path = basedir;
@@ -169,7 +164,7 @@ void Material::addNormalMap(const std::string_view name, const std::string_view 
 	}
 }
 
-void Material::addSpecularMap(const std::string_view name, const std::string_view basedir)
+void Material::add_specular_map(const std::string_view name, const std::string_view basedir)
 {
 	std::string specular_path;
 	specular_path = basedir;

@@ -11,14 +11,12 @@ class Cubemap
 	vertex_array_handle  m_vao;
 	texture_handle       m_cubemap;
 
-	RC_DISABLE_COPY(Cubemap)
-
 public:
-	Cubemap() noexcept;
-	~Cubemap()  = default;
+	Cubemap();
+	~Cubemap() = default;
 
-	Cubemap(Cubemap&& o) noexcept = default;
-	Cubemap& operator=(Cubemap&& o) noexcept = default;
+	RC_DEFAULT_MOVE_NOEXCEPT(Cubemap)
+	RC_DISABLE_COPY(Cubemap)
 
 	void load_textures(std::string_view basedir);
 	void draw(uint32_t shader, const glm::mat4& view, const glm::mat4& projection) noexcept;
