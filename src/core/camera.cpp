@@ -17,6 +17,12 @@ void Camera::aim(float dx, float dy) noexcept
 	update_view();
 }
 
+void Camera::roll(float dx)
+{
+	up = glm::angleAxis(dx, front) * up;
+	update_view();
+}
+
 void Camera::forward(float speed) noexcept
 {
 	pos += speed * front;

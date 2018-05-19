@@ -10,6 +10,9 @@ struct Camera
 	friend class Scene;
 
 	void aim(float dx, float dy) noexcept;
+
+	void roll(float dx);
+
 	void forward(float speed) noexcept;
 	void backward(float speed) noexcept;
 	void left(float speed) noexcept;
