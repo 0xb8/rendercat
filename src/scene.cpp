@@ -14,7 +14,7 @@ Scene::Scene()
 
 	cubemap.load_textures("assets/materials/cubemaps/field_evening");
 
-	main_camera.pos = {0.0f, 1.5f, 0.4f};
+	main_camera.position = {0.0f, 1.5f, 0.4f};
 	directional_light.direction = glm::normalize(directional_light.direction);
 	PointLight pl;
 	pl.position({4.0f, 1.0f, 1.0f})
@@ -214,12 +214,12 @@ void Scene::update()
 {
 	for(auto& pl : point_lights) {
 		if(pl.state & PointLight::FollowCamera) {
-			pl.position(main_camera.pos);
+			pl.position(main_camera.position);
 		}
 	}
 	for(auto& sl : spot_lights) {
 		if(sl.state & PointLight::FollowCamera) {
-			sl.direction(-main_camera.front).position(main_camera.pos);
+			sl.direction(-main_camera.get_forward()).position(main_camera.position);
 		}
 	}
 
@@ -238,7 +238,10 @@ void Scene::update()
 	}
 
 	if(ImGui::CollapsingHeader("Camera")) {
-		ImGui::InputFloat3("Position", glm::value_ptr(main_camera.pos));
+		ImGui::InputFloat3("Position", glm::value_ptr(main_camera.position));
+		ImGui::SliderFloat4("Orientation", glm::value_ptr(main_camera.orientation), -1.f, 1.f);
+		auto euler_angles = glm::eulerAngles(main_camera.orientation);
+		ImGui::InputFloat3("Angles", glm::value_ptr(euler_angles), "%.3f", ImGuiInputTextFlags_ReadOnly);
 		ImGui::SliderFloat("FOV", &main_camera.fov, Camera::fov_min, Camera::fov_max);
 		ImGui::SliderFloat("Near Z", &main_camera.znear, Camera::znear_min, 10.0f);
 		ImGui::SliderFloat("Far Z", &main_camera.zfar, main_camera.znear, 1000.0f);
@@ -252,6 +255,50 @@ void Scene::update()
 		main_camera.frustum.state = 0;
 		main_camera.frustum.state |= frustum_locked ? rc::Frustum::Locked : 0;
 		main_camera.frustum.state |= frustum_debug ? rc::Frustum::ShowWireframe : 0;
+
+		static bool has_a, has_b;
+
+		if (ImGui::TreeNode("Interpolate")) {
+
+
+			static glm::quat rot_a, rot_b;
+			static glm::vec3 pos_a, pos_b;
+			static float fov_a, fov_b;
+			static float exp_a, exp_b;
+
+			if (!has_a && ImGui::Button("Remember Start State")) {
+				rot_a = main_camera.orientation;
+				pos_a = main_camera.position;
+				fov_a = main_camera.fov;
+				exp_a = main_camera.exposure;
+				has_a = true;
+			}
+			if (!has_b && ImGui::Button("Remember End State")) {
+				rot_b = main_camera.orientation;
+				pos_b = main_camera.position;
+				fov_b = main_camera.fov;
+				exp_b = main_camera.exposure;
+				has_b = true;
+			}
+
+			if (has_a && has_b) {
+				static float t = 0.0f;
+				ImGui::SliderFloat("Interpolate", &t, 0.0f, 1.0f);
+				main_camera.orientation = glm::slerp(rot_a, rot_b,t);
+				main_camera.position = glm::mix(pos_a, pos_b, t);
+				main_camera.set_fov(glm::mix(fov_a, fov_b, t));
+				main_camera.exposure = glm::mix(exp_a, exp_b, t);
+
+				if (ImGui::Button("Reset")) {
+					has_a = false;
+					has_b = false;
+				}
+			}
+			ImGui::TreePop();
+		} else {
+			has_a = false;
+			has_b = false;
+		}
 	}
 
 	if(ImGui::CollapsingHeader("Lighting")) {
@@ -311,7 +358,7 @@ void Scene::update()
 		if(ImGui::TreeNode("Spot Lights")) {
 			if(ImGui::Button("Add light")) {
 				SpotLight sp;
-				sp.direction(-main_camera.front).position(main_camera.pos);
+				sp.direction(-main_camera.get_forward()).position(main_camera.position);
 				spot_lights.push_back(sp);
 			}
 			for(unsigned i = 0; i < spot_lights.size(); ++i) {
@@ -330,7 +377,7 @@ void Scene::update()
 		if(ImGui::TreeNode("Point Lights")) {
 			if(ImGui::Button("Add light")) {
 				PointLight pl;
-				pl.position(main_camera.pos);
+				pl.position(main_camera.position);
 				point_lights.push_back(pl);
 			}
 			for(unsigned i = 0; i < point_lights.size(); ++i) {

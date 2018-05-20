@@ -203,10 +203,11 @@ static const char* indexed_uniform(std::string_view array, std::string_view name
 
 void Renderer::set_uniforms(GLuint shader)
 {
+	m_scene->main_camera.update_view();
 	debug_draw_ctx.mvpMatrix = m_scene->main_camera.view_projection;
 
 	unif::m4(shader, "proj_view", m_scene->main_camera.view_projection);
-	unif::v3(shader, "viewPos",   m_scene->main_camera.pos);
+	unif::v3(shader, "viewPos",   m_scene->main_camera.position);
 
 	unif::v3(shader, "directional_light.direction", m_scene->directional_light.direction);
 	unif::v3(shader, "directional_light.ambient",   m_scene->directional_light.ambient);
