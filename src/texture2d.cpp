@@ -1,6 +1,6 @@
 #include <rendercat/texture2d.hpp>
 #include <stb_image.h>
-#include <fmt/format.h>
+#include <fmt/core.h>
 
 #include <glbinding/gl45core/types.h>
 #include <glbinding/gl45core/enum.h>

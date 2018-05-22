@@ -1,7 +1,7 @@
 #include <rendercat/material.hpp>
 #include <rendercat/texture_cache.hpp>
 #include <rendercat/uniform.hpp>
-#include <fmt/format.h>
+#include <fmt/core.h>
 #include <stb_image.h>
 
 

@@ -3,7 +3,7 @@
 #include <stb_image.h>
 #include <string>
 #include <utility>
-#include <fmt/format.h>
+#include <fmt/core.h>
 
 #include <glbinding/gl/extension.h>
 #include <glbinding/gl45core/boolean.h>

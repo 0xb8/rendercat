@@ -2,7 +2,7 @@
 #include <rendercat/renderer.hpp>
 #include <rendercat/scene.hpp>
 #include <rendercat/uniform.hpp>
-#include <fmt/format.h>
+#include <fmt/core.h>
 #include <string>
 #include <imgui.hpp>
 

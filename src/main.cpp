@@ -1,6 +1,7 @@
 #include <chrono>
 #include <thread>
 #include <fmt/format.h>
+#include <sstream>
 #include <ios>
 
 #include <glbinding/gl45core/boolean.h>
@@ -71,7 +72,7 @@ void GLAPIENTRY gl_debug_callback(GLenum source,
                                   const void* /*userParam*/)
 {
 
-	fmt::MemoryWriter ss;
+	std::stringstream ss;
 	ss << "\n[GL] ";
 	switch (source)
 	{
@@ -106,7 +107,8 @@ void GLAPIENTRY gl_debug_callback(GLenum source,
 	}
 
 	ss << "[" << id << "]\n\t" << message << '\n';
-	std::fwrite(ss.data(), sizeof(char), ss.size(), stderr);
+	auto str = ss.str();
+	std::fwrite(str.data(), sizeof(char), str.size(), stderr);
 	std::fflush(stderr);
 }
 
@@ -397,9 +399,9 @@ int main() try
 	glfwTerminate();
 	return 0;
 
-} catch(const fmt::FormatError& e) {
+} catch(const fmt::format_error& e) {
 	glfwTerminate();
-	fmt::print("fmt::FormatError exception: {}\n", e.what());
+	fmt::print("fmt::format_error exception: {}\n", e.what());
 	return -1;
 } catch(const std::exception& e) {
 	glfwTerminate();

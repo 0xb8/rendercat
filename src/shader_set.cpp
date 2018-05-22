@@ -1,7 +1,7 @@
 #include <rendercat/shader_set.hpp>
 #include <rendercat/util/gl_unique_handle.hpp>
 #include <tinyheaders/tinyfiles.h>
-#include <fmt/format.h>
+#include <fmt/core.h>
 #include <sstream>
 #include <fstream>
 #include <vector>

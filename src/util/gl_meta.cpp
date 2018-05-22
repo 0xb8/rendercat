@@ -3,7 +3,7 @@
 #include <glbinding-aux/Meta.h>
 #include <rendercat/util/gl_meta.hpp>
 #include <rendercat/util/unique_file_handle.hpp>
-#include <fmt/format.h>
+#include <fmt/core.h>
 
 static std::set<gl::GLextension> extensions;
 static std::atomic_flag extensions_ready;

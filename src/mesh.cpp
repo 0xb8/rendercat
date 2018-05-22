@@ -4,7 +4,7 @@
 #include <rendercat/material.hpp>
 #include <tiny_obj_loader.h>
 #include <mikktspace.h>
-#include <fmt/format.h>
+#include <fmt/core.h>
 #include <numeric>
 #include <utility>
 
