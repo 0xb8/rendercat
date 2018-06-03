@@ -2,6 +2,7 @@
 #include <glbinding/gl45core/functions.h>
 #include <glbinding/gl45core/enum.h>
 #include <stb_image_write.h>
+#include <cstring>
 
 using namespace gl45core;
 
@@ -22,9 +23,9 @@ void rc::util::gl_screenshot(unsigned w, unsigned h, const char * filename)
 	auto swap_pix = [](pixel& a, pixel& b)
 	{
 		pixel tmp;
-		memcpy(&tmp, &a,   sizeof(pixel));
-		memcpy(&a,   &b,   sizeof(pixel));
-		memcpy(&b,   &tmp, sizeof(pixel));
+		std::memcpy(&tmp, &a,   sizeof(pixel));
+		std::memcpy(&a,   &b,   sizeof(pixel));
+		std::memcpy(&b,   &tmp, sizeof(pixel));
 	};
 
 	for(size_t i = 0; i < h / 2; ++i) {

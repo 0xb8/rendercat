@@ -1,6 +1,5 @@
 #pragma once
 
-#define GLM_FORCE_CXX14
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <glm/fwd.hpp>

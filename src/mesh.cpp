@@ -1,4 +1,3 @@
-#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
 #include <rendercat/mesh.hpp>
 #include <rendercat/material.hpp>

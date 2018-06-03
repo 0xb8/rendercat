@@ -63,6 +63,12 @@ target_link_libraries(rendercat
 		tinyobjloader
 )
 
+target_compile_definitions(rendercat
+	PRIVATE
+		GLM_FORCE_CXX14
+		GLM_ENABLE_EXPERIMENTAL
+)
+
 if(CMAKE_COMPILER_IS_GNUCC)
 	target_compile_options(rendercat
 		PRIVATE

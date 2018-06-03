@@ -112,6 +112,17 @@ void GLAPIENTRY gl_debug_callback(GLenum source,
 	std::fflush(stderr);
 }
 
+// resolves deleter functions ahead of time to avoid destruction order issues
+static void resolve_gl_functions() {
+	glbinding::Binding::DeleteFramebuffers.resolveAddress();
+	glbinding::Binding::DeleteQueries.resolveAddress();
+	glbinding::Binding::DeleteShader.resolveAddress();
+	glbinding::Binding::DeleteProgram.resolveAddress();
+	glbinding::Binding::DeleteBuffers.resolveAddress();
+	glbinding::Binding::DeleteTextures.resolveAddress();
+	glbinding::Binding::DeleteVertexArrays.resolveAddress();
+}
+
 
 // ------------------------------- declarations --------------------------------
 
@@ -330,13 +341,12 @@ int main() try
 
 	glfwMakeContextCurrent(window);
 
-	glbinding::Binding::initialize([](const char * name) {
-		return glfwGetProcAddress(name);
-	    }, false);
+	glbinding::Binding::initialize(glfwGetProcAddress, false);
 
 	rc::glmeta::log_all_supported_extensions("logs/gl_extensions.log");
 	check_required_extensions();
 	check_gl_default_framebuffer_is_srgb();
+	resolve_gl_functions();
 	enable_gl_debug_callback();
 	enable_gl_clip_control();
 
