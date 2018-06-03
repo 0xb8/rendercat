@@ -1,6 +1,6 @@
 #include <rendercat/shader_set.hpp>
 #include <rendercat/util/gl_unique_handle.hpp>
-#include <tinyheaders/tinyfiles.h>
+#include <tinyheaders/cute_files.h>
 #include <fmt/core.h>
 #include <sstream>
 #include <fstream>
@@ -53,7 +53,7 @@ GLenum shader_type_from_filename(const std::string_view filename)
 struct Shader
 {
 	std::string     filepath;
-	tfFILETIME      last_mod = {};
+	cf_time_t       last_mod = {};
 	rc::shader_handle   handle;
 
 	explicit Shader(std::string&& fpath) : filepath(std::move(fpath)) { }
@@ -65,10 +65,10 @@ struct Shader
 
 	bool should_reload()
 	{
-		tfFILETIME ft;
-		tfGetFileTime(filepath.data(), &ft);
+		cf_time_t ft;
+		cf_get_file_time(filepath.data(), &ft);
 
-		if(likely(0 == tfCompareFileTimes(&last_mod, &ft))) {
+		if(likely(0 == cf_compare_file_times(&last_mod, &ft))) {
 			return false;
 		}
 		last_mod = ft;
@@ -216,7 +216,7 @@ gl::GLuint * ShaderSet::load_program(std::initializer_list<std::string_view> nam
 		std::string filepath(m_directory);
 		filepath.append(name);
 
-		if(!tfFileExists(filepath.data())) {
+		if(!cf_file_exists(filepath.data())) {
 			fmt::print(stderr, "[shader]  shader file does not exist: [{}]\n", filepath);
 			return nullptr;
 		}
