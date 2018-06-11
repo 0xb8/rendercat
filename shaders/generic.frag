@@ -9,6 +9,7 @@ layout(binding=1) uniform sampler2D material_normal;
 layout(binding=2) uniform sampler2D material_specular_map;
 layout(binding=3) uniform sampler2D material_roughness_metallic_occlusion;
 layout(binding=4) uniform sampler2D material_emission;
+layout(binding=32) uniform sampler2DShadow shadow_map;
 
 const int MATERIAL_BLENDED          = 1 << 5;
 const int MATERIAL_ALPHA_MASKED     = 1 << 6;
@@ -60,6 +61,7 @@ struct SpotLight {
 };
 
 in INTERFACE {
+	vec4 FragPosLightSpace;
 	vec3 FragPos;
 	vec3 Normal;
 	vec3 Tangent;
@@ -85,6 +87,38 @@ uniform int spot_light_indices[MAX_DYNAMIC_LIGHTS];
 uniform int num_point_lights;
 uniform int num_spot_lights;
 uniform int num_msaa_samples;
+
+float calcDirectionalShadow(vec4 fragPosLightSpace, float NdotL)
+{
+	// perform perspective divide
+	vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+	// transform to [0,1] range
+	vec2 shadowTexCoords = projCoords.xy * 0.5 + 0.5;
+	// get depth of current fragment from light's perspective
+	float currentDepth = (projCoords.z);
+	// bias accounting the angle to surface
+	float bias = max(0.005 * (1.0 - NdotL), 0.001);
+	// get shadow value
+	//float shadow = currentDepth - bias < closestDepth ? 1.0 : 0.0;
+	// PCF
+	float shadow = 0.0;
+	vec2 texelSize = 1.0 / textureSize(shadow_map, 0);
+	for(int x = -1; x <= 1; ++x)
+	{
+	    for(int y = -1; y <= 1; ++y)
+	    {
+//		float pcfDepth = texture(shadow_map, shadowTexCoords + vec2(x, y) * texelSize).r;
+//		shadow += currentDepth - bias < pcfDepth ? 1.0 : 0.0;
+		shadow += texture(shadow_map, vec3(shadowTexCoords + vec2(x, y) * texelSize, currentDepth - bias)).r;
+	    }
+	}
+	shadow /= 9.0;
+
+	if(projCoords.z > 1.0)
+		shadow = 0.0;
+
+	return shadow;
+}
 
 vec4 getMaterialDiffuse()
 {
@@ -185,7 +219,8 @@ vec3 calcDirectionalLight(const in DirectionalLight light,
 	vec3 normal = materialParams[2];
 
 	vec3 ambient = directional_light.ambient * color;
-	vec3 diffuse = light.diffuse * color *  max(dot(normal, lightDir), 0.0);
+	float NdotL = dot(normal, lightDir);
+	vec3 diffuse = light.diffuse * color *  max(NdotL, 0.0);
 
 	// specular (blinn-phong)
 	vec3 halfwayDir = normalize(lightDir + viewDir);
@@ -194,7 +229,8 @@ vec3 calcDirectionalLight(const in DirectionalLight light,
 	float spec = pow(clamp(dot(normal, halfwayDir), 0.0, 1.0), material.specular.a);
 	vec3 specular = spec * light.specular * materialParams[1];
 
-	return ambient + (diffuse + specular);
+	float shadow = calcDirectionalShadow(fs_in.FragPosLightSpace, NdotL);
+	return ambient + shadow * (diffuse + specular);
 }
 
 vec3 calcPointLight(const in PointLight light,

@@ -12,18 +12,12 @@ glm::mat4 Camera::make_reversed_z_projection(float fovY_radians, float aspectWby
 	                 0.0f, 0.0f, zNear,  0.0f);
 }
 
-void Camera::update_view() noexcept
+void Camera::update() noexcept
 {
 	orientation = glm::normalize(orientation);
 	view = glm::translate(glm::mat4_cast(orientation), -position);
-	view_projection = projection * view;
-	frustum.update(position, get_forward(), get_up(), glm::radians(fov), aspect, znear, zfar);
-}
-
-void Camera::update_projection(float newaspect) noexcept
-{
-	aspect = newaspect;
 	projection = make_reversed_z_projection(glm::radians(fov), aspect, znear);
 	view_projection = projection * view;
 	frustum.update(position, get_forward(), get_up(), glm::radians(fov), aspect, znear, zfar);
 }
+

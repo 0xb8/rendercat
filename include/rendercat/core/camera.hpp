@@ -48,7 +48,7 @@ struct Camera
 
 	void rotate(const glm::quat& rotation)
 	{
-		orientation = rotation * orientation;
+		orientation = glm::normalize(rotation * orientation);
 	}
 
 	glm::vec3 get_forward() const
@@ -73,7 +73,7 @@ struct Camera
 
 	glm::vec3 get_global_left() const
 	{
-		return glm::cross(get_global_up(), get_forward());
+		return glm::normalize(glm::cross(get_global_up(), get_forward()));
 	}
 
 	void move_forward(float movement)
@@ -94,7 +94,10 @@ struct Camera
 	void set_fov(float newfov) noexcept
 	{
 		fov = newfov;
-		projection = make_reversed_z_projection(glm::radians(fov), aspect, znear);
+	}
+
+	void set_aspect(float newaspect) noexcept {
+		aspect = newaspect;
 	}
 
 	void zoom(float offset) noexcept
@@ -102,14 +105,16 @@ struct Camera
 		set_fov(glm::clamp(fov + offset, fov_min, fov_max));
 	}
 
+
+
 	static constexpr float fov_min = 10.0f;
 	static constexpr float fov_max = 110.0f;
 
 	static constexpr float znear_min = 0.001f;
 
 	static glm::mat4 make_reversed_z_projection(float fovY_radians, float aspectWbyH, float zNear) noexcept;
-	void update_view() noexcept;
-	void update_projection(float newaspect) noexcept;
+	void update() noexcept;
+
 
 	glm::mat4 view;
 	glm::mat4 projection;

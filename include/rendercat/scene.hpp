@@ -95,10 +95,10 @@ struct Scene
 
 	DirectionalLight directional_light
 	{
-		glm::vec3(0.243f, 0.147f, 0.959f), // dir
+		glm::vec3(0.217f, 0.468f, 0.857f), // dir
 		glm::vec3(0.029f, 0.034f, 0.081f), // amb
-		glm::vec3(0.109f, 0.071f, 0.042f), // diff
-		glm::vec3(0.032f, 0.021f, 0.012f)  // spec
+		glm::vec3(0.596f, 0.364f, 0.187f), // diff
+		glm::vec3(0.554f, 0.332f, 0.106f)  // spec
 	};
 
 	ExponentialDirectionalFog fog

@@ -14,6 +14,7 @@ A simple OpenGL 4.5 renderer used to teach myself various realtime graphics tech
 * Reliable tangent space generation using mikktspace library
 * Normal and specular mapping
 * Handles 10's of dynamic lights on my 8 years old mid-end GPU with MSAA. Could be increased with forward+
+* Directional light shadows
 * Using modern OpenGL 4.5 API
 * Simple FPS controls and GUI using ImGui library
 

@@ -5,6 +5,7 @@ layout (location = 2) in vec3 aTangent;
 layout (location = 3) in vec3 aTexCoords; // xy - UVs, z - bitangent sign
 
 out INTERFACE {
+	vec4 FragPosLightSpace;
 	vec3 FragPos;
 	vec3 Normal;
 	vec3 Tangent;
@@ -14,11 +15,13 @@ out INTERFACE {
 
 uniform mat4 model;
 uniform mat4 proj_view;
+uniform mat4 light_proj_view;
 uniform mat3 normal_matrix;
 
 void main()
 {
 	vs_out.FragPos = vec3(model * vec4(aPos, 1.0));
+	vs_out.FragPosLightSpace = light_proj_view * vec4(vs_out.FragPos, 1.0);
 	gl_Position = proj_view * vec4(vs_out.FragPos, 1.0);
 	vs_out.TexCoords = aTexCoords.xy;
 

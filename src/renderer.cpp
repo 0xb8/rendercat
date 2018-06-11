@@ -68,7 +68,32 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 	std::fflush(stdout);
 
 	dd::initialize(&debug_draw_ctx);
+	init_shadow();
 }
+
+void Renderer::init_shadow()
+{
+	m_shadow_shader = m_shader_set.load_program({"shadow_mapping.vert", "shadow_mapping.frag"});
+
+	glCreateTextures(GL_TEXTURE_2D, 1, m_shadowmap_depth_to.get());
+	glTextureStorage2D(*m_shadowmap_depth_to, 1, GL_DEPTH_COMPONENT32F, ShadowMapWidth, ShadowMapHeight);
+	float borderColor[] = {0.0f, 0.0f, 0.0f, 1.0f };
+	glTextureParameterfv(*m_shadowmap_depth_to, GL_TEXTURE_BORDER_COLOR, borderColor);
+	glTextureParameteri(*m_shadowmap_depth_to, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+	glTextureParameteri(*m_shadowmap_depth_to, GL_TEXTURE_COMPARE_FUNC, GL_LESS);
+	glTextureParameteri(*m_shadowmap_depth_to, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTextureParameteri(*m_shadowmap_depth_to, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	glCreateFramebuffers(1, m_shadowmap_fbo.get());
+	glNamedFramebufferTexture(*m_shadowmap_fbo, GL_DEPTH_ATTACHMENT, *m_shadowmap_depth_to, 0);
+
+	if (glCheckNamedFramebufferStatus(*m_shadowmap_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+		fmt::print(stderr, "[renderer] could not init shadow framebuffer!");
+		std::fflush(stderr);
+		return;
+	}
+}
+
 
 void Renderer::resize(uint32_t width, uint32_t height, bool force)
 {
@@ -152,7 +177,7 @@ void Renderer::resize(uint32_t width, uint32_t height, bool force)
 	m_backbuffer_width = backbuffer_width;
 	m_backbuffer_height = backbuffer_height;
 
-	m_scene->main_camera.update_projection(float(m_backbuffer_width) / (float)m_backbuffer_height);
+	m_scene->main_camera.set_aspect(float(m_backbuffer_width) / (float)m_backbuffer_height);
 	debug_draw_ctx.window_size = glm::vec2{backbuffer_width, backbuffer_height};
 	fmt::print(stderr, "[renderer] framebuffer resized to {}x{} {}\n", m_backbuffer_width, m_backbuffer_height, force ? "(forced)" : "");
 	std::fflush(stderr);
@@ -203,7 +228,7 @@ static const char* indexed_uniform(std::string_view array, std::string_view name
 
 void Renderer::set_uniforms(GLuint shader)
 {
-	m_scene->main_camera.update_view();
+	m_scene->main_camera.update();
 	debug_draw_ctx.mvpMatrix = m_scene->main_camera.view_projection;
 
 	unif::m4(shader, "proj_view", m_scene->main_camera.view_projection);
@@ -238,6 +263,24 @@ void Renderer::set_uniforms(GLuint shader)
 		unif::v4(shader, indexed_uniform("spot_light", ".color",     i),   glm::vec4{light.diffuse(), light.intensity()});
 		unif::f1(shader, indexed_uniform("spot_light", ".angle_offset",i), light.angle_offset());
 	}
+}
+
+glm::mat4 Renderer::set_shadow_uniforms()
+{
+	// TODO: determine frustum size dynamically
+	static float near_plane = -25.0f, far_plane = 25.0f;
+	static glm::vec4 params = glm::vec4(-15.0f, 15.0f, -15.0f, 15.0f);
+	auto pos = m_scene->directional_light.direction;
+
+	glm::mat4 lightProjection = glm::orthoRH(params[0], params[1], params[2],params[3], near_plane, far_plane);
+	auto lightView = glm::lookAt(pos,
+	                             glm::vec3(0.0f, 0.0f, 0.0f),
+	                             glm::vec3(0.0f, 1.0f, 0.0f));
+
+	auto proj_view = lightProjection * lightView;
+
+	unif::m4(*m_shadow_shader, "proj_view", proj_view);
+	return proj_view;
 }
 
 static void process_point_lights(const std::vector<PointLight>& point_lights,
@@ -289,6 +332,14 @@ static void process_spot_lights(const std::vector<SpotLight>& spot_lights,
 	unif::i1(shader, "num_spot_lights", spot_light_count);
 }
 
+static void submit_draw_call(const model::Mesh& submesh)
+{
+	glBindVertexArray(*submesh.vao);
+	assert(submesh.index_type == GL_UNSIGNED_INT || submesh.index_type == GL_UNSIGNED_SHORT);
+	assert(submesh.index_max > submesh.index_min);
+	glDrawRangeElements(GL_TRIANGLES, submesh.index_min, submesh.index_max, submesh.numverts, GLenum(submesh.index_type), nullptr);
+}
+
 static void render_generic(const model::Mesh& submesh,
                            const Material& material,
                            uint32_t shader)
@@ -300,10 +351,41 @@ static void render_generic(const model::Mesh& submesh,
 	}
 
 	material.bind(shader);
-	glBindVertexArray(*submesh.vao);
-	assert(submesh.index_type == GL_UNSIGNED_INT || submesh.index_type == GL_UNSIGNED_SHORT);
-	assert(submesh.index_max > submesh.index_min);
-	glDrawRangeElements(GL_TRIANGLES, submesh.index_min, submesh.index_max, submesh.numverts, GLenum(submesh.index_type), nullptr);
+	submit_draw_call(submesh);
+}
+
+
+void Renderer::draw_shadow()
+{
+	glClearDepthf(1.0f);
+	glDepthFunc(GL_LESS);
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_BACK); // TODO: use front face culling
+
+	glBindFramebuffer(GL_FRAMEBUFFER, *m_shadowmap_fbo);
+	glViewport(0,0, ShadowMapWidth, ShadowMapHeight);
+	glClear(GL_DEPTH_BUFFER_BIT);
+
+	glUseProgram(*m_shadow_shader);
+	auto shadow_proj_view = set_shadow_uniforms();
+	// set projection*view for main shader too
+	unif::m4(*m_shader, "light_proj_view", shadow_proj_view);
+
+	for(unsigned model_idx = 0; model_idx < m_scene->models.size(); ++model_idx) {
+		const Model& model = m_scene->models[model_idx];
+
+		unif::m4(*m_shadow_shader, "model", model.transform);
+
+		// TODO: culling
+		for(unsigned submesh_idx = 0; submesh_idx < model.submesh_count; ++submesh_idx) {
+			const model::Mesh& submesh = m_scene->submeshes[model.submeshes[submesh_idx]];
+			submit_draw_call(submesh);
+		}
+	}
+
+	glUseProgram(0);
+	glBindVertexArray(0);
 }
 
 
@@ -321,7 +403,10 @@ void Renderer::draw()
 
 	m_perfquery.begin();
 
-	glClearDepth(0.0f);
+	// render shadow map
+	draw_shadow();
+
+	glClearDepthf(0.0f);
 	glDepthFunc(GL_GREATER);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
@@ -333,10 +418,13 @@ void Renderer::draw()
 	glClear(GL_DEPTH_BUFFER_BIT); // NOTE: no need to clear color attachment bacause skybox will be drawn over it anyway
 
 
-	// render opaque submeshes first and put masked and blended submeshes in respective queues
 	glUseProgram(*m_shader);
 	set_uniforms(*m_shader);
+	// bind shadow map texture
+	glBindTextureUnit(32, *m_shadowmap_depth_to);
 
+
+	// render opaque submeshes first and put masked and blended submeshes in respective queues
 	for(unsigned model_idx = 0; model_idx < m_scene->models.size(); ++model_idx) {
 		const Model& model = m_scene->models[model_idx];
 
@@ -507,3 +595,4 @@ void Renderer::draw_skybox()
 	m_scene->cubemap.draw(*m_cubemap_shader, m_scene->main_camera.view, m_scene->main_camera.projection);
 	glDepthFunc(GL_GREATER);
 }
+
