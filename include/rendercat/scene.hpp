@@ -87,6 +87,8 @@ struct Scene
 	int   desired_msaa_level = 0;
 	float desired_render_scale = 1.0f;
 
+	bool shadows = true;
+
 	void update();
 
 	Model* load_model(const std::string_view name, const std::string_view basedir);

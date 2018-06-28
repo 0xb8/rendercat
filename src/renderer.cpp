@@ -249,6 +249,7 @@ void Renderer::set_uniforms(GLuint shader)
 	unif::b1(shader, "directional_fog.enabled",               (m_scene->fog.state & ExponentialDirectionalFog::Enabled));
 
 	unif::i1(shader, "num_msaa_samples", MSAASampleCount);
+	unif::b1(shader, "shadows_enabled", m_scene->shadows);
 
 	for(unsigned i = 0; i < m_scene->point_lights.size() && i < MaxLights;++i) {
 		const auto& light = m_scene->point_lights[i];
@@ -403,8 +404,10 @@ void Renderer::draw()
 
 	m_perfquery.begin();
 
-	// render shadow map
-	draw_shadow();
+	if(m_scene->shadows) {
+		// render shadow map
+		draw_shadow();
+	}
 
 	glClearDepthf(0.0f);
 	glDepthFunc(GL_GREATER);
@@ -420,9 +423,11 @@ void Renderer::draw()
 
 	glUseProgram(*m_shader);
 	set_uniforms(*m_shader);
-	// bind shadow map texture
-	glBindTextureUnit(32, *m_shadowmap_depth_to);
 
+	if (m_scene->shadows) {
+		// bind shadow map texture
+		glBindTextureUnit(32, *m_shadowmap_depth_to);
+	}
 
 	// render opaque submeshes first and put masked and blended submeshes in respective queues
 	for(unsigned model_idx = 0; model_idx < m_scene->models.size(); ++model_idx) {

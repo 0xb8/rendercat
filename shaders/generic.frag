@@ -88,6 +88,9 @@ uniform int num_point_lights;
 uniform int num_spot_lights;
 uniform int num_msaa_samples;
 
+uniform bool shadows_enabled;
+
+
 float calcDirectionalShadow(vec4 fragPosLightSpace, float NdotL)
 {
 	// perform perspective divide
@@ -229,7 +232,11 @@ vec3 calcDirectionalLight(const in DirectionalLight light,
 	float spec = pow(clamp(dot(normal, halfwayDir), 0.0, 1.0), material.specular.a);
 	vec3 specular = spec * light.specular * materialParams[1];
 
-	float shadow = calcDirectionalShadow(fs_in.FragPosLightSpace, NdotL);
+
+	float shadow;
+	if (shadows_enabled)
+		shadow = calcDirectionalShadow(fs_in.FragPosLightSpace, NdotL);
+	else shadow = 1.0;
 	return ambient + shadow * (diffuse + specular);
 }
 

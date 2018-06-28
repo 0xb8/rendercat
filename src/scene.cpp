@@ -234,6 +234,8 @@ void Scene::update()
 		ImGui::Combo("MSAA", &desired_msaa_level, labels, 5);
 		show_help_tooltip("Multi-Sample Antialiasing\n\nValues > 4x may be unsupported on some setups.");
 		ImGui::SliderFloat("Resolution scale", &desired_render_scale, 0.1f, 1.0f, "%.1f");
+		ImGui::Checkbox("Shadows", &shadows);
+		ImGui::Separator();
 		ImGui::Checkbox("Show submesh bboxes", &draw_bbox);
 	}
 
