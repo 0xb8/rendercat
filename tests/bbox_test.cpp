@@ -152,6 +152,10 @@ TEST_CASE("BBox include") {
 
 			REQUIRE(bbox2.is_null());
 			REQUIRE(bbox3.is_null());
+			REQUIRE(!glm::any(glm::isnan(bbox2.min())));
+			REQUIRE(!glm::any(glm::isnan(bbox2.max())));
+			REQUIRE(!glm::any(glm::isnan(bbox3.min())));
+			REQUIRE(!glm::any(glm::isnan(bbox3.max())));
 		}
 
 		glm::vec2 a2(0.0f), b2(1.0f), c2(-1.0f, 10.0f), d2(0.5f, -0.5f), e2(-3.0f, 3.0f);
@@ -176,10 +180,14 @@ TEST_CASE("BBox include") {
 			bbox3_nan.include(glm::vec3(std::nanf("5678"), 0.1, NAN));
 
 			REQUIRE(!bbox2_nan.is_null());
+			REQUIRE(!glm::any(glm::isnan(bbox2_nan.min())));
+			REQUIRE(!glm::any(glm::isnan(bbox2_nan.max())));
 			REQUIRE(bbox2_nan.min() == bbox2.min());
 			REQUIRE(bbox2_nan.max() == bbox2.max());
 
 			REQUIRE(!bbox3_nan.is_null());
+			REQUIRE(!glm::any(glm::isnan(bbox3_nan.min())));
+			REQUIRE(!glm::any(glm::isnan(bbox3_nan.max())));
 			REQUIRE(bbox3_nan.min() == bbox3.min());
 			REQUIRE(bbox3_nan.max() == bbox3.max());
 		}
@@ -195,10 +203,14 @@ TEST_CASE("BBox include") {
 			                  glm::vec3(0.1, 0.1f, NAN));
 
 			REQUIRE(!bbox2_nan.is_null());
+			REQUIRE(!glm::any(glm::isnan(bbox2_nan.min())));
+			REQUIRE(!glm::any(glm::isnan(bbox2_nan.max())));
 			REQUIRE(bbox2_nan.min() == bbox2.min());
 			REQUIRE(bbox2_nan.max() == bbox2.max());
 
 			REQUIRE(!bbox3_nan.is_null());
+			REQUIRE(!glm::any(glm::isnan(bbox3_nan.min())));
+			REQUIRE(!glm::any(glm::isnan(bbox3_nan.max())));
 			REQUIRE(bbox3_nan.min() == bbox3.min());
 			REQUIRE(bbox3_nan.max() == bbox3.max());
 		}
@@ -220,11 +232,24 @@ TEST_CASE("BBox include") {
 			NanBbox2 fakebbox2{glm::vec2(NAN, 0.0f), glm::vec2(0.0f, NAN)};
 			NanBbox2 fakebbox22{glm::vec2(0.0f, NAN), glm::vec2(NAN, 0.0f)};
 			NanBbox2 fakebbox23{glm::vec2(NAN), glm::vec2(NAN)};
+			REQUIRE(glm::any(glm::isnan(fakebbox2.min)));
+			REQUIRE(glm::any(glm::isnan(fakebbox2.max)));
+			REQUIRE(glm::any(glm::isnan(fakebbox22.min)));
+			REQUIRE(glm::any(glm::isnan(fakebbox22.max)));
+			REQUIRE(glm::all(glm::isnan(fakebbox23.min)));
+			REQUIRE(glm::all(glm::isnan(fakebbox23.max)));
+
 			NanBbox3 fakebbox3{glm::vec3(NAN, 0.0f, NAN), glm::vec3(0.0f, NAN, 0.0f)};
 			NanBbox3 fakebbox32{glm::vec3(0.0f, NAN, NAN), glm::vec3(NAN, NAN, 0.0f)};
 			NanBbox3 fakebbox33{glm::vec3(NAN, 0.0f, 0.0), glm::vec3(NAN, NAN, NAN)};
+			REQUIRE(glm::any(glm::isnan(fakebbox3.min)));
+			REQUIRE(glm::any(glm::isnan(fakebbox3.max)));
+			REQUIRE(glm::any(glm::isnan(fakebbox32.min)));
+			REQUIRE(glm::any(glm::isnan(fakebbox32.max)));
+			REQUIRE(glm::any(glm::isnan(fakebbox33.min)));
+			REQUIRE(glm::all(glm::isnan(fakebbox33.max)));
 
-			// dirty hack, if tests fail thats why
+			// dirty hack that violates strict aliasing, if tests fail thats why
 			bbox2_nan.include(*reinterpret_cast<rc::bbox2*>(&fakebbox2));
 			bbox2_nan.include(*reinterpret_cast<rc::bbox2*>(&fakebbox22));
 			bbox2_nan.include(*reinterpret_cast<rc::bbox2*>(&fakebbox23));
@@ -255,10 +280,14 @@ TEST_CASE("BBox include") {
 			}
 
 			REQUIRE(!bbox2_nan.is_null());
+			REQUIRE(!glm::any(glm::isnan(bbox2.min())));
+			REQUIRE(!glm::any(glm::isnan(bbox2.max())));
 			REQUIRE(bbox2_nan.min() == bbox2.min());
 			REQUIRE(bbox2_nan.max() == bbox2.max());
 
 			REQUIRE(!bbox3_nan.is_null());
+			REQUIRE(!glm::any(glm::isnan(bbox3.min())));
+			REQUIRE(!glm::any(glm::isnan(bbox3.max())));
 			REQUIRE(bbox3_nan.min() == bbox3.min());
 			REQUIRE(bbox3_nan.max() == bbox3.max());
 
@@ -272,6 +301,8 @@ TEST_CASE("BBox include") {
 			bbox2_nan.include_circle(glm::vec2(NAN), NAN);
 
 			REQUIRE(!bbox2_nan.is_null());
+			REQUIRE(!glm::any(glm::isnan(bbox2.min())));
+			REQUIRE(!glm::any(glm::isnan(bbox2.max())));
 			REQUIRE(bbox2_nan.min() == bbox2.min());
 			REQUIRE(bbox2_nan.max() == bbox2.max());
 		}

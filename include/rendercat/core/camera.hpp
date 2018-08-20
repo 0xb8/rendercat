@@ -9,7 +9,7 @@ struct Camera
 {
 	friend class Scene;
 
-	void pitch(float pitchRadians, float limit = glm::radians(89.0f))
+	void pitch(float pitchRadians, float limit = glm::radians(89.0f)) noexcept
 	{
 		if (std::abs(pitchRadians + _pitch) > limit) {
 			pitchRadians = glm::radians(89.0f) - std::abs(_pitch);
@@ -19,14 +19,13 @@ struct Camera
 		_pitch += pitchRadians;
 	}
 
-	void yaw(float yawRadians)
+	void yaw(float yawRadians) noexcept
 	{
 		rotate(yawRadians, glm::vec3(0.0f, 1.0f, 0.0f));
 	}
 
-	void yaw_global(float turnRadians)
+	void yaw_global(float turnRadians) noexcept
 	{
-
 		if(glm::dot(get_up(), get_global_up()) < 0) {
 			turnRadians *= -1.0f;
 		}
@@ -35,58 +34,58 @@ struct Camera
 		rotate(q);
 	}
 
-	void roll(float rollRadians)
+	void roll(float rollRadians) noexcept
 	{
 		rotate(rollRadians, glm::vec3(0.0f, 0.0f, 1.0f));
 	}
 
-	void rotate(float angleRadians, const glm::vec3& axis)
+	void rotate(float angleRadians, const glm::vec3& axis) noexcept
 	{
 		glm::quat q = glm::angleAxis(angleRadians, axis);
 		rotate(q);
 	}
 
-	void rotate(const glm::quat& rotation)
+	void rotate(const glm::quat& rotation) noexcept
 	{
 		orientation = glm::normalize(rotation * orientation);
 	}
 
-	glm::vec3 get_forward() const
+	glm::vec3 get_forward() const noexcept
 	{
 		return glm::conjugate(orientation) * glm::vec3(0.0f, 0.0f, -1.0f);
 	}
 
-	glm::vec3 get_left() const
+	glm::vec3 get_left() const noexcept
 	{
 		return glm::conjugate(orientation) * glm::vec3(-1.0, 0.0f, 0.0f);
 	}
 
-	glm::vec3 get_up() const
+	glm::vec3 get_up() const noexcept
 	{
 		return glm::conjugate(orientation) * glm::vec3(0.0f, 1.0f, 0.0f);
 	}
 
-	glm::vec3 get_global_up() const
+	glm::vec3 get_global_up() const noexcept
 	{
 		return glm::vec3(0.0f, 1.0f, 0.0f);
 	}
 
-	glm::vec3 get_global_left() const
+	glm::vec3 get_global_left() const noexcept
 	{
 		return glm::normalize(glm::cross(get_global_up(), get_forward()));
 	}
 
-	void move_forward(float movement)
+	void move_forward(float movement) noexcept
 	{
 		position += get_forward() * movement;
 	}
 
-	void move_left(float movement)
+	void move_left(float movement) noexcept
 	{
 		position += get_global_left() * movement;
 	}
 
-	void move_up(float movement)
+	void move_up(float movement) noexcept
 	{
 		position += get_global_up() * movement;
 	}
@@ -96,7 +95,8 @@ struct Camera
 		fov = newfov;
 	}
 
-	void set_aspect(float newaspect) noexcept {
+	void set_aspect(float newaspect) noexcept
+	{
 		aspect = newaspect;
 	}
 

@@ -10,9 +10,12 @@ set(OPTION_BUILD_DOCS       OFF CACHE BOOL "Build documentation")
 set(OPTION_BUILD_TOOLS      OFF CACHE BOOL "Build tools.")
 set(OPTION_BUILD_EXAMPLES   OFF CACHE BOOL "Build examples.")
 add_subdirectory(glbinding)
+set_target_properties(glbinding     PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+set_target_properties(glbinding-aux PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
 if(CMAKE_COMPILER_IS_GNUCXX)
-	target_compile_options(glbinding PRIVATE -O3 -g0)
+	target_compile_options(glbinding PRIVATE -O3 -g0 -fvisibility=hidden)
+	target_compile_options(glbinding-aux PRIVATE -O3 -g0)
 endif()
 
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "Build the GLFW example programs" FORCE)

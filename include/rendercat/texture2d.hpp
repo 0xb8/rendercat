@@ -2,7 +2,6 @@
 #include <rendercat/common.hpp>
 #include <rendercat/texture.hpp>
 #include <rendercat/util/gl_unique_handle.hpp>
-#include <vector>
 
 namespace rc {
 

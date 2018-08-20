@@ -14,12 +14,17 @@ endif()
 
 add_executable(unique_handle_test unique_handle.cpp)
 target_link_libraries(unique_handle_test PRIVATE Catch)
+
 target_include_directories(unique_handle_test PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_include_directories(unique_handle_test PRIVATE ${PROJECT_SOURCE_DIR}/include)
 
 add_executable(bbox_test bbox_test.cpp ${PROJECT_SOURCE_DIR}/src/core/bbox.cpp)
 target_include_directories(bbox_test PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_link_libraries(bbox_test PRIVATE Catch)
+target_compile_definitions(bbox_test
+	PUBLIC
+		GLM_ENABLE_EXPERIMENTAL
+)
 
 set_target_properties(bbox_test
 	PROPERTIES
