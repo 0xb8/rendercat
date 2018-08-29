@@ -102,20 +102,7 @@ float calcDirectionalShadow(vec4 fragPosLightSpace, float NdotL)
 	// bias accounting the angle to surface
 	float bias = max(0.005 * (1.0 - NdotL), 0.001);
 	// get shadow value
-	//float shadow = currentDepth - bias < closestDepth ? 1.0 : 0.0;
-	// PCF
-	float shadow = 0.0;
-	vec2 texelSize = 1.0 / textureSize(shadow_map, 0);
-	for(int x = -1; x <= 1; ++x)
-	{
-	    for(int y = -1; y <= 1; ++y)
-	    {
-//		float pcfDepth = texture(shadow_map, shadowTexCoords + vec2(x, y) * texelSize).r;
-//		shadow += currentDepth - bias < pcfDepth ? 1.0 : 0.0;
-		shadow += texture(shadow_map, vec3(shadowTexCoords + vec2(x, y) * texelSize, currentDepth - bias)).r;
-	    }
-	}
-	shadow /= 9.0;
+	float shadow = texture(shadow_map, vec3(shadowTexCoords, currentDepth - bias)).r;
 
 	if(projCoords.z > 1.0)
 		shadow = 0.0;
@@ -223,15 +210,14 @@ vec3 calcDirectionalLight(const in DirectionalLight light,
 
 	vec3 ambient = directional_light.ambient * color;
 	float NdotL = dot(normal, lightDir);
-	vec3 diffuse = light.diffuse * color *  max(NdotL, 0.0);
+	vec3 diffuse = light.diffuse * color * max(NdotL, 0.0);
 
 	// specular (blinn-phong)
-	vec3 halfwayDir = normalize(lightDir + viewDir);
+	float NdotH = dot(normal, normalize(lightDir + viewDir));
 	// saturating dot product seems to greatly reduce specular pixel flicker
 	// with MSAA, but does not solve it completely (due to other light sources' contribution).
-	float spec = pow(clamp(dot(normal, halfwayDir), 0.0, 1.0), material.specular.a);
+	float spec = pow(max(NdotH, 0.0), material.specular.a);
 	vec3 specular = spec * light.specular * materialParams[1];
-
 
 	float shadow;
 	if (shadows_enabled)
@@ -253,11 +239,12 @@ vec3 calcPointLight(const in PointLight light,
 	vec3 mat_spec = materialParams[1];
 	vec3 normal = materialParams[2];
 
-	vec3 diffuse = albedo * max(dot(normal, lightDir), 0.0);
+	float NdotL = dot(normal, lightDir);
+	vec3 diffuse = albedo * max(NdotL, 0.0);
 
 	// specular (blinn-phong)
-	vec3 halfwayDir = normalize(lightDir + viewDir);
-	float spec = pow(clamp(dot(normal, halfwayDir), 0.0, 1.0), material.specular.a);
+	float NdotH = dot(normal, normalize(lightDir + viewDir));
+	float spec = pow(max(NdotH, 0.0), material.specular.a);
 	vec3 specular = spec * mat_spec * check_light_side(lightDir);
 
 	vec3 light_val = light.color.a * light.color.rgb;
