@@ -89,7 +89,7 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 	std::vector<Material> scene_materials;
 	std::vector<model::Mesh> scene_meshes;
 	std::vector<int> scene_mesh_material;
-	std::string err;
+	std::string err, warn;
 
 	std::string model_path{rc::path::asset::model};
 	model_path.append(basedir);
@@ -105,9 +105,12 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 	size_t vertex_count = 0, unique_vertex_count = 0;
 
 
-	if(!tinyobj::LoadObj(&attrib, &shapes, &obj_materials, &err, model_path_full.data(), model_path.data())) {
+	if(!tinyobj::LoadObj(&attrib, &shapes, &obj_materials, &warn, &err, model_path_full.data(), model_path.data())) {
 		fmt::print(stderr, "Error loading OBJ: {}", err);
 		return false;
+	}
+	if (!warn.empty()) {
+		fmt::print(stderr, "Warning while loading OBJ: {}", warn);
 	}
 
 	const bool has_normals = !attrib.normals.empty();
