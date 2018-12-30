@@ -5,6 +5,9 @@
 #include <utility>
 #include <fmt/core.h>
 
+#include <zcm/mat4.hpp>
+#include <zcm/mat3.hpp>
+
 #include <glbinding/gl/extension.h>
 #include <glbinding/gl45core/boolean.h>
 #include <glbinding/gl45core/bitfield.h>
@@ -191,9 +194,9 @@ void Cubemap::load_textures(std::string_view basedir)
 	m_cubemap = std::move(tex);
 }
 
-void Cubemap::draw(uint32_t shader, const glm::mat4 & view, const glm::mat4 & projection) noexcept
+void Cubemap::draw(uint32_t shader, const zcm::mat4 & view, const zcm::mat4 & projection) noexcept
 {
-	unif::m4(shader, 0, glm::mat4(glm::mat3(view)));
+	unif::m4(shader, 0, zcm::mat4{zcm::mat3{view}});
 	unif::m4(shader, 1, projection);
 
 	glUseProgram(shader);

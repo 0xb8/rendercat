@@ -1,17 +1,5 @@
 #pragma once
 
-#include <glm/vec2.hpp>
-#include <glm/vec3.hpp>
-#include <glm/vec4.hpp>
-#include <glm/mat3x3.hpp>
-#include <glm/mat4x4.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-#include <cmath>
-#include <cstddef>
-#include <limits>
-#include <glm/gtx/string_cast.hpp>
-
 #if __GNUC__
 #define likely(x)       __builtin_expect((x),1)
 #define unlikely(x)     __builtin_expect((x),0)
@@ -46,54 +34,18 @@
 	Class(Class&) noexcept = default; \
 	Class& operator =(Class&) noexcept = default;
 
-inline std::ostream& operator<<(std::ostream& out, const glm::vec2& g)
-{
-    return out << glm::to_string(g);
-}
-inline std::ostream& operator<<(std::ostream& out, const glm::vec3& g)
-{
-    return out << glm::to_string(g);
-}
-inline std::ostream& operator<<(std::ostream& out, const glm::vec4& g)
-{
-    return out << glm::to_string(g);
-}
-
 namespace rc {
 namespace math {
 	template<typename T>
 	inline constexpr bool within_closed_interval(T val, T min, T max)
 	{
-		static_assert(std::is_fundamental_v<T>, "T must be fundamental type");
+		//static_assert(std::is_fundamental_v<T>, "T must be fundamental type");
 		return val >= min && val <= max;
 	}
-	inline bool within_closed_interval(glm::vec2 v, glm::vec2 min, glm::vec2 max)
-	{
-		assert(min != max);
-		return within_closed_interval(v[0], min[0], max[0]) && within_closed_interval(v[1], min[1], max[1]);
-	}
-
-	inline bool within_closed_interval(glm::vec3 v, glm::vec3 min, glm::vec3 max)
-	{
-		assert(min != max);
-		return within_closed_interval(v[0], min[0], max[0])
-			&& within_closed_interval(v[1], min[1], max[1])
-			&& within_closed_interval(v[2], min[2], max[2]);
-	}
-
-	inline bool within_closed_interval(glm::vec4 v, glm::vec4 min, glm::vec4 max)
-	{
-		assert(min != max);
-		return within_closed_interval(v[0], min[0], max[0])
-			&& within_closed_interval(v[1], min[1], max[1])
-			&& within_closed_interval(v[2], min[2], max[2])
-			&& within_closed_interval(v[3], min[3], max[3]);
-	}
-
 	template<typename T>
 	inline T percent(T value, T max, T min = T{})
 	{
-		static_assert(std::is_fundamental_v<T>, "T must be fundamental type");
+		//static_assert(std::is_fundamental_v<T>, "T must be fundamental type");
 		if(value == T{} || max == T{} || max == min) return T{};
 		return static_cast<double>(value-min) * 100.0 / max - min;
 	}

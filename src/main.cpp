@@ -4,6 +4,8 @@
 #include <sstream>
 #include <ios>
 
+#include <zcm/angle_and_trigonometry.hpp>
+
 #include <glbinding/gl45core/boolean.h>
 #include <glbinding/gl45core/types.h>
 #include <glbinding/gl45core/enum.h>
@@ -217,10 +219,10 @@ static void glfw_process_input(rc::Scene* s)
 		s->main_camera.move_left(-cameraSpeed);
 
 	if(input::key_z) {
-		s->main_camera.roll(glm::radians(input::xoffset));
+		s->main_camera.roll(zcm::radians(input::xoffset));
 	} else {
-		s->main_camera.pitch(glm::radians(input::yoffset));
-		s->main_camera.yaw_global(glm::radians(input::xoffset));
+		s->main_camera.pitch(zcm::radians(input::yoffset));
+		s->main_camera.yaw_global(zcm::radians(input::xoffset));
 	}
 
 	s->main_camera.zoom(-input::scroll_offset);

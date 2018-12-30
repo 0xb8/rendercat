@@ -1,4 +1,4 @@
-#include <glm/gtx/hash.hpp>
+
 #include <rendercat/mesh.hpp>
 #include <rendercat/material.hpp>
 #include <tiny_obj_loader.h>
@@ -6,6 +6,10 @@
 #include <fmt/core.h>
 #include <numeric>
 #include <utility>
+
+#include <zcm/vec3.hpp>
+#include <zcm/vec4.hpp>
+#include <zcm/hash.hpp>
 
 #include <glbinding/gl45core/boolean.h>
 #include <glbinding/gl45core/bitfield.h>
@@ -19,9 +23,9 @@ using namespace rc;
 namespace rc {
 namespace model {
 	struct Vertex {
-		glm::vec3 position;
-		glm::vec3 normal;
-		glm::vec2 texcoords;
+		zcm::vec3 position;
+		zcm::vec3 normal;
+		zcm::vec2 texcoords;
 
 		bool operator==(const Vertex& other) const noexcept {
 			return position == other.position
@@ -36,8 +40,8 @@ static Material load_obj_material(const tinyobj::material_t& mat, const std::str
 {
 	Material material(mat.name);
 
-	auto spec_color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
-	auto diff_color = glm::vec4(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2], mat.dissolve);
+	auto spec_color = zcm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
+	auto diff_color = zcm::vec4(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2], mat.dissolve);
 	material.set_specular_color_shininess(spec_color, mat.shininess);
 	material.set_diffuse_color(diff_color);
 
@@ -233,7 +237,7 @@ namespace {
 
 struct tangent_sign
 {
-	glm::vec3 tangent;
+	zcm::vec3 tangent;
 	float sign;
 
 	bool operator==(const tangent_sign& other) const noexcept
@@ -337,7 +341,7 @@ std::vector<tangent_sign> calculateMikktSpace(const std::vector<model::Vertex>& 
 		const int vert) -> void
 	{
 		auto tangents = get_data(ctx)->tangents;
-		tangents[face*3+vert].tangent = glm::vec3(fvTangent[0],fvTangent[1],fvTangent[2]);
+		tangents[face*3+vert].tangent = zcm::vec3(fvTangent[0],fvTangent[1],fvTangent[2]);
 		tangents[face*3+vert].sign = fSign;
 	};
 
@@ -361,10 +365,10 @@ namespace std {
 	{
 		size_t operator()(const vertex_tangent& vt) const noexcept
 		{
-			return hash<glm::vec3>()(vt.vertex.position)
-				^ hash<glm::vec3>()(vt.vertex.normal)
-				^ hash<glm::vec2>()(vt.vertex.texcoords)
-				^ hash<glm::vec3>()(vt.tangent.tangent)
+			return hash<zcm::vec3>()(vt.vertex.position)
+				^ hash<zcm::vec3>()(vt.vertex.normal)
+				^ hash<zcm::vec2>()(vt.vertex.texcoords)
+				^ hash<zcm::vec3>()(vt.tangent.tangent)
 				^ hash<float>()(vt.tangent.sign);
 		}
 	};
@@ -431,14 +435,14 @@ model::Mesh::Mesh(const std::string& name_, std::vector<Vertex> && verts) : name
 	// prepare data for submission to the GPU ------------------------------
 	struct dynamic_attrib
 	{
-		glm::vec3 position;
+		zcm::vec3 position;
 	};
 
 	struct static_attrib
 	{
-		glm::vec3 normal;
-		glm::vec3 tangent;
-		glm::vec3 texcoords; // texcoords.z == bitangent sign
+		zcm::vec3 normal;
+		zcm::vec3 tangent;
+		zcm::vec3 texcoords; // texcoords.z == bitangent sign
 	};
 
 	std::vector<dynamic_attrib> dynamic_attribs;
@@ -453,7 +457,7 @@ model::Mesh::Mesh(const std::string& name_, std::vector<Vertex> && verts) : name
 		const auto& tangent   = vt.tangent.tangent;
 		const auto& sign      = vt.tangent.sign;
 		const auto& texcoords = vt.vertex.texcoords;
-		auto texcoord_sign    = glm::vec3(texcoords, sign);
+		auto texcoord_sign    = zcm::vec3(texcoords, sign);
 
 		dynamic_attribs.emplace_back(dynamic_attrib{position});
 		static_attribs.emplace_back(static_attrib{normal, tangent, texcoord_sign});

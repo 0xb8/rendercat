@@ -19,7 +19,7 @@
 #include <glbinding/gl45core/bitfield.h>
 #include <glbinding/gl45core/boolean.h>
 #include <glbinding/gl45core/types.h>
-#include <glm/gtc/type_ptr.hpp>
+#include <zcm/type_ptr.hpp>
 
 using namespace gl45core;
 using namespace rc;
@@ -61,7 +61,7 @@ void DDRenderInterfaceCoreGL::drawPointList(const dd::DrawVertex * points, int c
 	glUseProgram(linePointProgram);
 
 	glUniformMatrix4fv(linePointProgram_MvpMatrixLocation,
-	                   1, GL_FALSE, glm::value_ptr(mvpMatrix));
+	                   1, GL_FALSE, zcm::value_ptr(mvpMatrix));
 
 	auto depthEnabledOld = glIsEnabled(GL_DEPTH_TEST);
 	if (depthEnabled) {
@@ -97,7 +97,7 @@ void DDRenderInterfaceCoreGL::drawLineList(const dd::DrawVertex * lines, int cou
 	glUseProgram(linePointProgram);
 
 	glUniformMatrix4fv(linePointProgram_MvpMatrixLocation,
-	                   1, GL_FALSE, glm::value_ptr(mvpMatrix));
+	                   1, GL_FALSE, zcm::value_ptr(mvpMatrix));
 
 	auto depthEnabledOld = glIsEnabled(GL_DEPTH_TEST);
 	if (depthEnabled) {
@@ -125,7 +125,7 @@ void DDRenderInterfaceCoreGL::drawLineList(const dd::DrawVertex * lines, int cou
 
 
 DDRenderInterfaceCoreGL::DDRenderInterfaceCoreGL()
-        : mvpMatrix(glm::mat4())
+        : mvpMatrix(zcm::mat4(1.0f))
         , linePointProgram(0)
         , linePointProgram_MvpMatrixLocation(-1)
         , linePointVAO(0)

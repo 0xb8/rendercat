@@ -2,17 +2,19 @@
 
 #include <rendercat/common.hpp>
 #include <rendercat/core/bbox.hpp>
+#include <zcm/vec4.hpp>
+#include <zcm/vec3.hpp>
 
 namespace rc {
 
 struct Plane
 {
-	glm::vec4 plane;
+	zcm::vec4 plane;
 
 	Plane() = default;
-	Plane(const glm::vec3 &_normal, const glm::vec3 &_point) noexcept;
-	Plane(const glm::vec3 &a, const glm::vec3 &b, const glm::vec3 &c) noexcept;
-	float distance(const glm::vec3 & p) const noexcept;
+	Plane(const zcm::vec3 &_normal, const zcm::vec3 &_point) noexcept;
+	Plane(const zcm::vec3 &a, const zcm::vec3 &b, const zcm::vec3 &c) noexcept;
+	float distance(const zcm::vec3 & p) const noexcept;
 };
 
 struct Frustum
@@ -25,14 +27,14 @@ struct Frustum
 	};
 
 	Plane planes[5];
-	glm::vec3 points[8];
-	glm::vec3 near_center, far_center;
+	zcm::vec3 points[8];
+	zcm::vec3 near_center, far_center;
 
-	uint8_t state = NoState;
+	unsigned char state = NoState;
 
-	void update(const glm::vec3& pos,
-	            const glm::vec3& forward,
-	            const glm::vec3& cup,
+	void update(const zcm::vec3& pos,
+	            const zcm::vec3& forward,
+	            const zcm::vec3& cup,
 	            float yfov,
 	            float aspect,
 	            float near,
@@ -40,7 +42,7 @@ struct Frustum
 
 	void draw_debug() const noexcept;
 
-	bool sphere_culled(const glm::vec3& pos, float r) const noexcept;
+	bool sphere_culled(const zcm::vec3& pos, float r) const noexcept;
 	bool bbox_culled(const bbox3& box) const noexcept;
 };
 

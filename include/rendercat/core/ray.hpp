@@ -1,41 +1,41 @@
 #pragma once
 
-#include <glm/vec2.hpp>
-#include <glm/vec3.hpp>
+#include <zcm/vec2.hpp>
+#include <zcm/vec3.hpp>
 
 namespace rc {
 
 struct ray2
 {
-	glm::vec2 origin;
-	glm::vec2 dir;
+	zcm::vec2 origin;
+	zcm::vec2 dir;
 };
 
 struct ray3
 {
-	glm::vec3 origin;
-	glm::vec3 dir;
+	zcm::vec3 origin;
+	zcm::vec3 dir;
 };
 
 struct ray2_inv
 {
-	glm::vec2 origin;
-	glm::vec2 dir_inv;
+	zcm::vec2 origin;
+	zcm::vec2 dir_inv;
 };
 struct ray3_inv
 {
-	glm::vec3 origin;
-	glm::vec3 dir_inv;
+	zcm::vec3 origin;
+	zcm::vec3 dir_inv;
 };
 
 inline ray2_inv inv_normal(const ray2& ray) noexcept
 {
-	return {ray.origin, glm::vec2(1.0f) / ray.dir};
+	return {ray.origin, zcm::vec2(1.0f) / ray.dir};
 }
 
 inline ray3_inv inv_normal(const ray3& ray) noexcept
 {
-	return {ray.origin, glm::vec3(1.0f) / ray.dir};
+	return {ray.origin, zcm::vec3(1.0f) / ray.dir};
 }
 
 }

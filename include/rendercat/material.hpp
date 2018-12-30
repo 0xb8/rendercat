@@ -1,6 +1,9 @@
 #pragma once
 #include <rendercat/common.hpp>
 #include <rendercat/texture2d.hpp>
+#include <zcm/vec4.hpp>
+#include <zcm/vec3.hpp>
+#include <string>
 
 namespace rc {
 
@@ -23,12 +26,12 @@ struct Material
 
 	void bind(uint32_t s) const noexcept;
 
-	void set_diffuse_color(const glm::vec4& color) noexcept
+	void set_diffuse_color(const zcm::vec4& color) noexcept
 	{
 		m_diffuse_color = color;
 	}
 
-	void set_specular_color_shininess(const glm::vec3& color, float shininess = 8.0f) noexcept
+	void set_specular_color_shininess(const zcm::vec3& color, float shininess = 8.0f) noexcept
 	{
 		m_specular_color = color;
 		m_shininess = shininess;
@@ -40,7 +43,7 @@ struct Material
 		m_metallic = metallic;
 	}
 
-	void set_emissive_color(const glm::vec3& color) noexcept
+	void set_emissive_color(const zcm::vec3& color) noexcept
 	{
 		m_emissive_color = color;
 	}
@@ -65,9 +68,9 @@ private:
 
 	uint32_t  m_flags = 0;
 
-	glm::vec4 m_diffuse_color;
-	glm::vec3 m_specular_color;
-	glm::vec3 m_emissive_color;
+	zcm::vec4 m_diffuse_color;
+	zcm::vec3 m_specular_color;
+	zcm::vec3 m_emissive_color;
 	float     m_alpha_cutoff = 0.5f;
 	float     m_shininess = 0.0f;
 	float     m_roughness = 1.0f;

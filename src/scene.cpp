@@ -1,6 +1,8 @@
 #include <rendercat/scene.hpp>
 #include <rendercat/util/color_temperature.hpp>
 #include <imgui.hpp>
+#include <zcm/geometric.hpp>
+#include <zcm/type_ptr.hpp>
 
 using namespace rc;
 
@@ -8,14 +10,14 @@ Scene::Scene()
 {
 	{
 		Material::set_default_diffuse("assets/materials/missing.tga");
-		materials.emplace_back(std::move(Material::create_default_material()));
+		materials.emplace_back(Material::create_default_material());
 		Material::set_texture_cache(&m_texture_cache);
 	}
 
 	cubemap.load_textures("assets/materials/cubemaps/field_evening");
 
 	main_camera.position = {0.0f, 1.5f, 0.4f};
-	directional_light.direction = glm::normalize(directional_light.direction);
+	directional_light.direction = zcm::normalize(directional_light.direction);
 	PointLight pl;
 	pl.position({4.0f, 1.0f, 1.0f})
 	  .diffuse({1.0f, 0.2f, 0.1f})
@@ -120,7 +122,7 @@ static bool edit_light(PunctualLight<T>& pl) noexcept
 	float radius = pl.radius();
 	float color_temp = pl.color_temperature();
 
-	glm::vec3 dir;
+	zcm::vec3 dir;
 	float power;
 	float angle_o;
 	float angle_i;
@@ -147,19 +149,19 @@ static bool edit_light(PunctualLight<T>& pl) noexcept
 		angle_o = spot.angle_outer();
 		angle_i = spot.angle_inner();
 		ImGui::TextUnformatted("Direction");
-		ImGui::DragFloat3("##lightdirection", glm::value_ptr(dir), 0.01f);
+		ImGui::DragFloat3("##lightdirection", zcm::value_ptr(dir), 0.01f);
 	} else {
 		power = pl.flux();
 	}
 
 	ImGui::TextUnformatted("Position");
-	ImGui::DragFloat3("##lightposition", glm::value_ptr(pos), 0.01f);
+	ImGui::DragFloat3("##lightposition", zcm::value_ptr(pos), 0.01f);
 
 	ImGui::Spacing();
 	ImGui::Spacing();
 
 	ImGui::TextUnformatted("Diffuse color");
-	ImGui::ColorEdit3("##diffusecol",  glm::value_ptr(diff),
+	ImGui::ColorEdit3("##diffusecol",  zcm::value_ptr(diff),
 	                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 
 	ImGui::TextUnformatted("Diffuse color temperature");
@@ -240,10 +242,10 @@ void Scene::update()
 	}
 
 	if(ImGui::CollapsingHeader("Camera")) {
-		ImGui::InputFloat3("Position", glm::value_ptr(main_camera.position));
-		ImGui::SliderFloat4("Orientation", glm::value_ptr(main_camera.orientation), -1.f, 1.f);
-		auto euler_angles = glm::eulerAngles(main_camera.orientation);
-		ImGui::InputFloat3("Angles", glm::value_ptr(euler_angles), "%.3f", ImGuiInputTextFlags_ReadOnly);
+		ImGui::InputFloat3("Position", zcm::value_ptr(main_camera.position));
+		ImGui::SliderFloat4("Orientation", zcm::value_ptr(main_camera.orientation), -1.f, 1.f);
+		auto euler_angles = zcm::eulerAngles(main_camera.orientation);
+		ImGui::InputFloat3("Angles", zcm::value_ptr(euler_angles), "%.3f", ImGuiInputTextFlags_ReadOnly);
 		ImGui::SliderFloat("FOV", &main_camera.fov, Camera::fov_min, Camera::fov_max);
 		ImGui::SliderFloat("Near Z", &main_camera.znear, Camera::znear_min, 10.0f);
 		ImGui::SliderFloat("Far Z", &main_camera.zfar, main_camera.znear, 1000.0f);
@@ -263,8 +265,8 @@ void Scene::update()
 		if (ImGui::TreeNode("Interpolate")) {
 
 
-			static glm::quat rot_a, rot_b;
-			static glm::vec3 pos_a, pos_b;
+			static zcm::quat rot_a, rot_b;
+			static zcm::vec3 pos_a, pos_b;
 			static float fov_a, fov_b;
 			static float exp_a, exp_b;
 
@@ -286,10 +288,10 @@ void Scene::update()
 			if (has_a && has_b) {
 				static float t = 0.0f;
 				ImGui::SliderFloat("Interpolate", &t, 0.0f, 1.0f);
-				main_camera.orientation = glm::slerp(rot_a, rot_b,t);
-				main_camera.position = glm::mix(pos_a, pos_b, t);
-				main_camera.set_fov(glm::mix(fov_a, fov_b, t));
-				main_camera.exposure = glm::mix(exp_a, exp_b, t);
+				main_camera.orientation = zcm::slerp(rot_a, rot_b,t);
+				main_camera.position = zcm::mix(pos_a, pos_b, t);
+				main_camera.set_fov(zcm::mix(fov_a, fov_b, t));
+				main_camera.exposure = zcm::mix(exp_a, exp_b, t);
 
 				if (ImGui::Button("Reset")) {
 					has_a = false;
@@ -309,14 +311,14 @@ void Scene::update()
 			ImGui::Checkbox("Enabled", &enabled);
 			ImGui::TextUnformatted("Inscattering color");
 			ImGui::PushItemWidth(-1.0f);
-			ImGui::ColorEdit4("##inscatteringcolor", glm::value_ptr(fog.inscattering_color),
+			ImGui::ColorEdit4("##inscatteringcolor", zcm::value_ptr(fog.inscattering_color),
 			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 			ImGui::TextUnformatted("Directional inscattering color");
-			ImGui::ColorEdit4("##directionalinscatteringcolor", glm::value_ptr(fog.dir_inscattering_color),
+			ImGui::ColorEdit4("##directionalinscatteringcolor", zcm::value_ptr(fog.dir_inscattering_color),
 			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 
 			if(ImGui::Button("Use Sun Diffuse")) {
-				fog.dir_inscattering_color = glm::vec4(directional_light.diffuse, fog.dir_inscattering_color.w);
+				fog.dir_inscattering_color = zcm::vec4(directional_light.diffuse, fog.dir_inscattering_color.w);
 			}
 			ImGui::Spacing();
 			ImGui::Spacing();
@@ -339,18 +341,18 @@ void Scene::update()
 
 			ImGui::PushItemWidth(-1.0f);
 			ImGui::TextUnformatted("Direction");
-			ImGui::SliderFloat3("##direction", glm::value_ptr(directional_light.direction), -1.0, 1.0);
-			directional_light.direction = glm::normalize(directional_light.direction);
+			ImGui::SliderFloat3("##direction", zcm::value_ptr(directional_light.direction), -1.0, 1.0);
+			directional_light.direction = zcm::normalize(directional_light.direction);
 			ImGui::Spacing();
 			ImGui::Spacing();
 			ImGui::TextUnformatted("Ambient");
-			ImGui::ColorEdit3("##ambientcolor",   glm::value_ptr(directional_light.ambient),
+			ImGui::ColorEdit3("##ambientcolor",   zcm::value_ptr(directional_light.ambient),
 			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 			ImGui::TextUnformatted("Diffuse");
-			ImGui::ColorEdit3("##diffusecolor",   glm::value_ptr(directional_light.diffuse),
+			ImGui::ColorEdit3("##diffusecolor",   zcm::value_ptr(directional_light.diffuse),
 			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 			ImGui::TextUnformatted("Specular");
-			ImGui::ColorEdit3("##specularcolor",  glm::value_ptr(directional_light.specular),
+			ImGui::ColorEdit3("##specularcolor",  zcm::value_ptr(directional_light.specular),
 			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 
 			ImGui::PopItemWidth();
@@ -484,11 +486,11 @@ void Scene::update()
 				ImGui::Spacing();
 
 				ImGui::TextUnformatted("Diffuse color");
-				ImGui::ColorEdit3("##matdiffcolor", glm::value_ptr(material.m_diffuse_color),
+				ImGui::ColorEdit3("##matdiffcolor", zcm::value_ptr(material.m_diffuse_color),
 					ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 
 				ImGui::TextUnformatted("Specular color");
-				ImGui::ColorEdit3("##matspeccolor", glm::value_ptr(material.m_specular_color),
+				ImGui::ColorEdit3("##matspeccolor", zcm::value_ptr(material.m_specular_color),
 					ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 
 				ImGui::DragFloat("Shininess",   &(material.m_shininess), 0.1f, 1.0f, 128.0f);
@@ -508,11 +510,11 @@ void Scene::update()
 			if(ImGui::TreeNode("Model", "%s", model.name.data())) {
 				ImGui::PushItemWidth(-1.0f);
 				ImGui::TextUnformatted("Position (XYZ)");
-				ImGui::DragFloat3("##modelpos", glm::value_ptr(model.position), 0.01f);
-				glm::vec3 rot = glm::degrees(model.rotation_euler);
+				ImGui::DragFloat3("##modelpos", zcm::value_ptr(model.position), 0.01f);
+				zcm::vec3 rot = zcm::degrees(model.rotation_euler);
 				ImGui::TextUnformatted("Rotation (Yaw Pitch Roll)");
-				ImGui::SliderFloat3("##modelrot", glm::value_ptr(rot), -180.0f, 180.0f, "%.1f\u00B0");
-				rot = glm::radians(rot);
+				ImGui::SliderFloat3("##modelrot", zcm::value_ptr(rot), -180.0f, 180.0f, "%.1f\u00B0");
+				rot = zcm::radians(rot);
 				model.rotation_euler = rot;
 				model.update_transform();
 

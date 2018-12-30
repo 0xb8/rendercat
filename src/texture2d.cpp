@@ -7,6 +7,10 @@
 #include <glbinding/gl45core/functions.h>
 #include <glbinding/gl45ext/enum.h>
 
+#include <zcm/common.hpp>
+#include <zcm/exponential.hpp>
+#include <zcm/type_ptr.hpp>
+
 using namespace gl45core;
 using namespace rc;
 
@@ -162,7 +166,7 @@ TextureStorage2D::TextureStorage2D(uint16_t width,
 	   || is_internal_format_invalid(format))
 		return;
 
-	m_mip_levels = static_cast<std::uint8_t>(std::floor(std::log2(std::max(width, height))) + 1);
+	m_mip_levels = static_cast<std::uint8_t>(zcm::floor(zcm::log2(std::max(width, height))) + 1);
 	m_width = width;
 	m_height = height;
 	m_internal_format = format;
@@ -444,7 +448,7 @@ void ImageTexture2D::set_anisotropy(unsigned samples) noexcept
 		constexpr auto GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT = gl45ext::GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT;
 		glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &max_aniso_samples);
 
-		max_aniso = std::floor(max_aniso_samples);
+		max_aniso = zcm::floor(max_aniso_samples);
 		if(max_aniso < 2 || max_aniso > 16) {
 			fmt::print(stderr, "[texture2d] driver reports invalid maximum anisotropy sample count: {}\n", max_aniso_samples);
 			max_aniso = 1;
@@ -461,12 +465,12 @@ void ImageTexture2D::set_anisotropy(unsigned samples) noexcept
 }
 
 
-void ImageTexture2D::set_border_color(const glm::vec4& c) noexcept
+void ImageTexture2D::set_border_color(const zcm::vec4& c) noexcept
 {
 	m_border_color = c;
 	if(unlikely(!m_storage.valid())) return;
 
-	glTextureParameterfv(m_storage.texture_handle(), GL_TEXTURE_BORDER_COLOR, glm::value_ptr(m_border_color));
+	glTextureParameterfv(m_storage.texture_handle(), GL_TEXTURE_BORDER_COLOR, zcm::value_ptr(m_border_color));
 }
 
 

@@ -2,6 +2,8 @@
 #include <rendercat/common.hpp>
 #include <rendercat/texture.hpp>
 #include <rendercat/util/gl_unique_handle.hpp>
+#include <string_view>
+#include <zcm/vec4.hpp>
 
 namespace rc {
 
@@ -164,7 +166,7 @@ struct ImageTexture2D
 		return m_filtering;
 	}
 
-	glm::vec4 border_color() const noexcept
+	zcm::vec4 border_color() const noexcept
 	{
 		return m_border_color;
 	}
@@ -175,14 +177,14 @@ struct ImageTexture2D
 	void set_wrapping(Texture::Wrapping) noexcept;
 
 	void set_anisotropy(unsigned samples)  noexcept;
-	void set_border_color(const glm::vec4&) noexcept;
+	void set_border_color(const zcm::vec4&) noexcept;
 	void set_swizzle_mask(const Texture::SwizzleMask&) noexcept;
 
 private:
 	void set_default_params();
 
 	TextureStorage2D      m_storage;
-	glm::vec4             m_border_color{};
+	zcm::vec4             m_border_color{};
 	Texture::SwizzleMask  m_swizzle_mask{};
 	Texture::MipMapping   m_mipmapping = Texture::MipMapping::MipLinear;
 	Texture::Filtering    m_filtering  = Texture::Filtering::Linear;

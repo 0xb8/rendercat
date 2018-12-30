@@ -13,7 +13,6 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib )
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-find_package(glm REQUIRED)
 find_package(OpenGL REQUIRED)
 
 add_subdirectory(third_party)
@@ -57,7 +56,7 @@ target_link_libraries(rendercat
 		glbinding::glbinding
 		glbinding::glbinding-aux
 		glfw
-		glm
+		zcm
 		imgui::imgui
 		mikktspace::mikktspace
 		OpenGL::GL
@@ -65,14 +64,6 @@ target_link_libraries(rendercat
 		stb::image_write
 		tinyheaders::tinyfiles
 		tinyobjloader
-)
-
-target_compile_definitions(rendercat
-	PRIVATE
-		GLM_FORCE_CXX14
-		GLM_ENABLE_EXPERIMENTAL
-		GLM_FORCE_DEPTH_ZERO_TO_ONE
-		GLM_FORCE_PURE
 )
 
 if(CMAKE_COMPILER_IS_GNUCC)

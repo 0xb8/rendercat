@@ -2,6 +2,12 @@
 
 #include <rendercat/common.hpp>
 #include <rendercat/core/frustum.hpp>
+#include <zcm/vec3.hpp>
+#include <zcm/quat.hpp>
+#include <zcm/angle_and_trigonometry.hpp>
+#include <zcm/quaternion.hpp>
+#include <zcm/geometric.hpp>
+#include <zcm/mat4.hpp>
 
 namespace rc {
 
@@ -9,70 +15,70 @@ struct Camera
 {
 	friend class Scene;
 
-	void pitch(float pitchRadians, float limit = glm::radians(89.0f)) noexcept
+	void pitch(float pitchRadians, float limit = zcm::radians(89.0f)) noexcept
 	{
-		if (std::abs(pitchRadians + _pitch) > limit) {
-			pitchRadians = glm::radians(89.0f) - std::abs(_pitch);
-			pitchRadians *= glm::sign(_pitch);
+		if (zcm::abs(pitchRadians + _pitch) > limit) {
+			pitchRadians = zcm::radians(89.0f) - zcm::abs(_pitch);
+			pitchRadians *= zcm::sign(_pitch);
 		}
-		rotate(pitchRadians, glm::vec3(1.0f, 0.0f, 0.0f));
+		rotate(pitchRadians, zcm::vec3(1.0f, 0.0f, 0.0f));
 		_pitch += pitchRadians;
 	}
 
 	void yaw(float yawRadians) noexcept
 	{
-		rotate(yawRadians, glm::vec3(0.0f, 1.0f, 0.0f));
+		rotate(yawRadians, zcm::vec3(0.0f, 1.0f, 0.0f));
 	}
 
 	void yaw_global(float turnRadians) noexcept
 	{
-		if(glm::dot(get_up(), get_global_up()) < 0) {
+		if(zcm::dot(get_up(), get_global_up()) < 0) {
 			turnRadians *= -1.0f;
 		}
 
-		glm::quat q = glm::angleAxis(turnRadians, orientation * glm::vec3(0.0f, 1.0f, 0.0f));
+		zcm::quat q = zcm::angleAxis(turnRadians, orientation * zcm::vec3(0.0f, 1.0f, 0.0f));
 		rotate(q);
 	}
 
 	void roll(float rollRadians) noexcept
 	{
-		rotate(rollRadians, glm::vec3(0.0f, 0.0f, 1.0f));
+		rotate(rollRadians, zcm::vec3(0.0f, 0.0f, 1.0f));
 	}
 
-	void rotate(float angleRadians, const glm::vec3& axis) noexcept
+	void rotate(float angleRadians, const zcm::vec3& axis) noexcept
 	{
-		glm::quat q = glm::angleAxis(angleRadians, axis);
+		zcm::quat q = zcm::angleAxis(angleRadians, axis);
 		rotate(q);
 	}
 
-	void rotate(const glm::quat& rotation) noexcept
+	void rotate(const zcm::quat& rotation) noexcept
 	{
-		orientation = glm::normalize(rotation * orientation);
+		orientation = zcm::normalize(rotation * orientation);
 	}
 
-	glm::vec3 get_forward() const noexcept
+	zcm::vec3 get_forward() const noexcept
 	{
-		return glm::conjugate(orientation) * glm::vec3(0.0f, 0.0f, -1.0f);
+		return zcm::conjugate(orientation) * zcm::vec3(0.0f, 0.0f, -1.0f);
 	}
 
-	glm::vec3 get_left() const noexcept
+	zcm::vec3 get_left() const noexcept
 	{
-		return glm::conjugate(orientation) * glm::vec3(-1.0, 0.0f, 0.0f);
+		return zcm::conjugate(orientation) * zcm::vec3(-1.0, 0.0f, 0.0f);
 	}
 
-	glm::vec3 get_up() const noexcept
+	zcm::vec3 get_up() const noexcept
 	{
-		return glm::conjugate(orientation) * glm::vec3(0.0f, 1.0f, 0.0f);
+		return zcm::conjugate(orientation) * zcm::vec3(0.0f, 1.0f, 0.0f);
 	}
 
-	glm::vec3 get_global_up() const noexcept
+	zcm::vec3 get_global_up() const noexcept
 	{
-		return glm::vec3(0.0f, 1.0f, 0.0f);
+		return zcm::vec3(0.0f, 1.0f, 0.0f);
 	}
 
-	glm::vec3 get_global_left() const noexcept
+	zcm::vec3 get_global_left() const noexcept
 	{
-		return glm::normalize(glm::cross(get_global_up(), get_forward()));
+		return zcm::normalize(zcm::cross(get_global_up(), get_forward()));
 	}
 
 	void move_forward(float movement) noexcept
@@ -102,7 +108,7 @@ struct Camera
 
 	void zoom(float offset) noexcept
 	{
-		set_fov(glm::clamp(fov + offset, fov_min, fov_max));
+		set_fov(zcm::clamp(fov + offset, fov_min, fov_max));
 	}
 
 
@@ -112,16 +118,16 @@ struct Camera
 
 	static constexpr float znear_min = 0.001f;
 
-	static glm::mat4 make_reversed_z_projection(float fovY_radians, float aspectWbyH, float zNear) noexcept;
+	static zcm::mat4 make_reversed_z_projection(float fovY_radians, float aspectWbyH, float zNear) noexcept;
 	void update() noexcept;
 
 
-	glm::mat4 view;
-	glm::mat4 projection;
-	glm::mat4 view_projection;
+	zcm::mat4 view;
+	zcm::mat4 projection;
+	zcm::mat4 view_projection;
 
-	glm::quat orientation;
-	glm::vec3 position;
+	zcm::quat orientation;
+	zcm::vec3 position;
 
 	float exposure = 1.0f;
 	rc::Frustum frustum;

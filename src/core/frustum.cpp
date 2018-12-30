@@ -1,5 +1,7 @@
 #include <rendercat/core/frustum.hpp>
 #include <debug_draw.hpp>
+#include <zcm/geometric.hpp>
+#include <zcm/angle_and_trigonometry.hpp>
 
 using namespace rc;
 
@@ -22,34 +24,34 @@ enum point_pos {
 	FAR_BOTTOM_RIGHT
 };
 
-Plane::Plane(const glm::vec3 & _normal, const glm::vec3 & _point) noexcept
+Plane::Plane(const zcm::vec3 & _normal, const zcm::vec3 & _point) noexcept
 {
-	const auto normal = glm::normalize(_normal);
-	plane = glm::vec4(normal, -glm::dot(normal, _point));
+	const auto normal = zcm::normalize(_normal);
+	plane = zcm::vec4(normal, -zcm::dot(normal, _point));
 }
 
-Plane::Plane(const glm::vec3 & a, const glm::vec3 & b, const glm::vec3 & c) noexcept
+Plane::Plane(const zcm::vec3 & a, const zcm::vec3 & b, const zcm::vec3 & c) noexcept
 {
-	const auto normal = glm::normalize(glm::cross(b  - a, c - a));
-	plane = glm::vec4(normal, -glm::dot(normal, a));
+	const auto normal = zcm::normalize(zcm::cross(b  - a, c - a));
+	plane = zcm::vec4(normal, -zcm::dot(normal, a));
 }
 
-float Plane::distance(const glm::vec3 & p) const noexcept
+float Plane::distance(const zcm::vec3 & p) const noexcept
 {
-	return plane.w + glm::dot(glm::vec3(plane), p);
+	return plane.w + zcm::dot({plane.x, plane.y, plane.z}, p);
 }
 
-void Frustum::update(const glm::vec3 & pos, const glm::vec3 & forward, const glm::vec3 & cup, float yfov, float aspect, float near, float far) noexcept
+void Frustum::update(const zcm::vec3 & pos, const zcm::vec3 & forward, const zcm::vec3 & cup, float yfov, float aspect, float near, float far) noexcept
 {
 	if(state & Locked) return;
 	near_center = pos + forward * near;
 	far_center  = pos + forward * far;
-	auto right  = glm::normalize(glm::cross(forward, cup));
-	auto up     = glm::normalize(glm::cross(forward, right));
+	auto right  = zcm::normalize(zcm::cross(forward, cup));
+	auto up     = zcm::normalize(zcm::cross(forward, right));
 
-	auto near_height  = 2.0f * std::tan(yfov / 2.0f) * near;
+	auto near_height  = 2.0f * zcm::tan(yfov / 2.0f) * near;
 	auto near_width = near_height * aspect;
-	auto far_height   = 2.0f * std::tan(yfov / 2.0f) * far;
+	auto far_height   = 2.0f * zcm::tan(yfov / 2.0f) * far;
 	auto far_width  = far_height * aspect;
 
 	far_width *= 0.5f;
@@ -85,8 +87,8 @@ void Frustum::update(const glm::vec3 & pos, const glm::vec3 & forward, const glm
 
 void Frustum::draw_debug() const noexcept
 {
-	const glm::vec3 color{1.0f, 1.0f, 1.0f};
-	const glm::vec3 normcolor{1.0f, 0.0f, 0.0f};
+	const zcm::vec3 color{1.0f, 1.0f, 1.0f};
+	const zcm::vec3 normcolor{1.0f, 0.0f, 0.0f};
 
 	dd::line(points[NEAR_TOP_LEFT],     points[NEAR_TOP_RIGHT],   color);
 	dd::line(points[NEAR_TOP_RIGHT],    points[NEAR_BOTTOM_RIGHT],color);
@@ -106,7 +108,7 @@ void Frustum::draw_debug() const noexcept
 	dd::line(near_center, far_center, normcolor);
 }
 
-bool Frustum::sphere_culled(const glm::vec3 & pos, float r) const noexcept
+bool Frustum::sphere_culled(const zcm::vec3 & pos, float r) const noexcept
 {
 	for(int i = 0; i < 5; ++i) {
 		if(planes[i].distance(pos) < -r)
@@ -120,14 +122,14 @@ bool Frustum::bbox_culled(const bbox3 & box) const noexcept
 	// check box outside/inside of frustum
 	for(int i = 0; i < 5; i++) {
 		int out = 0;
-		out += ((glm::dot(planes[i].plane, glm::vec4(box.min().x, box.min().y, box.min().z, 1.0f) ) < 0.0f )?1:0);
-		out += ((glm::dot(planes[i].plane, glm::vec4(box.max().x, box.min().y, box.min().z, 1.0f) ) < 0.0f )?1:0);
-		out += ((glm::dot(planes[i].plane, glm::vec4(box.min().x, box.max().y, box.min().z, 1.0f) ) < 0.0f )?1:0);
-		out += ((glm::dot(planes[i].plane, glm::vec4(box.max().x, box.max().y, box.min().z, 1.0f) ) < 0.0f )?1:0);
-		out += ((glm::dot(planes[i].plane, glm::vec4(box.min().x, box.min().y, box.max().z, 1.0f) ) < 0.0f )?1:0);
-		out += ((glm::dot(planes[i].plane, glm::vec4(box.max().x, box.min().y, box.max().z, 1.0f) ) < 0.0f )?1:0);
-		out += ((glm::dot(planes[i].plane, glm::vec4(box.min().x, box.max().y, box.max().z, 1.0f) ) < 0.0f )?1:0);
-		out += ((glm::dot(planes[i].plane, glm::vec4(box.max().x, box.max().y, box.max().z, 1.0f) ) < 0.0f )?1:0);
+		out += ((zcm::dot(planes[i].plane, zcm::vec4(box.min().x, box.min().y, box.min().z, 1.0f) ) < 0.0f )?1:0);
+		out += ((zcm::dot(planes[i].plane, zcm::vec4(box.max().x, box.min().y, box.min().z, 1.0f) ) < 0.0f )?1:0);
+		out += ((zcm::dot(planes[i].plane, zcm::vec4(box.min().x, box.max().y, box.min().z, 1.0f) ) < 0.0f )?1:0);
+		out += ((zcm::dot(planes[i].plane, zcm::vec4(box.max().x, box.max().y, box.min().z, 1.0f) ) < 0.0f )?1:0);
+		out += ((zcm::dot(planes[i].plane, zcm::vec4(box.min().x, box.min().y, box.max().z, 1.0f) ) < 0.0f )?1:0);
+		out += ((zcm::dot(planes[i].plane, zcm::vec4(box.max().x, box.min().y, box.max().z, 1.0f) ) < 0.0f )?1:0);
+		out += ((zcm::dot(planes[i].plane, zcm::vec4(box.min().x, box.max().y, box.max().z, 1.0f) ) < 0.0f )?1:0);
+		out += ((zcm::dot(planes[i].plane, zcm::vec4(box.max().x, box.max().y, box.max().z, 1.0f) ) < 0.0f )?1:0);
 		if(out == 8) return true;
 	}
 

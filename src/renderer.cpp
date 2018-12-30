@@ -15,6 +15,10 @@
 
 #include <debug_draw.hpp>
 
+#include <zcm/mat3.hpp>
+#include <zcm/exponential.hpp>
+#include <zcm/matrix_transform.hpp>
+
 using namespace gl45core;
 using namespace rc;
 
@@ -107,7 +111,7 @@ void Renderer::resize(uint32_t width, uint32_t height, bool force)
 		throw std::runtime_error("framebuffer resize failed: specified size too big");
 
 	// NOTE: for some reason AMD driver accepts 0 samples, but it's wrong
-	int samples = glm::clamp((int)std::exp2(m_scene->desired_msaa_level), 1, MSAASampleCountMax);
+	int samples = zcm::clamp((int)zcm::exp2(m_scene->desired_msaa_level), 1, MSAASampleCountMax);
 	uint32_t backbuffer_width = width * m_scene->desired_render_scale;
 	uint32_t backbuffer_height = height * m_scene->desired_render_scale;
 
@@ -178,7 +182,7 @@ void Renderer::resize(uint32_t width, uint32_t height, bool force)
 	m_backbuffer_height = backbuffer_height;
 
 	m_scene->main_camera.set_aspect(float(m_backbuffer_width) / (float)m_backbuffer_height);
-	debug_draw_ctx.window_size = glm::vec2{backbuffer_width, backbuffer_height};
+	debug_draw_ctx.window_size = zcm::vec2{(float)backbuffer_width, (float)backbuffer_height};
 	fmt::print(stderr, "[renderer] framebuffer resized to {}x{} {}\n", m_backbuffer_width, m_backbuffer_height, force ? "(forced)" : "");
 	std::fflush(stderr);
 }
@@ -242,7 +246,7 @@ void Renderer::set_uniforms(GLuint shader)
 	unif::v4(shader, "directional_fog.inscattering_color",     m_scene->fog.inscattering_color);
 	unif::v4(shader, "directional_fog.dir_inscattering_color", m_scene->fog.dir_inscattering_color);
 
-	auto fog_dir_unif = glm::vec4{-m_scene->directional_light.direction, m_scene->fog.dir_exponent};
+	auto fog_dir_unif = zcm::vec4{-m_scene->directional_light.direction, m_scene->fog.dir_exponent};
 	unif::v4(shader, "directional_fog.direction", fog_dir_unif);
 	unif::f1(shader, "directional_fog.inscattering_density",   m_scene->fog.inscattering_density);
 	unif::f1(shader, "directional_fog.extinction_density",     m_scene->fog.extinction_density);
@@ -253,30 +257,30 @@ void Renderer::set_uniforms(GLuint shader)
 
 	for(unsigned i = 0; i < m_scene->point_lights.size() && i < MaxLights;++i) {
 		const auto& light = m_scene->point_lights[i];
-		unif::v4(shader, indexed_uniform("point_light", ".position", i), glm::vec4{light.position(), light.radius()});
-		unif::v4(shader, indexed_uniform("point_light", ".color",    i), glm::vec4{light.diffuse(), light.intensity()});
+		unif::v4(shader, indexed_uniform("point_light", ".position", i), zcm::vec4{light.position(), light.radius()});
+		unif::v4(shader, indexed_uniform("point_light", ".color",    i), zcm::vec4{light.diffuse(), light.intensity()});
 	}
 
 	for(unsigned i = 0; i < m_scene->spot_lights.size() && i < MaxLights;++i) {
 		const auto& light = m_scene->spot_lights[i];
-		unif::v4(shader, indexed_uniform("spot_light", ".direction", i),   glm::vec4{light.direction(), light.angle_scale()});
-		unif::v4(shader, indexed_uniform("spot_light", ".position",  i),   glm::vec4{light.position(), light.radius()});
-		unif::v4(shader, indexed_uniform("spot_light", ".color",     i),   glm::vec4{light.diffuse(), light.intensity()});
+		unif::v4(shader, indexed_uniform("spot_light", ".direction", i),   zcm::vec4{light.direction(), light.angle_scale()});
+		unif::v4(shader, indexed_uniform("spot_light", ".position",  i),   zcm::vec4{light.position(), light.radius()});
+		unif::v4(shader, indexed_uniform("spot_light", ".color",     i),   zcm::vec4{light.diffuse(), light.intensity()});
 		unif::f1(shader, indexed_uniform("spot_light", ".angle_offset",i), light.angle_offset());
 	}
 }
 
-glm::mat4 Renderer::set_shadow_uniforms()
+zcm::mat4 Renderer::set_shadow_uniforms()
 {
 	// TODO: determine frustum size dynamically
 	static float near_plane = -25.0f, far_plane = 25.0f;
-	static glm::vec4 params = glm::vec4(-15.0f, 15.0f, -15.0f, 15.0f);
+	static zcm::vec4 params = zcm::vec4(-15.0f, 15.0f, -15.0f, 15.0f);
 	auto pos = m_scene->directional_light.direction;
 
-	glm::mat4 lightProjection = glm::orthoRH(params[0], params[1], params[2],params[3], near_plane, far_plane);
-	auto lightView = glm::lookAt(pos,
-	                             glm::vec3(0.0f, 0.0f, 0.0f),
-	                             glm::vec3(0.0f, 1.0f, 0.0f));
+	zcm::mat4 lightProjection = zcm::orthoRH_ZO(params[0], params[1], params[2],params[3], near_plane, far_plane);
+	auto lightView = zcm::lookAtRH(pos,
+	                             zcm::vec3(0.0f, 0.0f, 0.0f),
+	                             zcm::vec3(0.0f, 1.0f, 0.0f));
 
 	auto proj_view = lightProjection * lightView;
 
@@ -299,7 +303,7 @@ static void process_point_lights(const std::vector<PointLight>& point_lights,
 
 		// TODO: implement per-light AABB cutoff to prevent light leaking
 		if(bbox3::intersects_sphere(submesh_bbox, light.position(), light.radius()) != Intersection::Outside) {
-			auto dist = glm::length(light.position() - submesh_bbox.closest_point(light.position()));
+			auto dist = zcm::length(light.position() - submesh_bbox.closest_point(light.position()));
 			if(light.distance_attenuation(dist) > 0.0f) {
 				unif::i1(shader, indexed_uniform("point_light_indices", "", point_light_count++), i);
 			}
@@ -324,7 +328,7 @@ static void process_spot_lights(const std::vector<SpotLight>& spot_lights,
 
 		// TODO: implement cone-AABB collision check
 		if(bbox3::intersects_sphere(submesh_bbox, light.position(), light.radius()) != Intersection::Outside) {
-			auto dist = glm::length(light.position() - submesh_bbox.closest_point(light.position()));
+			auto dist = zcm::length(light.position() - submesh_bbox.closest_point(light.position()));
 			if(light.distance_attenuation(dist) > 0.0f) {
 				unif::i1(shader, indexed_uniform("spot_light_indices", "", spot_light_count++), i);
 			}
@@ -434,7 +438,7 @@ void Renderer::draw()
 		const Model& model = m_scene->models[model_idx];
 
 		unif::m4(*m_shader, "model", model.transform);
-		unif::m3(*m_shader, "normal_matrix", glm::transpose(model.inv_transform));
+		unif::m3(*m_shader, "normal_matrix", zcm::mat3{zcm::transpose(model.inv_transform)});
 
 		for(unsigned submesh_idx = 0; submesh_idx < model.submesh_count; ++submesh_idx) {
 			const model::Mesh& submesh = m_scene->submeshes[model.submeshes[submesh_idx]];
@@ -479,7 +483,7 @@ void Renderer::draw()
 			continue;
 
 		unif::m4(*m_shader, "model", model.transform);
-		unif::m3(*m_shader, "normal_matrix", glm::transpose(model.inv_transform));
+		unif::m3(*m_shader, "normal_matrix", zcm::mat3{zcm::transpose(model.inv_transform)});
 
 		process_point_lights(m_scene->point_lights, m_scene->main_camera.frustum, submesh_bbox, *m_shader);
 		process_spot_lights(m_scene->spot_lights, m_scene->main_camera.frustum, submesh_bbox, *m_shader);
@@ -514,11 +518,11 @@ void Renderer::draw()
 
 		dd::sphere(light.position(), light.diffuse(), 0.01f * light.radius(), 0, false);
 		dd::cone(light.position(),
-		         glm::normalize(-light.direction()) * light.radius(),
+		         zcm::normalize(-light.direction()) * light.radius(),
 		         light.diffuse(),
 		         light.angle_outer() * light.radius(), 0.0f);
 		dd::cone(light.position(),
-		         glm::normalize(-light.direction()) * light.radius(),
+		         zcm::normalize(-light.direction()) * light.radius(),
 		         light.diffuse(),
 		         light.angle_inner() * light.radius(), 0.0f);
 	}

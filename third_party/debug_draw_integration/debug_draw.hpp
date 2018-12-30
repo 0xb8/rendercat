@@ -1,11 +1,12 @@
 #pragma once
 
 #include <cstdint>
-#include <glm/vec3.hpp>
-#include <glm/mat4x4.hpp>
+#include <zcm/vec2.hpp>
+#include <zcm/vec3.hpp>
+#include <zcm/mat4.hpp>
 
 #define DEBUG_DRAW_VEC3_TYPE_DEFINED
-using ddVec3    = glm::vec3;
+using ddVec3    = zcm::vec3;
 using ddVec3_In  = const ddVec3&;
 using ddVec3_Out = ddVec3&;
 
@@ -26,8 +27,8 @@ public:
 	void setupShaderPrograms();
 	void setupVertexBuffers();
 
-	glm::mat4 mvpMatrix;
-	glm::vec2 window_size;
+	zcm::mat4 mvpMatrix;
+	zcm::vec2 window_size;
 
 private:
 

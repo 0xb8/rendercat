@@ -1,6 +1,7 @@
 #include <rendercat/material.hpp>
 #include <rendercat/texture_cache.hpp>
 #include <rendercat/uniform.hpp>
+#include <string>
 #include <fmt/core.h>
 #include <stb_image.h>
 
@@ -79,7 +80,7 @@ void Material::bind(uint32_t s) const noexcept
 	using namespace Texture;
 
 	unif::v4(s, "material.diffuse",   m_diffuse_color);
-	unif::v4(s, "material.specular",  glm::vec4(m_specular_color, m_shininess));
+	unif::v4(s, "material.specular",  zcm::vec4(m_specular_color, m_shininess));
 	unif::f1(s, "material.alpha_cutoff", m_alpha_cutoff);
 
 	auto flags = m_flags;

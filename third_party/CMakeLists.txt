@@ -25,4 +25,9 @@ set(GLFW_INSTALL        OFF CACHE BOOL "Generate installation target" FORCE)
 add_subdirectory(glfw)
 
 add_subdirectory(imgui_integration)
+
+set(ZCM_ENABLE_TESTS OFF CACHE BOOL "Build tests" FORCE)
+set(ZCM_ENABLE_COVERAGE_IN_DEBUG OFF CACHE BOOL "Build code coverage report" FORCE)
+add_subdirectory(zcm)
+
 add_subdirectory(debug_draw_integration)

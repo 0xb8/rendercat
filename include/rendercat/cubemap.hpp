@@ -2,6 +2,7 @@
 #include <rendercat/common.hpp>
 #include <rendercat/util/gl_unique_handle.hpp>
 #include <string_view>
+#include <zcm/fwd.hpp>
 
 namespace rc {
 
@@ -19,7 +20,7 @@ public:
 	RC_DISABLE_COPY(Cubemap)
 
 	void load_textures(std::string_view basedir);
-	void draw(uint32_t shader, const glm::mat4& view, const glm::mat4& projection) noexcept;
+	void draw(uint32_t shader, const zcm::mat4& view, const zcm::mat4& projection) noexcept;
 };
 
 } // namespace rc

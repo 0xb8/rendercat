@@ -38,7 +38,7 @@ class Renderer
 	rc::texture_handle     m_backbuffer_resolve_color_to;
 
 	void set_uniforms(uint32_t shader);
-	glm::mat4 set_shadow_uniforms();
+	zcm::mat4 set_shadow_uniforms();
 	void draw_shadow();
 	void draw_skybox();
 	void init_shadow();

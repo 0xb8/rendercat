@@ -1,5 +1,11 @@
 #pragma once
 
+#include <zcm/vec3.hpp>
+#include <zcm/vec4.hpp>
+#include <zcm/mat4.hpp>
+#include <zcm/matrix.hpp>
+#include <zcm/matrix_transform.hpp>
+
 #include <rendercat/common.hpp>
 #include <rendercat/mesh.hpp>
 #include <rendercat/core/camera.hpp>
@@ -10,23 +16,22 @@
 
 #include <memory>
 #include <string_view>
-#include <glm/gtx/euler_angles.hpp>
 
 namespace rc {
 
 struct DirectionalLight
 {
-	glm::vec3 direction;
-	glm::vec3 ambient;
-	glm::vec3 diffuse;
-	glm::vec3 specular;
+	zcm::vec3 direction;
+	zcm::vec3 ambient;
+	zcm::vec3 diffuse;
+	zcm::vec3 specular;
 };
 
 struct ExponentialDirectionalFog
 {
 	/// .rgb - color, .a - max opacity
-	glm::vec4 inscattering_color;
-	glm::vec4 dir_inscattering_color;
+	zcm::vec4 inscattering_color;
+	zcm::vec4 dir_inscattering_color;
 
 	/// amount of light scattered by fog
 	float inscattering_density = 0.01f;
@@ -54,18 +59,18 @@ struct Model
 	std::unique_ptr<uint32_t[]> submeshes;
 	uint32_t submesh_count;
 
-	glm::vec3 position;
-	glm::vec3 rotation_euler;
+	zcm::vec3 position;
+	zcm::vec3 rotation_euler;
 
-	glm::mat4 transform;
-	glm::mat4 inv_transform;
+	zcm::mat4 transform;
+	zcm::mat4 inv_transform;
 
 	void update_transform()
 	{
-		transform = glm::translate(glm::mat4(), position);
-		transform *= glm::yawPitchRoll(rotation_euler.x, rotation_euler.y, rotation_euler.z);
+		transform = zcm::translate(zcm::mat4(1.0f), position);
+		//transform *= zcm::yawPitchRoll(rotation_euler.x, rotation_euler.y, rotation_euler.z);
 
-		inv_transform = glm::inverse(transform);
+		inv_transform = zcm::inverse(transform);
 	}
 };
 
@@ -97,16 +102,16 @@ struct Scene
 
 	DirectionalLight directional_light
 	{
-		glm::vec3(0.217f, 0.468f, 0.857f), // dir
-		glm::vec3(0.029f, 0.034f, 0.081f), // amb
-		glm::vec3(0.596f, 0.364f, 0.187f), // diff
-		glm::vec3(0.554f, 0.332f, 0.106f)  // spec
+		zcm::vec3(0.217f, 0.468f, 0.857f), // dir
+		zcm::vec3(0.029f, 0.034f, 0.081f), // amb
+		zcm::vec3(0.596f, 0.364f, 0.187f), // diff
+		zcm::vec3(0.554f, 0.332f, 0.106f)  // spec
 	};
 
 	ExponentialDirectionalFog fog
 	{
-		glm::vec4(0.029f, 0.034f, 0.081f, 1.0f), // ins
-		glm::vec4(0.109f, 0.071f, 0.042f, 1.0f)  // dir ins
+		zcm::vec4(0.029f, 0.034f, 0.081f, 1.0f), // ins
+		zcm::vec4(0.109f, 0.071f, 0.042f, 1.0f)  // dir ins
 	};
 
 	Cubemap cubemap;
