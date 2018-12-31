@@ -1,11 +1,12 @@
 #pragma once
-
 #include <rendercat/common.hpp>
 #include <zcm/vec3.hpp>
+#include <zcm/angle_and_trigonometry.hpp>
 #include <zcm/common.hpp>
 #include <zcm/geometric.hpp>
 #include <zcm/exponential.hpp>
-#include <stdint.h>
+#include <zcm/constants.hpp>
+#include <cstdint>
 
 namespace rc {
 
@@ -27,7 +28,7 @@ public:
 		FollowCamera        = 0x4
 	};
 
-	uint8_t state = Enabled;
+	std::uint8_t state = Enabled;
 
 	constexpr PunctualLight() = default;
 
@@ -47,7 +48,7 @@ public:
 	}
 	T& diffuse(zcm::vec3 dif) noexcept
 	{
-		m_diffuse = zcm::clamp(dif, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f});;
+		m_diffuse = zcm::clamp(dif, 0.0f, 1.0f);
 		return *static_cast<T*>(this);
 	}
 
@@ -88,12 +89,12 @@ public:
 	{
 		// ref: equation (15) from https://seblagarde.files.wordpress.com/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
 		// @ https://seblagarde.wordpress.com/2015/07/14/siggraph-2014-moving-frostbite-to-physically-based-rendering/
-		return m_luminous_intensity * 4.0 * rc::mathconst::pi;
+		return m_luminous_intensity * 4.0 * zcm::pi();
 	}
 
 	T& flux(float luminous_flux) noexcept // in lumens
 	{
-		m_luminous_intensity = zcm::clamp(luminous_flux, 0.1f, 20000.0f) / (4.0 * rc::mathconst::pi);
+		m_luminous_intensity = zcm::clamp(luminous_flux, 0.1f, 20000.0f) / (4.0 * zcm::pi());
 		return *static_cast<T*>(this);
 	}
 
@@ -125,7 +126,7 @@ struct SpotLight final : public PunctualLight<SpotLight>
 	{
 		float cosInn = zcm::cos(m_angle_inn);
 		float cosOut = zcm::cos(m_angle_out);
-		m_angle_scale= 1.0f / std::max(0.001f, cosInn - cosOut);
+		m_angle_scale= 1.0f / zcm::max(0.001f, cosInn - cosOut);
 		m_angle_offset = (-cosOut) * m_angle_scale;
 	}
 
@@ -150,12 +151,12 @@ public:
 	{
 		// ref: equation (17) from https://seblagarde.files.wordpress.com/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
 		// @ https://seblagarde.wordpress.com/2015/07/14/siggraph-2014-moving-frostbite-to-physically-based-rendering/
-		return intensity() * rc::mathconst::pi;
+		return intensity() * zcm::pi();
 	}
 
 	SpotLight& flux(float luminous_flux) noexcept // in lumens
 	{
-		intensity(zcm::clamp(luminous_flux, 1.0f, 20000.0f) /  rc::mathconst::pi);
+		intensity(zcm::clamp(luminous_flux, 1.0f, 20000.0f) / zcm::pi());
 		return *(this);
 	}
 
