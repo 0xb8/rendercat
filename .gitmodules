@@ -23,3 +23,7 @@
 [submodule "third_party/debug_draw_integration/debug-draw"]
 	path = third_party/debug_draw_integration/debug-draw
 	url = https://github.com/glampert/debug-draw.git
+[submodule "third_party/zcm"]
+	path = third_party/zcm
+	url = https://github.com/zettdaymond/zcm.git
+	branch = master
