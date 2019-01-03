@@ -57,8 +57,10 @@ static Material load_obj_material(const tinyobj::material_t& mat, const std::str
 		}
 	}
 
-	if(!mat.normal_texname.empty()) {
-		material.add_normal_map(mat.normal_texname, material_path);
+	// .MTL file might not have 'norm' keyword, allow 'bump' keyword for normal maps too
+	auto norm_texname = !mat.normal_texname.empty() ? mat.normal_texname : mat.bump_texname;
+	if(!norm_texname.empty()) {
+		material.add_normal_map(norm_texname, material_path);
 	}
 
 	if(!mat.specular_texname.empty()) {
@@ -101,7 +103,7 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 	std::string model_path_full = model_path;
 	model_path_full.append(name);
 
-	std::string material_path{rc::path::asset::model_material};
+	std::string material_path{rc::path::asset::model};
 	material_path.append(basedir);
 
 	fmt::print(stderr, "\n--- loading model '{}' from '{}' ------------------------\n",
