@@ -4,6 +4,8 @@
 #include <zcm/mat3.hpp>
 #include <zcm/mat4.hpp>
 #include <zcm/quat.hpp>
+#include <zcm/common.hpp>
+#include <cassert>
 
 using namespace rc;
 
@@ -19,47 +21,56 @@ bbox2 bbox2::transformed(const bbox2& bbox, const zcm::mat3& m) noexcept
 	bbox2 res;
 	for(int i = 0; i < 4; ++i) {
 		auto p{m * zcm::vec3(points[i], 1.0f)};
-		res.include({p.x, p.y});
+		res.include(zcm::vec2{p.x, p.y});
 	}
 	return res;
 }
 
-bbox3 bbox3::transformed(const bbox3& bbox, const zcm::mat4 &m) noexcept
+bbox2::bbox2(zcm::vec2 p1, zcm::vec2 p2) noexcept
 {
-	const zcm::vec3 points[8] {
-		{bbox.mMin.x, bbox.mMin.y, bbox.mMin.z},
-		{bbox.mMin.x, bbox.mMin.y, bbox.mMax.z},
-		{bbox.mMin.x, bbox.mMax.y, bbox.mMin.z},
-		{bbox.mMin.x, bbox.mMax.y, bbox.mMax.z},
-		{bbox.mMax.x, bbox.mMin.y, bbox.mMin.z},
-		{bbox.mMax.x, bbox.mMin.y, bbox.mMax.z},
-		{bbox.mMax.x, bbox.mMax.y, bbox.mMin.z},
-		{bbox.mMax.x, bbox.mMax.y, bbox.mMax.z}
-	};
-
-	bbox3 res;
-	for(int i = 0; i < 8; ++i) {
-		auto p {m * zcm::vec4(points[i], 1.0f)};
-		res.include({p.x, p.y, p.z});
-	}
-	return res;
+	include(p1);
+	include(p2);
 }
 
-bbox3 bbox3::rotated(const bbox3 & bbox, const zcm::quat & quat) noexcept
-{
-	bbox3 res;
-	res.include(quat * zcm::vec3{bbox.mMin.x, bbox.mMin.y, bbox.mMin.z});
-	res.include(quat * zcm::vec3{bbox.mMin.x, bbox.mMin.y, bbox.mMax.z});
-	res.include(quat * zcm::vec3{bbox.mMin.x, bbox.mMax.y, bbox.mMin.z});
-	res.include(quat * zcm::vec3{bbox.mMin.x, bbox.mMax.y, bbox.mMax.z});
-	res.include(quat * zcm::vec3{bbox.mMax.x, bbox.mMin.y, bbox.mMin.z});
-	res.include(quat * zcm::vec3{bbox.mMax.x, bbox.mMin.y, bbox.mMax.z});
-	res.include(quat * zcm::vec3{bbox.mMax.x, bbox.mMax.y, bbox.mMin.z});
-	res.include(quat * zcm::vec3{bbox.mMax.x, bbox.mMax.y, bbox.mMax.z});
-	return res;
+bool bbox2::is_null() const noexcept {
+	return !(mMin.x <= mMax.x && mMin.y <= mMax.y);
 }
 
-void bbox2::scale(const zcm::vec2& scale, const zcm::vec2& origin) noexcept
+void bbox2::include(zcm::vec2 p) noexcept
+{
+	mMin = zcm::min(mMin, p);
+	mMax = zcm::max(mMax, p);
+}
+
+void bbox2::include(const bbox2 & bbox) noexcept
+{
+	mMin = zcm::min(mMin, bbox.mMin);
+	mMax = zcm::max(mMax, bbox.mMax);
+}
+
+void bbox2::include_circle(zcm::vec2 p, float radius) noexcept
+{
+	zcm::vec2 r(radius);
+	mMin = zcm::min(mMin, p - r);
+	mMax = zcm::max(mMax, p + r);
+}
+
+void bbox2::extend(float val) noexcept
+{
+	assert(!is_null());
+	assert(!zcm::isnan(val));
+	mMin -= zcm::vec2(val);
+	mMax += zcm::vec2(val);
+}
+
+void bbox2::translate(zcm::vec2 v) noexcept
+{
+	assert(!is_null()); // TODO: nan-safety
+	mMin += v;
+	mMax += v;
+}
+
+void bbox2::scale(zcm::vec2 scale, zcm::vec2 origin) noexcept
 {
 	assert(!is_null());
 	mMin -= origin;
@@ -72,7 +83,12 @@ void bbox2::scale(const zcm::vec2& scale, const zcm::vec2& origin) noexcept
 	mMax += origin;
 }
 
-void bbox3::scale(const zcm::vec3 & scale, const zcm::vec3 & origin) noexcept
+void bbox2::scale(const zcm::vec2 & scale_) noexcept
+{
+	scale(scale_, center());
+}
+
+void bbox3::scale(zcm::vec3 scale, zcm::vec3 origin) noexcept
 {
 	assert(!is_null());
 	mMin -= origin;
@@ -83,6 +99,11 @@ void bbox3::scale(const zcm::vec3 & scale, const zcm::vec3 & origin) noexcept
 
 	mMin += origin;
 	mMax += origin;
+}
+
+void bbox3::scale(zcm::vec3 scale_) noexcept
+{
+	scale(scale_, center());
 }
 
 zcm::vec2 bbox2::center() const noexcept
@@ -136,9 +157,145 @@ float bbox2::shortest_edge() const noexcept
 	return zcm::compMin(diagonal());
 }
 
+zcm::vec2 bbox2::min() const noexcept
+{
+	return mMin;
+}
+
+zcm::vec2 bbox2::max() const noexcept
+{
+	return mMax;
+}
+
+bbox2::range bbox2::x_range() const noexcept
+{
+	return range{mMin.x, mMax.x};
+}
+
+bbox2::range bbox2::y_range() const noexcept
+{
+	return range{mMin.y, mMax.y};
+}
+
+zcm::vec2 bbox2::closest_point(zcm::vec2 point) const noexcept
+{
+	return zcm::clamp(point, mMin, mMax);
+}
+
+bbox3::bbox3(zcm::vec3 p1, zcm::vec3 p2) noexcept
+{
+	include(p1);
+	include(p2);
+}
+
+bool bbox3::is_null() const noexcept
+{
+	return !(mMin.x <= mMax.x && mMin.y <= mMax.y && mMin.z <= mMax.z);
+}
+
+void bbox3::extend(float val) noexcept
+{
+	assert(!is_null());
+	assert(!zcm::isnan(val));
+	mMin -= zcm::vec3(val);
+	mMax += zcm::vec3(val);
+
+}
+
+void bbox3::include(zcm::vec3 p) noexcept
+{
+	mMin = zcm::min(mMin, p);
+	mMax = zcm::max(mMax, p);
+}
+
+void bbox3::include(const bbox3 & bbox) noexcept
+{
+	mMin = zcm::min(mMin, bbox.mMin);
+	mMax = zcm::max(mMax, bbox.mMax);
+}
+
+void bbox3::include_sphere(zcm::vec3 p, float radius) noexcept
+{
+	zcm::vec3 r(radius);
+	mMin = zcm::min(mMin, p - r);
+	mMax = zcm::max(mMax, p + r);
+}
+
+void bbox3::translate(zcm::vec3 v) noexcept
+{
+	assert(!is_null());
+	mMin += v;
+	mMax += v;
+}
+
+bbox3 bbox3::transformed(const bbox3& bbox, const zcm::mat4 &m) noexcept
+{
+	const zcm::vec3 points[8] {
+		{bbox.mMin.x, bbox.mMin.y, bbox.mMin.z},
+		{bbox.mMin.x, bbox.mMin.y, bbox.mMax.z},
+		{bbox.mMin.x, bbox.mMax.y, bbox.mMin.z},
+		{bbox.mMin.x, bbox.mMax.y, bbox.mMax.z},
+		{bbox.mMax.x, bbox.mMin.y, bbox.mMin.z},
+		{bbox.mMax.x, bbox.mMin.y, bbox.mMax.z},
+		{bbox.mMax.x, bbox.mMax.y, bbox.mMin.z},
+		{bbox.mMax.x, bbox.mMax.y, bbox.mMax.z}
+	};
+
+	bbox3 res;
+	for(int i = 0; i < 8; ++i) {
+		auto p {m * zcm::vec4(points[i], 1.0f)};
+		res.include({p.x, p.y, p.z});
+	}
+	return res;
+}
+
+bbox3 bbox3::rotated(const bbox3 & bbox, const zcm::quat & quat) noexcept
+{
+	bbox3 res;
+	res.include(quat * zcm::vec3{bbox.mMin.x, bbox.mMin.y, bbox.mMin.z});
+	res.include(quat * zcm::vec3{bbox.mMin.x, bbox.mMin.y, bbox.mMax.z});
+	res.include(quat * zcm::vec3{bbox.mMin.x, bbox.mMax.y, bbox.mMin.z});
+	res.include(quat * zcm::vec3{bbox.mMin.x, bbox.mMax.y, bbox.mMax.z});
+	res.include(quat * zcm::vec3{bbox.mMax.x, bbox.mMin.y, bbox.mMin.z});
+	res.include(quat * zcm::vec3{bbox.mMax.x, bbox.mMin.y, bbox.mMax.z});
+	res.include(quat * zcm::vec3{bbox.mMax.x, bbox.mMax.y, bbox.mMin.z});
+	res.include(quat * zcm::vec3{bbox.mMax.x, bbox.mMax.y, bbox.mMax.z});
+	return res;
+}
+
 float bbox3::shortest_edge() const noexcept
 {
 	return zcm::compMin(diagonal());
+}
+
+zcm::vec3 bbox3::min() const noexcept
+{
+	return mMin;
+}
+
+zcm::vec3 bbox3::max() const noexcept
+{
+	return mMax;
+}
+
+bbox3::range bbox3::x_range() const noexcept
+{
+	return range{mMin.x, mMax.x};
+}
+
+bbox3::range bbox3::y_range() const noexcept
+{
+	return range{mMin.y, mMax.y};
+}
+
+bbox3::range bbox3::z_range() const noexcept
+{
+	return range{mMin.z, mMax.z};
+}
+
+zcm::vec3 bbox3::closest_point(zcm::vec3 point) const noexcept
+{
+	return zcm::clamp(point, mMin, mMax);
 }
 
 Intersection bbox2::intersects(const bbox2 & a, const bbox2 & b) noexcept
@@ -200,7 +357,7 @@ Intersection bbox2::intersects_sphere(const bbox2& bbox, const zcm::vec2& center
 	                              radius);
 }
 
-Intersection bbox3::intersects_sphere(const bbox3& bbox, const zcm::vec3& center, float radius) noexcept
+Intersection bbox3::intersects_sphere(const bbox3& bbox, zcm::vec3 center, float radius) noexcept
 {
 	if(bbox.is_null()) return Intersection::Outside;
 	return intersects_sphere_impl(bbox.closest_point(center),
