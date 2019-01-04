@@ -181,7 +181,7 @@ void Renderer::resize(uint32_t width, uint32_t height, bool force)
 	m_backbuffer_width = backbuffer_width;
 	m_backbuffer_height = backbuffer_height;
 
-	m_scene->main_camera.set_aspect(float(m_backbuffer_width) / (float)m_backbuffer_height);
+	m_scene->main_camera.state.aspect = (float(m_backbuffer_width) / (float)m_backbuffer_height);
 	debug_draw_ctx.window_size = zcm::vec2{(float)backbuffer_width, (float)backbuffer_height};
 	fmt::print(stderr, "[renderer] framebuffer resized to {}x{} {}\n", m_backbuffer_width, m_backbuffer_height, force ? "(forced)" : "");
 	std::fflush(stderr);
@@ -233,10 +233,17 @@ static const char* indexed_uniform(std::string_view array, std::string_view name
 void Renderer::set_uniforms(GLuint shader)
 {
 	m_scene->main_camera.update();
-	debug_draw_ctx.mvpMatrix = m_scene->main_camera.view_projection;
 
-	unif::m4(shader, "proj_view", m_scene->main_camera.view_projection);
-	unif::v3(shader, "viewPos",   m_scene->main_camera.position);
+
+	auto view = make_view(m_scene->main_camera.state);
+	auto projection = make_projection(m_scene->main_camera.state);
+	auto view_projection = projection * view;
+
+
+	debug_draw_ctx.mvpMatrix = view_projection;
+
+	unif::m4(shader, "proj_view", view_projection);
+	unif::v3(shader, "viewPos",   m_scene->main_camera.state.position);
 
 	unif::v3(shader, "directional_light.direction", m_scene->directional_light.direction);
 	unif::v3(shader, "directional_light.ambient",   m_scene->directional_light.ambient);
@@ -257,15 +264,15 @@ void Renderer::set_uniforms(GLuint shader)
 
 	for(unsigned i = 0; i < m_scene->point_lights.size() && i < MaxLights;++i) {
 		const auto& light = m_scene->point_lights[i];
-		unif::v4(shader, indexed_uniform("point_light", ".position", i), zcm::vec4{light.position(), light.radius()});
-		unif::v4(shader, indexed_uniform("point_light", ".color",    i), zcm::vec4{light.diffuse(), light.intensity()});
+		unif::v4(shader, indexed_uniform("point_light", ".position", i), zcm::vec4{light.position, light.radius});
+		unif::v4(shader, indexed_uniform("point_light", ".color",    i), zcm::vec4{light.diffuse, light.luminous_intensity});
 	}
 
 	for(unsigned i = 0; i < m_scene->spot_lights.size() && i < MaxLights;++i) {
 		const auto& light = m_scene->spot_lights[i];
 		unif::v4(shader, indexed_uniform("spot_light", ".direction", i),   zcm::vec4{light.direction(), light.angle_scale()});
-		unif::v4(shader, indexed_uniform("spot_light", ".position",  i),   zcm::vec4{light.position(), light.radius()});
-		unif::v4(shader, indexed_uniform("spot_light", ".color",     i),   zcm::vec4{light.diffuse(), light.intensity()});
+		unif::v4(shader, indexed_uniform("spot_light", ".position",  i),   zcm::vec4{light.position, light.radius});
+		unif::v4(shader, indexed_uniform("spot_light", ".color",     i),   zcm::vec4{light.diffuse, light.luminous_intensity});
 		unif::f1(shader, indexed_uniform("spot_light", ".angle_offset",i), light.angle_offset());
 	}
 }
@@ -298,12 +305,12 @@ static void process_point_lights(const std::vector<PointLight>& point_lights,
 		const auto& light = point_lights[i];
 		if(!(light.state & PointLight::Enabled))
 			continue;
-		if(frustum.sphere_culled(light.position(), light.radius()))
+		if(frustum.sphere_culled(light.position, light.radius))
 			continue;
 
 		// TODO: implement per-light AABB cutoff to prevent light leaking
-		if(bbox3::intersects_sphere(submesh_bbox, light.position(), light.radius()) != Intersection::Outside) {
-			auto dist = zcm::length(light.position() - submesh_bbox.closest_point(light.position()));
+		if(bbox3::intersects_sphere(submesh_bbox, light.position, light.radius) != Intersection::Outside) {
+			auto dist = zcm::length(light.position - submesh_bbox.closest_point(light.position));
 			if(light.distance_attenuation(dist) > 0.0f) {
 				unif::i1(shader, indexed_uniform("point_light_indices", "", point_light_count++), i);
 			}
@@ -323,12 +330,12 @@ static void process_spot_lights(const std::vector<SpotLight>& spot_lights,
 		if(!(light.state & SpotLight::Enabled))
 			continue;
 
-		if(frustum.sphere_culled(light.position(), light.radius()))
+		if(frustum.sphere_culled(light.position, light.radius))
 			continue;
 
 		// TODO: implement cone-AABB collision check
-		if(bbox3::intersects_sphere(submesh_bbox, light.position(), light.radius()) != Intersection::Outside) {
-			auto dist = zcm::length(light.position() - submesh_bbox.closest_point(light.position()));
+		if(bbox3::intersects_sphere(submesh_bbox, light.position, light.radius) != Intersection::Outside) {
+			auto dist = zcm::length(light.position - submesh_bbox.closest_point(light.position));
 			if(light.distance_attenuation(dist) > 0.0f) {
 				unif::i1(shader, indexed_uniform("spot_light_indices", "", spot_light_count++), i);
 			}
@@ -502,29 +509,29 @@ void Renderer::draw()
 		if(!(light.state & PointLight::ShowWireframe))
 			continue;
 
-		if(m_scene->main_camera.frustum.sphere_culled(light.position(), light.radius()))
+		if(m_scene->main_camera.frustum.sphere_culled(light.position, light.radius))
 			continue;
 
-		dd::sphere(light.position(), light.diffuse(), 0.01f * light.radius(), 0, false);
-		dd::sphere(light.position(), light.diffuse(), light.radius());
+		dd::sphere(light.position, light.diffuse, 0.01f * light.radius, 0, false);
+		dd::sphere(light.position, light.diffuse, light.radius);
 	}
 
 	for(auto&& light : m_scene->spot_lights) {
 		if(!(light.state & SpotLight::ShowWireframe))
 			continue;
 
-		if(m_scene->main_camera.frustum.sphere_culled(light.position(), light.radius()))
+		if(m_scene->main_camera.frustum.sphere_culled(light.position, light.radius))
 			continue;
 
-		dd::sphere(light.position(), light.diffuse(), 0.01f * light.radius(), 0, false);
-		dd::cone(light.position(),
-		         zcm::normalize(-light.direction()) * light.radius(),
-		         light.diffuse(),
-		         light.angle_outer() * light.radius(), 0.0f);
-		dd::cone(light.position(),
-		         zcm::normalize(-light.direction()) * light.radius(),
-		         light.diffuse(),
-		         light.angle_inner() * light.radius(), 0.0f);
+		dd::sphere(light.position, light.diffuse, 0.01f * light.radius, 0, false);
+		dd::cone(light.position,
+		         zcm::normalize(-light.direction()) * light.radius,
+		         light.diffuse,
+		         light.angle_outer() * light.radius, 0.0f);
+		dd::cone(light.position,
+		         zcm::normalize(-light.direction()) * light.radius,
+		         light.diffuse,
+		         light.angle_inner() * light.radius, 0.0f);
 	}
 
 	const auto& frustum = m_scene->main_camera.frustum;
@@ -550,7 +557,7 @@ void Renderer::draw()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glUseProgram(*m_hdr_shader);
 	glBindTextureUnit(0, *m_backbuffer_color_to);
-	unif::f1(*m_hdr_shader, 0, m_scene->main_camera.exposure);
+	unif::f1(*m_hdr_shader, 0, m_scene->main_camera.state.exposure);
 	unif::i1(*m_hdr_shader, 1, MSAASampleCount);
 	renderQuad();
 
@@ -601,7 +608,9 @@ void Renderer::draw_gui()
 void Renderer::draw_skybox()
 {
 	glDepthFunc(GL_GEQUAL);
-	m_scene->cubemap.draw(*m_cubemap_shader, m_scene->main_camera.view, m_scene->main_camera.projection);
+	auto view = make_view(m_scene->main_camera.state);
+	auto projection = make_projection(m_scene->main_camera.state);
+	m_scene->cubemap.draw(*m_cubemap_shader, view, projection);
 	glDepthFunc(GL_GREATER);
 }
 

@@ -10,16 +10,14 @@
 
 namespace rc {
 
-template<typename T>
-class PunctualLight // CRTP base class
+struct PointLight
 {
-	zcm::vec3 m_position = {0.0f, 0.0f, 0.0f};
-	zcm::vec3 m_diffuse  = {1.0f, 1.0f, 1.0f};
-	float m_radius = 5.0f;
-	float m_luminous_intensity = 11.9366f; // in candelas, equiv. 150 lm
-	float m_color_temperature = 6500.0f;   // in Kelvin, ranges from ~1000 to ~22000
+	zcm::vec3 position = {0.0f, 0.0f, 0.0f};
+	zcm::vec3 diffuse  = {1.0f, 1.0f, 1.0f};
+	float radius = 5.0f;
+	float luminous_intensity = 11.9366f; // in candelas, equiv. 150 lm
+	float color_temperature = 6500.0f;   // in Kelvin, ranges from ~1000 to ~22000
 
-public:
 	enum State
 	{
 		NoState,
@@ -30,72 +28,16 @@ public:
 
 	std::uint8_t state = Enabled;
 
-	constexpr PunctualLight() = default;
-
-	zcm::vec3 position() const noexcept
-	{
-		return m_position;
-	}
-	T& position(zcm::vec3 pos) noexcept
-	{
-		m_position = pos;
-		return *static_cast<T*>(this);
-	}
-
-	zcm::vec3 diffuse() const noexcept
-	{
-		return m_diffuse;
-	}
-	T& diffuse(zcm::vec3 dif) noexcept
-	{
-		m_diffuse = zcm::clamp(dif, 0.0f, 1.0f);
-		return *static_cast<T*>(this);
-	}
-
-	float color_temperature() const noexcept
-	{
-		return m_color_temperature;
-	}
-
-	T& color_temperature(float temp) noexcept
-	{
-		m_color_temperature = zcm::clamp(temp, 273.0f, 22000.0f);
-		return *static_cast<T*>(this);
-	}
-
-	float radius() const noexcept
-	{
-		return m_radius;
-	}
-
-	T& radius(float rad) noexcept
-	{
-		m_radius = zcm::clamp(rad, 0.1f, 1000.0f);
-		return *static_cast<T*>(this);
-	}
-
-	float intensity() const noexcept // in candelas
-	{
-		return m_luminous_intensity;
-	}
-
-	T& intensity(float intensity) noexcept
-	{
-		m_luminous_intensity = intensity;
-		return *static_cast<T*>(this);
-	}
-
 	float flux() const noexcept
 	{
 		// ref: equation (15) from https://seblagarde.files.wordpress.com/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
 		// @ https://seblagarde.wordpress.com/2015/07/14/siggraph-2014-moving-frostbite-to-physically-based-rendering/
-		return m_luminous_intensity * 4.0 * zcm::pi();
+		return luminous_intensity * 4.0 * zcm::pi();
 	}
 
-	T& flux(float luminous_flux) noexcept // in lumens
+	void set_flux(float luminous_flux) noexcept // in lumens
 	{
-		m_luminous_intensity = zcm::clamp(luminous_flux, 0.1f, 20000.0f) / (4.0 * zcm::pi());
-		return *static_cast<T*>(this);
+		luminous_intensity = zcm::max(luminous_flux, 0.1f) / (4.0 * zcm::pi());
 	}
 
 	float distance_attenuation(float dist) const noexcept
@@ -104,17 +46,11 @@ public:
 
 		// ref: equation (26) from https://seblagarde.files.wordpress.com/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
 		// @ https://seblagarde.wordpress.com/2015/07/14/siggraph-2014-moving-frostbite-to-physically-based-rendering/
-		return zcm::pow(zcm::clamp(1.0 - zcm::pow(dist/m_radius, 4.0), 0.0, 1.0), decay) / zcm::max(zcm::pow(dist, decay), 0.01f);
+		return zcm::pow(zcm::clamp(1.0 - zcm::pow(dist/radius, 4.0), 0.0, 1.0), decay) / zcm::max(zcm::pow(dist, decay), 0.01f);
 	}
 };
 
-struct PointLight final : public PunctualLight<PointLight>
-{
-	constexpr PointLight() = default;
-};
-
-
-struct SpotLight final : public PunctualLight<SpotLight>
+struct SpotLight final : public PointLight
 {
 	zcm::vec3 m_direction {0.0f, 1.0f, 0.0f};
 	float     m_angle_out = zcm::radians(30.0f);
@@ -131,15 +67,14 @@ struct SpotLight final : public PunctualLight<SpotLight>
 	}
 
 public:
-	SpotLight() : PunctualLight<SpotLight>()
+	SpotLight()
 	{
 		update_angle_scale_offset();
 	}
 
-	SpotLight& direction(zcm::vec3 dir) noexcept
+	void set_direction(zcm::vec3 dir) noexcept
 	{
 		m_direction = zcm::normalize(dir);
-		return *this;
 	}
 
 	zcm::vec3 direction() const noexcept
@@ -151,20 +86,18 @@ public:
 	{
 		// ref: equation (17) from https://seblagarde.files.wordpress.com/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
 		// @ https://seblagarde.wordpress.com/2015/07/14/siggraph-2014-moving-frostbite-to-physically-based-rendering/
-		return intensity() * zcm::pi();
+		return luminous_intensity * zcm::pi();
 	}
 
-	SpotLight& flux(float luminous_flux) noexcept // in lumens
+	void set_flux(float luminous_flux) noexcept // in lumens
 	{
-		intensity(zcm::clamp(luminous_flux, 1.0f, 20000.0f) / zcm::pi());
-		return *(this);
+		luminous_intensity = zcm::max(luminous_flux, 1.0f) / zcm::pi();
 	}
 
-	SpotLight& angle_outer(float angle) noexcept
+	void set_angle_outer(float angle) noexcept
 	{
 		m_angle_out = zcm::clamp(angle, 0.0f, zcm::radians(90.0f));
 		update_angle_scale_offset();
-		return *this;
 	}
 
 	float angle_outer() const noexcept
@@ -172,11 +105,10 @@ public:
 		return m_angle_out;
 	}
 
-	SpotLight& angle_inner(float angle) noexcept
+	void set_angle_inner(float angle) noexcept
 	{
 		m_angle_inn = zcm::clamp(angle, 0.0f, m_angle_out);
 		update_angle_scale_offset();
-		return *this;
 	}
 
 	float angle_inner() const noexcept
@@ -196,7 +128,7 @@ public:
 
 	float direction_attenuation(zcm::vec3 pos) const noexcept
 	{
-		auto dir = zcm::normalize(position() - pos);
+		auto dir = zcm::normalize(position - pos);
 		float att = zcm::clamp(zcm::dot(m_direction, dir) * m_angle_scale + m_angle_offset, 0.0f, 1.0f);
 		return att * att;
 

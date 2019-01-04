@@ -3,6 +3,7 @@
 #include <imgui.hpp>
 #include <zcm/geometric.hpp>
 #include <zcm/type_ptr.hpp>
+#include <zcm/quaternion.hpp>
 
 using namespace rc;
 
@@ -16,48 +17,48 @@ Scene::Scene()
 
 	cubemap.load_textures("assets/materials/cubemaps/field_evening");
 
-	main_camera.position = {0.0f, 1.5f, 0.4f};
+	main_camera.behavior.target = {0.0f, 1.5f, 0.4f};
 	directional_light.direction = zcm::normalize(directional_light.direction);
 	PointLight pl;
-	pl.position({4.0f, 1.0f, 1.0f})
-	  .diffuse({1.0f, 0.2f, 0.1f})
-	  .radius(3.5f)
-	  .flux(75.0f);
+	pl.position = {4.0f, 1.0f, 1.0f};
+	pl.diffuse = {1.0f, 0.2f, 0.1f};
+	pl.radius = 3.5f;
+	pl.set_flux(75.0f);
 
 	point_lights.push_back(pl);
 
-	pl.position({4.0f, 1.0f, -1.5f});
+	pl.position = {4.0f, 1.0f, -1.5f};
 	point_lights.push_back(pl);
 
-	pl.position({-5.0f, 1.0f, -1.5f});
+	pl.position = {-5.0f, 1.0f, -1.5f};
 	point_lights.push_back(pl);
 
-	pl.position({-5.0f, 1.0f, 1.0f});
+	pl.position = {-5.0f, 1.0f, 1.0f};
 	point_lights.push_back(pl);
 
-	pl.position({1.0f, 1.0f, 1.0f});
+	pl.position ={1.0f, 1.0f, 1.0f};
 	point_lights.push_back(pl);
 
-	pl.position({1.0f, 1.5f, -1.0f})
-	  .diffuse({0.1, 0.2, 1.0});
+	pl.position = {1.0f, 1.5f, -1.0f};
+	pl.diffuse = {0.1, 0.2, 1.0};
 	point_lights.push_back(pl);
 
 	SpotLight sp;
-	sp.diffuse({0.9f, 0.86f, 0.88f})
-	  .direction({0.0f, 1.0f, 0.0f})
-	  .radius(4.0f)
-	  .flux(60.0f);
+	sp.diffuse = {0.9f, 0.86f, 0.88f};
+	sp.set_direction({0.0f, 1.0f, 0.0f});
+	sp.radius = 4.0f;
+	sp.set_flux(60.0f);
 
-	sp.position({-10.0f, 3.3f, -3.8f});
+	sp.position = {-10.0f, 3.3f, -3.8f};
 	spot_lights.push_back(sp);
 
-	sp.position({-10.0f, 3.3f, 3.4f});
+	sp.position = {-10.0f, 3.3f, 3.4f};
 	spot_lights.push_back(sp);
 
-	sp.position({9.3f, 3.3f, -3.8f});
+	sp.position = {9.3f, 3.3f, -3.8f};
 	spot_lights.push_back(sp);
 
-	sp.position({9.3f, 3.3f, 3.4f});
+	sp.position = {9.3f, 3.3f, 3.4f};
 	spot_lights.push_back(sp);
 
 	load_model("sponza_scaled.obj", "sponza_crytek/");
@@ -114,22 +115,22 @@ static void show_flux_help()
 }
 
 template<typename T>
-static bool edit_light(PunctualLight<T>& pl) noexcept
+static bool edit_light(T& pl) noexcept
 {
 	constexpr bool is_spot = std::is_same_v<T, SpotLight>;
-	auto pos = pl.position();
-	auto diff = pl.diffuse();
-	float radius = pl.radius();
-	float color_temp = pl.color_temperature();
+	auto pos = pl.position;
+	auto diff = pl.diffuse;
+	float radius = pl.radius;
+	float color_temp = pl.color_temperature;
 
 	zcm::vec3 dir;
 	float power;
 	float angle_o;
 	float angle_i;
 
-	bool light_enabled = pl.state & PunctualLight<T>::Enabled;
-	bool light_follow  = pl.state & PunctualLight<T>::FollowCamera;
-	bool light_wireframe = pl.state & PunctualLight<T>::ShowWireframe;
+	bool light_enabled = pl.state & T::Enabled;
+	bool light_follow  = pl.state & T::FollowCamera;
+	bool light_wireframe = pl.state & T::ShowWireframe;
 	ImGui::Checkbox("Enabled", &light_enabled);
 	ImGui::SameLine();
 	ImGui::Checkbox("Wireframe", &light_wireframe);
@@ -182,23 +183,24 @@ static bool edit_light(PunctualLight<T>& pl) noexcept
 		ImGui::SliderAngle("Angle Inner",  &angle_i, 0.0f, 89.0f); // TODO: add slider for softness
 	}
 
-	pl.radius(radius)
-	  .position(pos)
-	  .diffuse(diff)
-	  .color_temperature(color_temp);
+	pl.radius = radius;
+	pl.position = pos;
+	pl.diffuse = diff;
+	pl.color_temperature = color_temp;
 
-	pl.state = PunctualLight<T>::NoState;
-	pl.state |= light_follow    ? PunctualLight<T>::FollowCamera : 0;
-	pl.state |= light_enabled   ? PunctualLight<T>::Enabled : 0;
-	pl.state |= light_wireframe ? PunctualLight<T>::ShowWireframe : 0;
+	pl.state = T::NoState;
+	pl.state |= light_follow    ? T::FollowCamera : 0;
+	pl.state |= light_enabled   ? T::Enabled : 0;
+	pl.state |= light_wireframe ? T::ShowWireframe : 0;
 
 	if constexpr(is_spot) {
-		static_cast<SpotLight&>(pl).direction(dir)
-		                           .angle_outer(angle_o)
-			                   .angle_inner(angle_i)
-			                   .flux(power);
+		pl.set_direction(dir);
+		pl.set_angle_outer(angle_o);
+                pl.set_angle_inner(angle_i);
+                pl.set_flux(power);
+
 	} else {
-		pl.flux(power);
+		pl.set_flux(power);
 	}
 
 
@@ -216,12 +218,13 @@ void Scene::update()
 {
 	for(auto& pl : point_lights) {
 		if(pl.state & PointLight::FollowCamera) {
-			pl.position(main_camera.position);
+			pl.position = main_camera.state.position;
 		}
 	}
 	for(auto& sl : spot_lights) {
 		if(sl.state & PointLight::FollowCamera) {
-			sl.direction(-main_camera.get_forward()).position(main_camera.position);
+			sl.set_direction(-main_camera.state.get_forward());
+			sl.position = main_camera.state.position;
 		}
 	}
 
@@ -242,14 +245,36 @@ void Scene::update()
 	}
 
 	if(ImGui::CollapsingHeader("Camera")) {
-		ImGui::InputFloat3("Position", zcm::value_ptr(main_camera.position));
-		ImGui::SliderFloat4("Orientation", zcm::value_ptr(main_camera.orientation), -1.f, 1.f);
-		auto euler_angles = zcm::eulerAngles(main_camera.orientation);
-		ImGui::InputFloat3("Angles", zcm::value_ptr(euler_angles), "%.3f", ImGuiInputTextFlags_ReadOnly);
-		ImGui::SliderFloat("FOV", &main_camera.fov, Camera::fov_min, Camera::fov_max);
-		ImGui::SliderFloat("Near Z", &main_camera.znear, Camera::znear_min, 10.0f);
-		ImGui::SliderFloat("Far Z", &main_camera.zfar, main_camera.znear, 1000.0f);
-		ImGui::SliderFloat("Exposure", &main_camera.exposure, 0.001f, 10.0f);
+		ImGui::InputFloat3("Position", zcm::value_ptr(main_camera.state.position));
+		ImGui::SliderFloat4("Orientation", zcm::value_ptr(main_camera.state.orientation), -1.f, 1.f);
+
+		auto forward = main_camera.state.get_forward();
+		auto up = main_camera.state.get_up();
+		auto right = main_camera.state.get_right();
+		ImGui::Spacing();
+		ImGui::InputFloat3("Forward", zcm::value_ptr(forward), "%.3f", ImGuiInputTextFlags_ReadOnly);
+		ImGui::InputFloat3("Up", zcm::value_ptr(up), "%.3f", ImGuiInputTextFlags_ReadOnly);
+		ImGui::InputFloat3("Right", zcm::value_ptr(right), "%.3f", ImGuiInputTextFlags_ReadOnly);
+		ImGui::Spacing();
+
+		auto euler_angles = zcm::eulerAngles(main_camera.state.orientation);
+		ImGui::InputFloat3("Pitch/Yaw/Roll", zcm::value_ptr(euler_angles), "%.3f", ImGuiInputTextFlags_ReadOnly);
+		auto angle = zcm::angle(main_camera.state.orientation);
+		auto axis = zcm::axis(main_camera.state.orientation);
+		zcm::vec4 angle_axis {angle, axis.x, axis.y, axis.z};
+		ImGui::InputFloat4("Angle/Axis", zcm::value_ptr(angle_axis), "%.3f", ImGuiInputTextFlags_ReadOnly);
+
+		ImGui::Spacing();
+
+
+		float camera_fov_deg = zcm::degrees(main_camera.state.fov);
+		if (ImGui::SliderFloat("FOV", &camera_fov_deg, FPSCameraBehavior::fov_min, FPSCameraBehavior::fov_max))
+		{
+			main_camera.state.fov = zcm::radians(camera_fov_deg);
+		}
+		ImGui::SliderFloat("Near Z", &main_camera.state.znear, CameraState::znear_min, 10.0f);
+		ImGui::SliderFloat("Far Z", &main_camera.state.zfar, main_camera.state.znear, 1000.0f);
+		ImGui::SliderFloat("Exposure", &main_camera.state.exposure, 0.001f, 10.0f);
 
 		bool frustum_locked = main_camera.frustum.state & rc::Frustum::Locked;
 		bool frustum_debug = main_camera.frustum.state & rc::Frustum::ShowWireframe;
@@ -271,27 +296,27 @@ void Scene::update()
 			static float exp_a, exp_b;
 
 			if (!has_a && ImGui::Button("Remember Start State")) {
-				rot_a = main_camera.orientation;
-				pos_a = main_camera.position;
-				fov_a = main_camera.fov;
-				exp_a = main_camera.exposure;
+				rot_a = main_camera.state.orientation;
+				pos_a = main_camera.state.position;
+				fov_a = main_camera.state.fov;
+				exp_a = main_camera.state.exposure;
 				has_a = true;
 			}
 			if (!has_b && ImGui::Button("Remember End State")) {
-				rot_b = main_camera.orientation;
-				pos_b = main_camera.position;
-				fov_b = main_camera.fov;
-				exp_b = main_camera.exposure;
+				rot_b = main_camera.state.orientation;
+				pos_b = main_camera.state.position;
+				fov_b = main_camera.state.fov;
+				exp_b = main_camera.state.exposure;
 				has_b = true;
 			}
 
 			if (has_a && has_b) {
 				static float t = 0.0f;
 				ImGui::SliderFloat("Interpolate", &t, 0.0f, 1.0f);
-				main_camera.orientation = zcm::slerp(rot_a, rot_b,t);
-				main_camera.position = zcm::mix(pos_a, pos_b, t);
-				main_camera.set_fov(zcm::mix(fov_a, fov_b, t));
-				main_camera.exposure = zcm::mix(exp_a, exp_b, t);
+				main_camera.state.orientation = zcm::slerp(rot_a, rot_b,t);
+				main_camera.state.position = zcm::mix(pos_a, pos_b, t);
+				main_camera.state.fov = zcm::radians(zcm::mix(fov_a, fov_b, t));
+				main_camera.state.exposure = zcm::mix(exp_a, exp_b, t);
 
 				if (ImGui::Button("Reset")) {
 					has_a = false;
@@ -362,7 +387,8 @@ void Scene::update()
 		if(ImGui::TreeNode("Spot Lights")) {
 			if(ImGui::Button("Add light")) {
 				SpotLight sp;
-				sp.direction(-main_camera.get_forward()).position(main_camera.position);
+				sp.set_direction(-main_camera.state.get_forward());
+				sp.position = main_camera.state.position;
 				spot_lights.push_back(sp);
 			}
 			for(unsigned i = 0; i < spot_lights.size(); ++i) {
@@ -381,7 +407,7 @@ void Scene::update()
 		if(ImGui::TreeNode("Point Lights")) {
 			if(ImGui::Button("Add light")) {
 				PointLight pl;
-				pl.position(main_camera.position);
+				pl.position = main_camera.state.position;
 				point_lights.push_back(pl);
 			}
 			for(unsigned i = 0; i < point_lights.size(); ++i) {

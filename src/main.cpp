@@ -200,9 +200,9 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 	}
 }
 
-static void glfw_process_input(rc::Scene* s)
+static void glfw_process_input(rc::Scene* s, float dt)
 {
-	float cameraSpeed = 0.04;
+	float cameraSpeed = 3.0f * dt;
 
 	if(input::shift)
 		cameraSpeed *= 5.0f;
@@ -210,22 +210,21 @@ static void glfw_process_input(rc::Scene* s)
 		cameraSpeed *= 0.5f;
 
 	if (input::forward)
-		s->main_camera.move_forward(cameraSpeed);
+		s->main_camera.behavior.move_forward(s->main_camera.state, cameraSpeed);
 	if (input::backward)
-		s->main_camera.move_forward(-cameraSpeed);
+		s->main_camera.behavior.move_forward(s->main_camera.state, -cameraSpeed);
 	if (input::left)
-		s->main_camera.move_left(cameraSpeed);
+		s->main_camera.behavior.move_right(s->main_camera.state, -cameraSpeed);
 	if (input::right)
-		s->main_camera.move_left(-cameraSpeed);
+		s->main_camera.behavior.move_right(s->main_camera.state, cameraSpeed);
 
 	if(input::key_z) {
-		s->main_camera.roll(zcm::radians(input::xoffset));
+//		s->main_camera.behavior.roll(s->main_camera.state, zcm::radians(input::xoffset));
 	} else {
-		s->main_camera.pitch(zcm::radians(input::yoffset));
-		s->main_camera.yaw_global(zcm::radians(input::xoffset));
+		s->main_camera.behavior.on_mouse_move(s->main_camera.state, input::xoffset, input::yoffset);
 	}
 
-	s->main_camera.zoom(-input::scroll_offset);
+	s->main_camera.behavior.closer(s->main_camera.state, -input::scroll_offset * 0.1f);
 	input::xoffset = 0.0f;
 	input::yoffset = 0.0f;
 	input::scroll_offset = 0.0f;
@@ -382,7 +381,7 @@ int main() try
 	while(!glfwWindowShouldClose(window))
 	{
 		glfwPollEvents();
-		glfw_process_input(&scene);
+		glfw_process_input(&scene, globals::delta_time);
 
 		if(globals::glfw_framebuffer_resized) {
 			globals::glfw_framebuffer_resized = false;

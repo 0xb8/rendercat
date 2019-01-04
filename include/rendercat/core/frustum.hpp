@@ -17,6 +17,8 @@ struct Plane
 	float distance(const zcm::vec3 & p) const noexcept;
 };
 
+struct CameraState;
+
 struct Frustum
 {
 	enum State
@@ -32,13 +34,7 @@ struct Frustum
 
 	unsigned char state = NoState;
 
-	void update(const zcm::vec3& pos,
-	            const zcm::vec3& forward,
-	            const zcm::vec3& cup,
-	            float yfov,
-	            float aspect,
-	            float near,
-	            float far) noexcept;
+	void update(const CameraState& state) noexcept;
 
 	void draw_debug() const noexcept;
 

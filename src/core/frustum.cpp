@@ -1,7 +1,10 @@
 #include <rendercat/core/frustum.hpp>
+#include <rendercat/core/camera.hpp>
 #include <debug_draw.hpp>
 #include <zcm/geometric.hpp>
 #include <zcm/angle_and_trigonometry.hpp>
+#include <zcm/common.hpp>
+#include <cassert>
 
 using namespace rc;
 
@@ -41,33 +44,40 @@ float Plane::distance(const zcm::vec3 & p) const noexcept
 	return plane.w + zcm::dot({plane.x, plane.y, plane.z}, p);
 }
 
-void Frustum::update(const zcm::vec3 & pos, const zcm::vec3 & forward, const zcm::vec3 & cup, float yfov, float aspect, float near, float far) noexcept
+void Frustum::update(const CameraState& cam_state) noexcept
 {
 	if(state & Locked) return;
-	near_center = pos + forward * near;
-	far_center  = pos + forward * far;
-	auto right  = zcm::normalize(zcm::cross(forward, cup));
-	auto up     = zcm::normalize(zcm::cross(forward, right));
 
-	auto near_height  = 2.0f * zcm::tan(yfov / 2.0f) * near;
-	auto near_width = near_height * aspect;
-	auto far_height   = 2.0f * zcm::tan(yfov / 2.0f) * far;
-	auto far_width  = far_height * aspect;
+	auto forward = cam_state.get_forward();
+	auto up      = cam_state.get_up();
+	auto right   = cam_state.get_right();
+
+	assert(zcm::abs(zcm::length2(forward) - 1.0f) < 1e-6f); // check if camera quat was properly normalized
+	assert(zcm::abs(zcm::length2(up) - 1.0f) < 1e-6f);
+	assert(zcm::abs(zcm::length2(right) - 1.0f) < 1e-6f);
+
+	near_center = cam_state.position + forward * cam_state.znear;
+	far_center  = cam_state.position + forward * cam_state.zfar;
+
+	auto near_height  = 2.0f * zcm::tan(cam_state.fov * 0.5f) * cam_state.znear;
+	auto near_width = near_height * cam_state.aspect;
+	auto far_height   = 2.0f * zcm::tan(cam_state.fov * 0.5f) * cam_state.zfar;
+	auto far_width  = far_height * cam_state.aspect;
 
 	far_width *= 0.5f;
 	far_height *= 0.5f;
 	near_width *= 0.5f;
 	near_height *= 0.5f;
 
-	auto far_top_left     = far_center + up * far_height - right * far_width;
-	auto far_top_right    = far_center + up * far_height + right * far_width;
-	auto far_bottom_left  = far_center - up * far_height - right * far_width;
-	auto far_bottom_right = far_center - up * far_height + right * far_width;
+	auto far_top_left     = far_center + up * far_height + right * far_width;
+	auto far_top_right    = far_center + up * far_height - right * far_width;
+	auto far_bottom_left  = far_center - up * far_height + right * far_width;
+	auto far_bottom_right = far_center - up * far_height - right * far_width;
 
-	auto near_top_left     = near_center + up * near_height - right * near_width;
-	auto near_top_right    = near_center + up * near_height + right * near_width;
-	auto near_bottom_left  = near_center - up * near_height - right * near_width;
-	auto near_bottom_right = near_center - up * near_height + right * near_width;
+	auto near_top_left     = near_center + up * near_height + right * near_width;
+	auto near_top_right    = near_center + up * near_height - right * near_width;
+	auto near_bottom_left  = near_center - up * near_height + right * near_width;
+	auto near_bottom_right = near_center - up * near_height - right * near_width;
 
 	planes[LEFT]   = Plane(near_bottom_left, far_top_left, far_bottom_left);
 	planes[RIGHT]  = Plane(near_top_right, far_bottom_right, far_top_right);
