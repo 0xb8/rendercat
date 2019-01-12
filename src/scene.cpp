@@ -17,7 +17,7 @@ Scene::Scene()
 
 	cubemap.load_textures("assets/materials/cubemaps/field_evening");
 
-	main_camera.behavior.target = {0.0f, 1.5f, 0.4f};
+	main_camera.state.position = {0.0f, 1.5f, 0.4f};
 	directional_light.direction = zcm::normalize(directional_light.direction);
 	PointLight pl;
 	pl.position = {4.0f, 1.0f, 1.0f};

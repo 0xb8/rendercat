@@ -10,7 +10,7 @@
 namespace rc {
 
 zcm::mat4 make_projection(const CameraState& state) noexcept;
-zcm::mat4 make_view(CameraState& state) noexcept;
+zcm::mat4 make_view(const CameraState& state) noexcept;
 
 struct CameraState
 {
@@ -100,7 +100,7 @@ struct Camera
 	void update() noexcept;
 
 	CameraState               state;
-	TurntableCameraBehavior   behavior;
+	FPSCameraBehavior         behavior;
 	rc::Frustum               frustum;
 };
 

@@ -35,7 +35,7 @@ zcm::mat4 rc::make_projection(const CameraState& state) noexcept
 	return make_reversed_z_projection(state.fov, state.aspect, state.znear);
 }
 
-zcm::mat4 rc::make_view(rc::CameraState & state) noexcept
+zcm::mat4 rc::make_view(const CameraState & state) noexcept
 {
 	return zcm::translate(zcm::mat4_cast(state.orientation), -state.position);
 }

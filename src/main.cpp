@@ -26,13 +26,19 @@
 
 using namespace gl45core;
 
+namespace consts {
+	static const float window_target_fps = 60.0f;
+	static const float window_target_frametime = 1.0f / window_target_fps;
+	static const char* window_title = "rendercat";
+}
+
 namespace globals {
 
 	static bool glfw_framebuffer_resized = false;
 	static int  glfw_framebuffer_width = 1280;
 	static int  glfw_framebuffer_height = 720;
 
-	static float delta_time = 0.0f;
+	static float delta_time = consts::window_target_frametime;
 	static float last_frame_time = 0.0f;
 }
 
@@ -56,12 +62,6 @@ namespace input {
 
 	static bool screenshot_requested = false;
 	static int  screenshot_timeout   = 0;
-}
-
-namespace consts {
-	static const float window_target_fps = 64.0f;
-	static const float window_target_frametime = 1.0f / window_target_fps;
-	static const char* window_title = "rendercat";
 }
 
 // ---------------------------------- helpers  ---------------------------------
@@ -219,12 +219,12 @@ static void glfw_process_input(rc::Scene* s, float dt)
 		s->main_camera.behavior.move_right(s->main_camera.state, cameraSpeed);
 
 	if(input::key_z) {
-//		s->main_camera.behavior.roll(s->main_camera.state, zcm::radians(input::xoffset));
+		s->main_camera.behavior.roll(s->main_camera.state, zcm::radians(input::xoffset));
 	} else {
 		s->main_camera.behavior.on_mouse_move(s->main_camera.state, input::xoffset, input::yoffset);
 	}
 
-	s->main_camera.behavior.closer(s->main_camera.state, -input::scroll_offset * 0.1f);
+	s->main_camera.behavior.zoom(s->main_camera.state, -input::scroll_offset);
 	input::xoffset = 0.0f;
 	input::yoffset = 0.0f;
 	input::scroll_offset = 0.0f;
