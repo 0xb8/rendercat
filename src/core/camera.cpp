@@ -192,7 +192,19 @@ zcm::vec3 rc::CameraState::get_forward() const noexcept
 zcm::vec3 rc::CameraState::get_right() const noexcept
 {
 	// unit quat inverse == conjugate
-	return zcm::conjugate(orientation) * zcm::vec3(1.0, 0.0f, 0.0f);
+	//return zcm::conjugate(orientation) * zcm::vec3(1.0, 0.0f, 0.0f);
+	auto qyy = orientation.y * orientation.y;
+	auto qzz = orientation.z * orientation.z;
+	auto qxz = orientation.x * orientation.z;
+	auto qxy = orientation.x * orientation.y;
+	auto qwy = orientation.w * orientation.y;
+	auto qwz = orientation.w * orientation.z;
+
+	zcm::vec3 res;
+	res.x = 1.0f - 2.0f * (qyy + qzz);
+	res.y = 2.0f * (qxy - qwz);
+	res.z = 2.0f * (qxz + qwy);
+	return res;
 }
 
 zcm::vec3 rc::CameraState::get_up() const noexcept

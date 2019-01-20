@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
 project(imgui_integration VERSION 0.1)
 
-add_library(imgui
+add_library(imgui STATIC
 	imgui/imgui.cpp
 	imgui/imgui_demo.cpp
 	imgui/imgui_draw.cpp

@@ -1,17 +1,31 @@
-cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.13 FATAL_ERROR)
 project(rendercat VERSION 0.1)
+cmake_policy(SET CMP0077 NEW)
 
-find_program(CCACHE_FOUND ccache)
-if(CCACHE_FOUND)
-	set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
-	set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK    ccache)
-endif()
-
-#SET(BUILD_SHARED_LIBS OFF)
+#SET(BUILD_SHARED_LIBS ON)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib )
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+	# use thin archives for speed, don't update index (ranlib will do it afterwards)
+	set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> cruTS <TARGET> <LINK_FLAGS> <OBJECTS>")
+	set(CMAKE_CXX_ARCHIVE_APPEND "<CMAKE_AR> ruTS  <TARGET> <LINK_FLAGS> <OBJECTS>")
+	set(CMAKE_C_ARCHIVE_CREATE   "<CMAKE_AR> cruTS <TARGET> <LINK_FLAGS> <OBJECTS>")
+	set(CMAKE_C_ARCHIVE_APPEND   "<CMAKE_AR> ruTS  <TARGET> <LINK_FLAGS> <OBJECTS>")
+endif()
+
+if(CMAKE_COMPILER_IS_GNUCXX)
+	# use LTO in release (GCC only for now - Clang hangs on glbinding)
+	set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -flto")
+	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -flto")
+endif()
+
 
 find_package(OpenGL REQUIRED)
 
@@ -61,7 +75,6 @@ target_link_libraries(rendercat
 		mikktspace::mikktspace
 		OpenGL::GL
 		stb::image
-		stb::image_write
 		tinyheaders::tinyfiles
 		tinyobjloader
 )
