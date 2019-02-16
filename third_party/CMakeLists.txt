@@ -25,6 +25,10 @@ add_subdirectory(zcm)
 add_subdirectory(imgui_integration)
 add_subdirectory(debug_draw_integration)
 
+set(JSON_BuildTests OFF CACHE INTERNAL "")
+add_subdirectory(nlohmann_json)
+add_subdirectory(fx-gltf)
+
 if(CMAKE_COMPILER_IS_GNUCXX)
 	set(DEBUG_OPTIMIZED_OPTS "-O3")
 	target_compile_options(glbinding      PRIVATE  $<$<CONFIG:DEBUG>:${DEBUG_OPTIMIZED_OPTS} -g0>)

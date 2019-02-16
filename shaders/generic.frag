@@ -7,8 +7,9 @@
 layout(binding=0) uniform sampler2D material_diffuse;
 layout(binding=1) uniform sampler2D material_normal;
 layout(binding=2) uniform sampler2D material_specular_map;
-layout(binding=3) uniform sampler2D material_roughness_metallic_occlusion;
+layout(binding=3) uniform sampler2D material_metallic_roughness;
 layout(binding=4) uniform sampler2D material_emission;
+layout(binding=5) uniform sampler2D material_occlusion;
 layout(binding=32) uniform sampler2DShadow shadow_map;
 
 const int MATERIAL_BLENDED          = 1 << 5;
@@ -27,7 +28,8 @@ const int MAX_DYNAMIC_LIGHTS = 16;
 struct Material {
 	vec4      diffuse;
 	vec4      specular; // .rgb - color, .a - shininess
-	vec4      rougness_metallic_emission;
+	vec3      occlusion;
+	vec2      rougness_metallic;
 	float     alpha_cutoff;
 	int       type;
 };
@@ -113,7 +115,7 @@ float calcDirectionalShadow(vec4 fragPosLightSpace, float NdotL)
 vec4 getMaterialDiffuse()
 {
 	if((material.type & MATERIAL_DIFFUSE_MAPPED) != 0) {
-		vec4 diffuse = texture(material_diffuse, fs_in.TexCoords);
+		vec4 diffuse = texture(material_diffuse, fs_in.TexCoords) * material.diffuse;
 		if((material.type & MATERIAL_ALPHA_MASKED) != 0) {
 			if(num_msaa_samples > 1) {
 				diffuse.a = (diffuse.a - material.alpha_cutoff) / max(fwidth(diffuse.a), 0.0001) + 0.5;
@@ -134,6 +136,8 @@ vec3 getMaterialSpecular()
 {
 	if((material.type & MATERIAL_SPECULAR_MAPPED) != 0) {
 		return texture(material_specular_map, fs_in.TexCoords).rgb;
+	} else if ((material.type & MATERIAL_ROUGHNESS_MAPPED) != 0) {
+		return vec3(texture(material_metallic_roughness, fs_in.TexCoords).g);
 	} else {
 		return material.specular.rgb;
 	}

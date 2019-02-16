@@ -1,15 +1,12 @@
-
 #include <rendercat/mesh.hpp>
 #include <rendercat/material.hpp>
-#include <tiny_obj_loader.h>
-#include <mikktspace.h>
+#include <fx/gltf.h>
 #include <fmt/core.h>
 #include <numeric>
 #include <utility>
 
 #include <zcm/vec3.hpp>
 #include <zcm/vec4.hpp>
-#include <zcm/hash.hpp>
 
 #include <glbinding/gl45core/boolean.h>
 #include <glbinding/gl45core/bitfield.h>
@@ -20,83 +17,313 @@
 using namespace gl45core;
 using namespace rc;
 
-namespace rc {
-namespace model {
-	struct Vertex {
-		zcm::vec3 position;
-		zcm::vec3 normal;
-		zcm::vec2 texcoords;
 
-		bool operator==(const Vertex& other) const noexcept {
-			return position == other.position
-					&& normal == other.normal
-					&& texcoords == other.texcoords;
-		}
-	};
-}
-}
-
-static Material load_obj_material(const tinyobj::material_t& mat, const std::string_view material_path)
+static Material from_gltf_material(const fx::gltf::Material& mat)
 {
 	Material material(mat.name);
-
-	auto spec_color = zcm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
-	auto diff_color = zcm::vec4(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2], mat.dissolve);
-	material.set_specular_color_shininess(spec_color, mat.shininess);
-	material.set_diffuse_color(diff_color);
-
-	if(!mat.diffuse_texname.empty()) {
-		bool has_alpha_mask = !mat.alpha_texname.empty();
-		material.add_diffuse_map(mat.diffuse_texname, material_path);
-		if(material.alpha_mode() == Texture::AlphaMode::Unknown) {
-			if(has_alpha_mask) {
-				material.set_alpha_mode(Texture::AlphaMode::Mask);
-			} else {
-				material.set_alpha_mode(Texture::AlphaMode::Blend);
-			}
+	material.alpha_mode = [](auto mat){
+		switch (mat.alphaMode) {
+			case fx::gltf::Material::AlphaMode::Opaque:
+				return Texture::AlphaMode::Opaque;
+			case fx::gltf::Material::AlphaMode::Blend:
+				return Texture::AlphaMode::Blend;
+			case fx::gltf::Material::AlphaMode::Mask:
+				return Texture::AlphaMode::Mask;
 		}
-	}
+		return Texture::AlphaMode::Unknown;
+	}(mat);
+	material.alpha_cutoff = mat.alphaCutoff;
 
-	// .MTL file might not have 'norm' keyword, allow 'bump' keyword for normal maps too
-	auto norm_texname = !mat.normal_texname.empty() ? mat.normal_texname : mat.bump_texname;
-	if(!norm_texname.empty()) {
-		material.add_normal_map(norm_texname, material_path);
-	}
+	material.diffuse_factor = {mat.pbrMetallicRoughness.baseColorFactor[0],
+	                           mat.pbrMetallicRoughness.baseColorFactor[1],
+	                           mat.pbrMetallicRoughness.baseColorFactor[2],
+	                           mat.pbrMetallicRoughness.baseColorFactor[3]};
 
-	if(!mat.specular_texname.empty()) {
-		material.add_specular_map(mat.specular_texname, material_path);
-	}
+	material.emissive_factor = {mat.emissiveFactor[0],
+	                            mat.emissiveFactor[1],
+	                            mat.emissiveFactor[2]};
 
-	if(!mat.metallic_texname.empty()) {
-		// TODO
-	}
-
-	if(!mat.roughness_texname.empty()) {
-		// TODO
-	}
-
-	static const std::string cull("cullface");
-	if(mat.unknown_parameter.find(cull) != mat.unknown_parameter.end()) {
-		const auto val = mat.unknown_parameter.at(cull);
-		if(val == "0") {
-			material.face_culling_enabled = false;
-		}
-	}
+	material.roughness_factor = mat.pbrMetallicRoughness.roughnessFactor;
+	material.metallic_factor = mat.pbrMetallicRoughness.metallicFactor;
+	material.double_sided = mat.doubleSided;
 
 	return material;
 }
 
-bool model::load_obj_file(data * res, const std::string_view name, const std::string_view basedir)
-{
-	assert(res != nullptr);
-	tinyobj::attrib_t attrib;
-	std::vector<tinyobj::shape_t> shapes;
-	std::vector<tinyobj::material_t> obj_materials;
-	std::vector<Material> scene_materials;
-	std::vector<model::Mesh> scene_meshes;
-	std::vector<int> scene_mesh_material;
-	std::string err, warn;
 
+static std::string get_texture_uri(const fx::gltf::Document& doc, const fx::gltf::Material::Texture& tex)
+{
+	auto index = tex.index;
+	if (index >= 0) {
+		const auto& image = doc.images[doc.textures[index].source];
+		if (!image.IsEmbeddedResource())
+			return image.uri;
+	}
+	return std::string{};
+}
+
+
+static const fx::gltf::Sampler* get_gltf_sampler(const fx::gltf::Document& doc, const fx::gltf::Material::Texture& tex)
+{
+	if (tex.index >= 0) {
+		auto si = doc.textures[tex.index].sampler;
+		if (si >= 0) {
+			return &doc.samplers[si];
+		}
+	}
+	return nullptr;
+}
+
+
+static void apply_gltf_sampler(const fx::gltf::Sampler* s, ImageTexture2D& tex) {
+	if (!s) return;
+	tex.set_wrapping(static_cast<Texture::Wrapping>(s->wrapS), static_cast<Texture::Wrapping>(s->wrapT));
+	tex.set_filtering(static_cast<Texture::MinFilter>(s->minFilter), static_cast<Texture::MagFilter>(s->magFilter));
+}
+
+
+static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, const std::string_view texture_path)
+{
+	fx::gltf::Material mat;
+	if (mat_idx >= 0)
+		mat = doc.materials.at(mat_idx);
+
+	Material material = from_gltf_material(mat);
+	{
+		auto diffuse_path = get_texture_uri(doc, mat.pbrMetallicRoughness.baseColorTexture);
+		if (!diffuse_path.empty()) {
+			auto map = Material::load_image_texture(texture_path, diffuse_path, Texture::ColorSpace::sRGB);
+			if (map.valid()) {
+				material.diffuse_map = std::move(map);
+
+				apply_gltf_sampler(get_gltf_sampler(doc, mat.pbrMetallicRoughness.baseColorTexture),
+				                   material.diffuse_map);
+
+				material.set_texture_kind(Texture::Kind::Diffuse, true);
+			}
+		}
+	}
+	{
+		auto roughness_path = get_texture_uri(doc, mat.pbrMetallicRoughness.metallicRoughnessTexture);
+		if (!roughness_path.empty()) {
+			auto map = Material::load_image_texture(texture_path, roughness_path, Texture::ColorSpace::Linear);
+			if (map.valid()) {
+				material.metallic_roughness_map = std::move(map);
+				apply_gltf_sampler(get_gltf_sampler(doc, mat.pbrMetallicRoughness.metallicRoughnessTexture),
+				                   material.diffuse_map);
+				material.set_texture_kind(Texture::Kind::MetallicRoughness, true);
+			}
+		}
+	}
+	{
+		auto normal_path = get_texture_uri(doc, mat.normalTexture);
+		if (!normal_path.empty()) {
+			auto map = Material::load_image_texture(texture_path, normal_path, Texture::ColorSpace::Linear);
+			if (map.valid()) {
+				material.normal_map = std::move(map);
+				apply_gltf_sampler(get_gltf_sampler(doc, mat.normalTexture),
+				                   material.diffuse_map);
+				material.set_texture_kind(Texture::Kind::Normal, true);
+			}
+		}
+	}
+	{
+		auto occlusion_path = get_texture_uri(doc, mat.occlusionTexture);
+		if (!occlusion_path.empty()) {
+			auto map = Material::load_image_texture(texture_path, occlusion_path, Texture::ColorSpace::Linear);
+			if (map.valid()) {
+				material.occlusion_map = std::move(map);
+				apply_gltf_sampler(get_gltf_sampler(doc, mat.occlusionTexture),
+				                   material.diffuse_map);
+				material.set_texture_kind(Texture::Kind::Occlusion, true);
+			}
+		}
+	}
+	{
+		auto emission_path = get_texture_uri(doc, mat.emissiveTexture);
+		if (!emission_path.empty()) {
+			auto map = Material::load_image_texture(texture_path, emission_path, Texture::ColorSpace::Linear);
+			if (map.valid()) {
+				material.emission_map = std::move(map);
+				apply_gltf_sampler(get_gltf_sampler(doc, mat.emissiveTexture),
+				                   material.diffuse_map);
+				material.set_texture_kind(Texture::Kind::Emission, true);
+			}
+		}
+	}
+	return material;
+}
+
+
+static uint32_t calc_elemt_type_size(const fx::gltf::Accessor& accessor)
+{
+	uint32_t elementSize = 0;
+	switch (accessor.componentType)
+	{
+	case fx::gltf::Accessor::ComponentType::Byte:
+	case fx::gltf::Accessor::ComponentType::UnsignedByte:
+		elementSize = 1;
+		break;
+	case fx::gltf::Accessor::ComponentType::Short:
+	case fx::gltf::Accessor::ComponentType::UnsignedShort:
+		elementSize = 2;
+		break;
+	case fx::gltf::Accessor::ComponentType::Float:
+	case fx::gltf::Accessor::ComponentType::UnsignedInt:
+		elementSize = 4;
+		break;
+	case fx::gltf::Accessor::ComponentType::None:
+		assert(false);
+		unreachable();
+	}
+	return elementSize;
+}
+
+
+static uint32_t calc_comp_count(const fx::gltf::Accessor& accessor)
+{
+	switch (accessor.type)
+	{
+	case fx::gltf::Accessor::Type::Mat2:
+		return 4 ;
+	case fx::gltf::Accessor::Type::Mat3:
+		return 9;
+	case fx::gltf::Accessor::Type::Mat4:
+		return 16;
+	case fx::gltf::Accessor::Type::Scalar:
+		return 1;
+	case fx::gltf::Accessor::Type::Vec2:
+		return 2;
+	case fx::gltf::Accessor::Type::Vec3:
+		return 3;
+	case fx::gltf::Accessor::Type::Vec4:
+		return 4;
+	case fx::gltf::Accessor::Type::None:
+		assert(false);
+		unreachable();
+	}
+	assert(false);
+	unreachable();
+	return 0;
+}
+
+
+static uint32_t CalculateDataTypeSize(fx::gltf::Accessor const & accessor) noexcept
+{
+	auto elementSize = calc_elemt_type_size(accessor);
+	auto comp_count = calc_comp_count(accessor);
+	return elementSize * comp_count;
+}
+
+
+struct rc::model::attr_description_t {
+	std::string name;
+	std::vector<uint8_t> data;
+
+	uint32_t offset = 0;
+
+	uint32_t elem_count = 0;
+	uint32_t elem_byte_size = 0;
+	uint32_t comp_type = 0;
+	uint32_t comp_count = 0;
+	rc::bbox3 bbox;
+};
+
+
+static rc::model::attr_description_t gltf_attr_data(int accessor_idx, const fx::gltf::Document& doc)
+{
+	const auto& accessor = doc.accessors.at(accessor_idx);
+
+	rc::bbox3 _bbox;
+	if (accessor.min.size() == 3 && accessor.max.size() == 3) {
+		 _bbox.include({accessor.min[0], accessor.min[1], accessor.min[2]});
+		 _bbox.include({accessor.max[0], accessor.max[1], accessor.max[2]});
+	}
+
+	const auto& buffer_view = doc.bufferViews.at(accessor.bufferView);
+
+	const auto& buffer = doc.buffers.at(buffer_view.buffer);
+
+	auto dtype_size = CalculateDataTypeSize(accessor);
+
+
+	rc::model::attr_description_t res;
+	res.bbox = _bbox;
+
+	auto buffer_stride = buffer_view.byteStride ? buffer_view.byteStride : dtype_size;
+
+	res.data.reserve(accessor.count * dtype_size);
+
+	for(size_t i = 0; i < accessor.count; ++i)
+	{
+		for (size_t j = 0; j < dtype_size; ++j) {
+			//Access the data of each element of the buffer
+		        res.data.push_back(buffer.data[(buffer_view.byteOffset + accessor.byteOffset) + i * buffer_stride + j]);
+		}
+	}
+
+	res.comp_type = (uint32_t)accessor.componentType;
+	res.comp_count = calc_comp_count(accessor);
+	res.elem_byte_size = dtype_size;
+	res.elem_count = accessor.count;
+
+	return res;
+}
+
+
+static rc::model::attr_description_t load_gltf_primitive_attr(const fx::gltf::Document& doc,
+					  const fx::gltf::Primitive& prim,
+					  std::string name)
+{
+	rc::model::attr_description_t res;
+	auto attr_pos = prim.attributes.find(name);
+	if (attr_pos != prim.attributes.end()) {
+		auto idx = attr_pos->second;
+		res = gltf_attr_data(idx, doc);
+		res.name = name;
+	}
+	return res;
+}
+
+
+static rc::model::attr_description_t load_gltf_primitive_indices(
+	const fx::gltf::Document& doc,
+	const fx::gltf::Primitive& prim)
+{
+	rc::model::attr_description_t res;
+	if (prim.indices >= 0) {
+		res = gltf_attr_data(prim.indices, doc);
+		res.name = "INDEX";
+	}
+	return res;
+}
+
+
+static std::vector<std::pair<model::Mesh, int>> load_gltf_mesh(const fx::gltf::Mesh& mesh, const fx::gltf::Document& doc)
+{
+	std::vector<std::pair<model::Mesh, int>> res;
+
+	for (const auto& primitive : mesh.primitives) {
+
+		std::vector<rc::model::attr_description_t> attrs;
+
+		for (auto& attr : primitive.attributes) {
+			attrs.push_back(load_gltf_primitive_attr(doc, primitive, attr.first));
+		}
+
+		auto m = model::Mesh(mesh.name);
+
+		m.upload_data(load_gltf_primitive_indices(doc, primitive), std::move(attrs));
+		m.draw_mode = static_cast<uint32_t>(primitive.mode);
+
+		res.emplace_back(std::make_pair(std::move(m), primitive.material));
+	}
+	return res;
+}
+
+
+bool model::load_gltf_file(data& res, const std::string_view name, const std::string_view basedir)
+{
 	std::string model_path{rc::path::asset::model};
 	model_path.append(basedir);
 
@@ -106,419 +333,126 @@ bool model::load_obj_file(data * res, const std::string_view name, const std::st
 	std::string material_path{rc::path::asset::model};
 	material_path.append(basedir);
 
-	fmt::print(stderr, "\n--- loading model '{}' from '{}' ------------------------\n",
-	                   name,model_path);
-	size_t vertex_count = 0, unique_vertex_count = 0;
+	std::map<int, int> materials_cache;
 
+	fx::gltf::Document doc = fx::gltf::LoadFromText(model_path_full);
 
-	if(!tinyobj::LoadObj(&attrib, &shapes, &obj_materials, &warn, &err, model_path_full.data(), model_path.data())) {
-		fmt::print(stderr, "Error loading OBJ: {}", err);
-		return false;
-	}
-	if (!warn.empty()) {
-		fmt::print(stderr, "Warning while loading OBJ: {}", warn);
-	}
+	int mesh_count = doc.meshes.size();
 
-	const bool has_normals = !attrib.normals.empty();
-	const bool has_texcoords = !attrib.texcoords.empty();
-	if(unlikely(!has_normals)) {
-		fmt::print(stderr, "Error loading OBJ: '{}' does not have vertex normals!\n",
-		           name);
-		return false;
-	}
-	if(unlikely(!has_texcoords)) {
-		fmt::print(stderr, "Error loading OBJ: '{}' does not have texture coords!\n",
-		           name);
-		return false;
-	}
+	for (int i = 0; i < mesh_count; ++i) {
 
-	scene_materials.reserve(obj_materials.size());
-	scene_meshes.reserve(shapes.size());
-	scene_mesh_material.reserve(shapes.size());
+		const auto& mesh = doc.meshes[i];
+		auto meshes_materials = load_gltf_mesh(mesh, doc);
 
-	for(const tinyobj::shape_t& shape : shapes) {
-		fmt::print(stderr, " * loading submesh '{}'\n", shape.name);
+		for (auto&& mm : meshes_materials) {
 
-		int shape_material_id = -1;
+			res.primitives.push_back(std::move(mm.first));
 
-		if(unlikely(shape.mesh.material_ids.size() == 0)) {
-			fmt::print(stderr, "   - missing material!\n");
-		} else if(!std::equal(std::next(std::cbegin(shape.mesh.material_ids)),
-		                      std::cend(shape.mesh.material_ids),
-		                      std::cbegin(shape.mesh.material_ids)))
-		{
-			fmt::print(stderr, "   -  per-face materials detected\n");
-		} else  {
-			auto shape_mat_id = shape.mesh.material_ids[0];
+			auto matcache_pos = materials_cache.find(mm.second);
 
-			if(unlikely(shape_mat_id < 0 || shape_mat_id >= (int)obj_materials.size())) {
-				fmt::print(stderr, "   - invalid material id:  {}\n", shape_mat_id);
+			if (matcache_pos != materials_cache.end()) {
+				res.primitive_material.push_back(matcache_pos->second);
 			} else {
-				tinyobj::material_t& mat = obj_materials[shape_mat_id];
-				const auto& mat_name = mat.name;
-
-				auto pos = std::find_if(scene_materials.cbegin(), scene_materials.cend(), [&mat_name](const auto& material)
-				{
-					return material.name == mat_name;
-				});
-
-				if(pos == scene_materials.cend()) {
-					scene_materials.emplace_back(load_obj_material(mat, material_path));
-					shape_material_id = scene_materials.size()-1;
-				} else {
-					shape_material_id = std::distance(scene_materials.cbegin(), pos);
-				}
+				res.primitive_material.push_back(res.materials.size());
+				materials_cache.insert(std::make_pair(mm.second, (int)res.materials.size()));
+				res.materials.push_back(load_gltf_material(doc, mm.second, material_path));
 			}
 		}
-
-		std::vector<Vertex> vertices;
-		vertices.reserve(shape.mesh.indices.size());
-
-		for(const tinyobj::index_t& index : shape.mesh.indices) {
-			Vertex vert;
-			vert.position = {
-				attrib.vertices[3 * index.vertex_index + 0],
-				attrib.vertices[3 * index.vertex_index + 1],
-				attrib.vertices[3 * index.vertex_index + 2]
-			};
-
-			vert.normal = {
-				attrib.normals[3 * index.normal_index + 0],
-				attrib.normals[3 * index.normal_index + 1],
-				attrib.normals[3 * index.normal_index + 2]
-			};
-
-			vert.texcoords = {
-				attrib.texcoords[2 * index.texcoord_index + 0],
-				attrib.texcoords[2 * index.texcoord_index + 1]
-			};
-
-
-			vertices.push_back(vert);
-
-		}
-
-		model::Mesh mesh(shape.name, std::move(vertices));
-
-		vertex_count += mesh.numverts;
-		unique_vertex_count += mesh.numverts_unique;
-
-		if(unlikely(!mesh.valid())) {
-			fmt::print(stderr, "\nError loading submesh [{}]\n", shape.name);
-			std::fflush(stderr);
-			return false;
-		}
-
-		scene_meshes.emplace_back(std::move(mesh));
-
-		scene_mesh_material.push_back(shape_material_id);
-		if(unlikely(shape_material_id < 0)) {
-			fmt::print(stderr, " - invalid material!\n");
-		}
-
 	}
-	fmt::print(stderr, " ~ final vertex count: {}, unique: {} ({}% saved)\n"
-	                   "\n--- model '{}' loaded -------------------------------\n",
-	           vertex_count,
-	           unique_vertex_count,
-	           100-rc::math::percent(unique_vertex_count, vertex_count),
-	           name);
-
-	for(auto& m : scene_materials) {
-		m.name.insert(0, basedir);
-	}
-	res->materials = std::move(scene_materials);
-	res->submeshes = std::move(scene_meshes);
-	res->submesh_material = std::move(scene_mesh_material);
-	std::fflush(stderr);
-
 	return true;
 }
 
-namespace {
 
-struct tangent_sign
+static int get_attr_index(const std::string_view name)
 {
-	zcm::vec3 tangent;
-	float sign;
-
-	bool operator==(const tangent_sign& other) const noexcept
-	{
-		return tangent == other.tangent && sign == other.sign;
-	}
-};
-
-struct vertex_tangent
-{
-	model::Vertex vertex;
-	tangent_sign tangent;
-
-	bool operator==(const vertex_tangent& other) const noexcept
-	{
-		return vertex == other.vertex && tangent == other.tangent;
-	}
-};
-
-struct interface_data
-{
-	const model::Vertex* vertices;
-	tangent_sign* tangents;
-	uint32_t numfaces;
-};
-
-auto get_data(const SMikkTSpaceContext* ctx)
-{
-	return reinterpret_cast<interface_data*>(ctx->m_pUserData);
-}
-
-std::vector<tangent_sign> calculateMikktSpace(const std::vector<model::Vertex>& verts)
-{
-	assert(verts.size() % 3 == 0);
-
-	std::vector<tangent_sign> tangents;
-	tangents.resize(verts.size());
-
-	interface_data idata;
-	idata.numfaces = verts.size() / 3;
-	idata.vertices = verts.data();
-	idata.tangents = tangents.data();
-
-	SMikkTSpaceInterface interface;
-	memset(&interface, 0, sizeof(SMikkTSpaceInterface));
-
-
-
-	interface.m_getNumFaces = [](const SMikkTSpaceContext* ctx) -> int
-	{
-		return get_data(ctx)->numfaces;
-	};
-
-	interface.m_getNumVerticesOfFace = [](const SMikkTSpaceContext*, const int) -> int
-	{
+	if (name == "POSITION")
+		return 0;
+	if (name == "NORMAL")
+		return 1;
+	if (name == "TANGENT")
+		return 2;
+	if (name == "TEXCOORD_0")
 		return 3;
-	};
-
-	interface.m_getPosition = [](const SMikkTSpaceContext* ctx,
-		float* out,
-		const int face,
-		const int vert) -> void
-	{
-		auto verts = get_data(ctx)->vertices;
-		auto pos = verts[face*3+vert].position;
-
-		out[0] = pos.x;
-		out[1] = pos.y;
-		out[2] = pos.z;
-	};
-
-	interface.m_getNormal = [](const SMikkTSpaceContext* ctx,
-		float* out,
-		const int face,
-		const int vert) -> void
-	{
-		auto verts = get_data(ctx)->vertices;
-		auto norm = verts[face*3+vert].normal;
-
-		out[0] = norm.x;
-		out[1] = norm.y;
-		out[2] = norm.z;
-	};
-
-	interface.m_getTexCoord = [](const SMikkTSpaceContext* ctx,
-		float* out,
-		const int face,
-		const int vert) -> void
-	{
-		auto verts = get_data(ctx)->vertices;
-		auto uv = verts[face*3+vert].texcoords;
-
-		out[0] = uv.x;
-		out[1] = uv.y;
-	};
-
-	interface.m_setTSpaceBasic = [](const SMikkTSpaceContext* ctx,
-		const float fvTangent[],
-		const float fSign,
-		const int face,
-		const int vert) -> void
-	{
-		auto tangents = get_data(ctx)->tangents;
-		tangents[face*3+vert].tangent = zcm::vec3(fvTangent[0],fvTangent[1],fvTangent[2]);
-		tangents[face*3+vert].sign = fSign;
-	};
-
-
-	SMikkTSpaceContext context;
-	context.m_pInterface = &interface;
-	context.m_pUserData = &idata;
-
-	if(!genTangSpaceDefault(&context)) {
-		throw std::runtime_error("Error calculating tangent space!");
-	}
-
-	return tangents;
+	if (name == "TEXCOORD_1")
+		return 4;
+	if (name == "COLOR_0")
+		return 5;
+	if (name == "JOINTS_0")
+		return 8;
+	if (name == "WEIGHTS_0")
+		return 10;
+	return -1;
 }
 
-} // anon namespace
 
-namespace std {
-	template<>
-	struct hash<vertex_tangent>
-	{
-		size_t operator()(const vertex_tangent& vt) const noexcept
-		{
-			return hash<zcm::vec3>()(vt.vertex.position)
-				^ hash<zcm::vec3>()(vt.vertex.normal)
-				^ hash<zcm::vec2>()(vt.vertex.texcoords)
-				^ hash<zcm::vec3>()(vt.tangent.tangent)
-				^ hash<float>()(vt.tangent.sign);
-		}
-	};
-}
-
-model::Mesh::Mesh(const std::string& name_, std::vector<Vertex> && verts) : name(name_)
+model::Mesh::Mesh(std::string name_) : name(std::move(name_))
 {
-	auto tangents = calculateMikktSpace(verts);
-	assert(verts.size() == tangents.size());
-	uint32_t initial_vertex_count = verts.size();
-	uint32_t unique_vertex_count = verts.size();
-	uint32_t max_idx{0};
 
-	// index the mesh ------------------------------------------------------
-	std::vector<uint32_t> indices;
-	std::vector<uint16_t> small_indices;
-
-	bool use_small_indices;
-	if(verts.size() < std::numeric_limits<uint16_t>::max()) {
-		small_indices.reserve(verts.size());
-		use_small_indices = true;
-	} else {
-		indices.reserve(verts.size());
-		use_small_indices = false;
-	}
-
-	auto add_index = [use_small_indices,&indices,&small_indices,&max_idx](uint32_t idx)
-	{
-		if(likely(use_small_indices)) {
-			assert(idx < std::numeric_limits<uint16_t>::max());
-			small_indices.push_back(idx);
-		} else {
-			indices.push_back(idx);
-		}
-		if(idx > max_idx)
-			max_idx = idx;
-	};
-
-	std::vector<vertex_tangent> vtans;
-	std::unordered_map<vertex_tangent, uint32_t> uniqueVerts;
-	vtans.reserve(verts.size() / 3);
-	uniqueVerts.reserve(vtans.capacity());
-
-	for(uint32_t i = 0; i < verts.size(); ++i) {
-		bbox.include(verts[i].position);
-
-		vertex_tangent vt{verts[i], tangents[i]};
-
-		auto pos = uniqueVerts.find(vt);
-		if(pos == uniqueVerts.end()) {
-			auto res = uniqueVerts.insert(std::make_pair(vt, vtans.size()));
-			vtans.push_back(vt);
-			pos = res.first;
-		}
-		add_index(pos->second);
-	}
-	uniqueVerts.clear();
-	verts.clear();
-	tangents.clear();
-	assert(indices.size() == initial_vertex_count || small_indices.size() == initial_vertex_count);
-	unique_vertex_count = vtans.size();
+}
 
 
-	// prepare data for submission to the GPU ------------------------------
-	struct dynamic_attrib
-	{
-		zcm::vec3 position;
-	};
-
-	struct static_attrib
-	{
-		zcm::vec3 normal;
-		zcm::vec3 tangent;
-		zcm::vec3 texcoords; // texcoords.z == bitangent sign
-	};
-
-	std::vector<dynamic_attrib> dynamic_attribs;
-	std::vector<static_attrib> static_attribs;
-
-	dynamic_attribs.reserve(unique_vertex_count);
-	static_attribs.reserve(unique_vertex_count);
-
-	for(const auto& vt : vtans) {
-		const auto& position  = vt.vertex.position;
-		const auto& normal    = vt.vertex.normal;
-		const auto& tangent   = vt.tangent.tangent;
-		const auto& sign      = vt.tangent.sign;
-		const auto& texcoords = vt.vertex.texcoords;
-		auto texcoord_sign    = zcm::vec3(texcoords, sign);
-
-		dynamic_attribs.emplace_back(dynamic_attrib{position});
-		static_attribs.emplace_back(static_attrib{normal, tangent, texcoord_sign});
-	}
-	assert(dynamic_attribs.size() == unique_vertex_count && static_attribs.size() == unique_vertex_count);
-	vtans.clear();
+void model::Mesh::upload_data(attr_description_t index, std::vector<attr_description_t> attrs) {
 
 
 	// set up GPU objects --------------------------------------------------
 	glCreateVertexArrays(1, vao.get());
-
-	glCreateBuffers(1, ebo.get());
-	if(likely(use_small_indices)) { // reduces index memory usage by 2x for most of the meshes
-		glNamedBufferStorage(*ebo, small_indices.size() * sizeof(uint16_t), small_indices.data(), GL_NONE_BIT);
-		index_type = uint32_t(GL_UNSIGNED_SHORT);
-	} else {
-		glNamedBufferStorage(*ebo, indices.size() * sizeof(uint32_t), indices.data(), GL_NONE_BIT);
-		index_type = uint32_t(GL_UNSIGNED_INT);
+	if (!index.data.empty()) {
+		glCreateBuffers(1, ebo.get());
+		glNamedBufferStorage(*ebo, index.data.size(), index.data.data(), GL_NONE_BIT);
+		index_type = index.comp_type;
+		numverts = index.elem_count;
+		glVertexArrayElementBuffer(*vao, *ebo);
 	}
-	glVertexArrayElementBuffer(*vao, *ebo);
 
-	glCreateBuffers(1, dynamic_vbo.get());
-	glNamedBufferStorage(*dynamic_vbo, dynamic_attribs.size() * sizeof(dynamic_attrib), dynamic_attribs.data(), GL_NONE_BIT);
+	std::vector<uint8_t> storage;
 
-	glCreateBuffers(1, static_vbo.get());
-	glNamedBufferStorage(*static_vbo, static_attribs.size() * sizeof(static_attrib), static_attribs.data(), GL_NONE_BIT);
+	attrs.erase(std::remove_if(attrs.begin(), attrs.end(), [](auto& attr)
+	{
+		return get_attr_index(attr.name) < 0;
+	}), attrs.end());
 
-	const GLuint dynamic_vbo_id = 0;
-	const GLuint static_vbo_id  = 1;
+	std::sort(attrs.begin(), attrs.end(), [](auto& aa, auto& ab)
+	{
+		return get_attr_index(aa.name) < get_attr_index(ab.name);
+	});
 
-	// set up VBO: binding index, vbo, offset, stride
-	glVertexArrayVertexBuffer(*vao, dynamic_vbo_id, *dynamic_vbo,  0, sizeof(dynamic_attrib));
-	glVertexArrayVertexBuffer(*vao, static_vbo_id,  *static_vbo,   0, sizeof(static_attrib));
 
-	glEnableVertexArrayAttrib(*vao, 0);
-	glEnableVertexArrayAttrib(*vao, 1);
-	glEnableVertexArrayAttrib(*vao, 2);
-	glEnableVertexArrayAttrib(*vao, 3);
+	for (auto& attr : attrs) {
+		attr.offset = storage.size();
+		storage.insert(storage.end(), attr.data.begin(), attr.data.end());
+	}
 
-	// specify attrib format: attrib idx, element count, format, normalized, relative offset
-	glVertexArrayAttribFormat(*vao, 0, 3, GL_FLOAT, GL_FALSE, offsetof(dynamic_attrib, position));
-	glVertexArrayAttribFormat(*vao, 1, 3, GL_FLOAT, GL_FALSE, offsetof(static_attrib,  normal));
-	glVertexArrayAttribFormat(*vao, 2, 3, GL_FLOAT, GL_FALSE, offsetof(static_attrib,  tangent));
-	glVertexArrayAttribFormat(*vao, 3, 3, GL_FLOAT, GL_FALSE, offsetof(static_attrib,  texcoords));
-
-	// assign VBOs to attributes
-	glVertexArrayAttribBinding(*vao, 0, dynamic_vbo_id);
-	glVertexArrayAttribBinding(*vao, 1, static_vbo_id);
-	glVertexArrayAttribBinding(*vao, 2, static_vbo_id);
-	glVertexArrayAttribBinding(*vao, 3, static_vbo_id);
-
-	if(glGetError() != GL_NO_ERROR)
+	if (storage.size() == 0) {
+		numverts = 0;
+		fmt::print("[mesh] No vertex data for mesh '{}'!\n", name);
 		return;
+	}
 
-	// mark submesh as valid -----------------------------------------------
-	numverts = initial_vertex_count;
-	numverts_unique = unique_vertex_count;
-	index_max = max_idx;
-	index_min = 0;
-	if(max_idx != unique_vertex_count - 1)
-		fmt::print(stderr, "[submesh] inconsistent indices detected!\n");
+	glCreateBuffers(1, vbo.get());
+	glNamedBufferStorage(*vbo, storage.size(), storage.data(), GL_NONE_BIT);
+
+	int binding_index = 0;
+	for (auto& attr : attrs) {
+
+		int attr_index = get_attr_index(attr.name);
+
+		if (attr_index == 0) {
+			bbox = attr.bbox;
+			numverts_unique = attr.elem_count;
+			if (numverts == 0) {
+				numverts = attr.elem_count;
+			}
+		}
+
+		// set up VBO: binding index, vbo, offset, stride
+		glVertexArrayVertexBuffer(*vao, binding_index, *vbo, attr.offset, attr.elem_byte_size);
+		// assign VBOs to attributes
+		glVertexArrayAttribBinding(*vao, attr_index, binding_index);
+		// specify attrib format: attrib idx, element count, format, normalized, relative offset
+		glVertexArrayAttribFormat(*vao, attr_index, attr.comp_count, GLenum(attr.comp_type), GL_FALSE, 0);
+		// enable attrib
+		glEnableVertexArrayAttrib(*vao, attr_index);
+
+		++binding_index;
+	}
 }

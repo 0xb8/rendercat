@@ -223,8 +223,23 @@ TextureStorage2D TextureStorage2D::share_view(unsigned minlevel, unsigned numlev
 
 }
 
+TextureStorage2D TextureStorage2D::share()
+{
+	return share_view(0, m_mip_levels);
+}
+
+bool TextureStorage2D::shared() const noexcept
+{
+	return m_shared;
+}
+
+int TextureStorage2D::ref_count() const noexcept
+{
+	return m_shared;
+}
+
 void TextureStorage2D::sub_image(uint16_t level,
-                                  uint16_t width,
+                                 uint16_t width,
                                   uint16_t height,
                                   Texture::TexelDataType type,
                                   const void * pixels)
@@ -252,6 +267,36 @@ void TextureStorage2D::compressed_sub_image(uint16_t level,
 		return;
 	}
 	glCompressedTextureSubImage2D(*m_handle, level, 0, 0, width, height, static_cast<GLenum>(m_internal_format), data_size, data);
+}
+
+uint16_t TextureStorage2D::levels() const noexcept
+{
+	return m_mip_levels;
+}
+
+uint16_t TextureStorage2D::width() const noexcept
+{
+	return m_width;
+}
+
+uint16_t TextureStorage2D::height() const noexcept
+{
+	return m_height;
+}
+
+Texture::InternalFormat TextureStorage2D::format() const noexcept
+{
+	return m_internal_format;
+}
+
+bool TextureStorage2D::valid() const noexcept
+{
+	return m_handle.operator bool() && m_internal_format != Texture::InternalFormat::InvalidFormat;
+}
+
+uint32_t TextureStorage2D::texture_handle() const noexcept
+{
+	return *m_handle;
 }
 
 uint16_t TextureStorage2D::channels() const noexcept
@@ -330,13 +375,90 @@ ImageTexture2D ImageTexture2D::share()
 	ImageTexture2D copy;
 	copy.m_anisotropic_samples = m_anisotropic_samples;
 	copy.m_border_color = m_border_color;
-	copy.m_filtering = m_filtering;
-	copy.m_mipmapping = m_mipmapping;
+	copy.m_min_filter = m_min_filter;
+	copy.m_mag_filter = m_mag_filter;
 	copy.m_swizzle_mask = m_swizzle_mask;
-	copy.m_wrapping = m_wrapping;
+	copy.m_wrapping_s = m_wrapping_s;
+	copy.m_wrapping_t = m_wrapping_t;
 	copy.m_storage = m_storage.share();
 	copy.set_default_params();
 	return copy;
+}
+
+bool ImageTexture2D::shared() const noexcept
+{
+	return m_storage.shared();
+}
+
+bool ImageTexture2D::valid() const noexcept
+{
+	return m_storage.valid();
+}
+
+uint32_t ImageTexture2D::texture_handle() const noexcept
+{
+	return m_storage.texture_handle();
+}
+
+uint16_t ImageTexture2D::width() const noexcept
+{
+	return m_storage.width();
+}
+
+uint16_t ImageTexture2D::height() const noexcept
+{
+	return m_storage.height();
+}
+
+uint16_t ImageTexture2D::levels() const noexcept
+{
+	return m_storage.levels();
+}
+
+uint16_t ImageTexture2D::channels() const noexcept
+{
+	return m_storage.channels();
+}
+
+const TextureStorage2D &ImageTexture2D::storage() const noexcept
+{
+	return m_storage;
+}
+
+Texture::SwizzleMask ImageTexture2D::swizzle_mask() const noexcept
+{
+	return m_swizzle_mask;
+}
+
+Texture::MinFilter ImageTexture2D::min_filter() const noexcept
+{
+	return m_min_filter;
+}
+
+Texture::MagFilter ImageTexture2D::mag_filter() const noexcept
+{
+	return m_mag_filter;
+}
+
+Texture::Wrapping ImageTexture2D::wrapping_t() const noexcept
+{
+	return m_wrapping_t;
+}
+
+Texture::Wrapping ImageTexture2D::wrapping_s() const noexcept
+{
+	return m_wrapping_s;
+}
+
+uint16_t ImageTexture2D::anisotropy() const noexcept
+{
+	return m_anisotropic_samples;
+}
+
+
+zcm::vec4 ImageTexture2D::border_color() const noexcept
+{
+	return m_border_color;
 }
 
 
@@ -347,96 +469,27 @@ bool ImageTexture2D::bind_to_unit(uint32_t unit) const noexcept
 	return true;
 }
 
-static void set_min_filter(GLuint tex, Texture::MipMapping m, Texture::Filtering f)
+
+void ImageTexture2D::set_filtering(Texture::MinFilter min, Texture::MagFilter mag) noexcept
 {
-	GLenum filter{};
-	switch (m) {
-	case Texture::MipMapping::Disable:
-		switch (f) {
-		case Texture::Filtering::Linear:
-			filter = GL_LINEAR;
-			break;
-		case Texture::Filtering::Nearest:
-			filter = GL_NEAREST;
-			break;
-		}
-		break;
+	m_min_filter = min;
+	m_mag_filter = mag;
+	if(unlikely(!m_storage.valid())) return;
 
-	case Texture::MipMapping::MipLinear:
-		switch (f) {
-		case Texture::Filtering::Linear:
-			filter = GL_LINEAR_MIPMAP_LINEAR;
-			break;
-		case Texture::Filtering::Nearest:
-			filter = GL_NEAREST_MIPMAP_LINEAR;
-			break;
-		}
-		break;
-	case Texture::MipMapping::MipNearest:
-		switch (f) {
-		case Texture::Filtering::Linear:
-			filter = GL_LINEAR_MIPMAP_NEAREST;
-			break;
-		case Texture::Filtering::Nearest:
-			filter = GL_NEAREST_MIPMAP_NEAREST;
-			break;
-		}
-		break;
-	}
-	assert(filter != 0 && "invalid texture filtering");
-
-	glTextureParameteri(tex, GL_TEXTURE_MIN_FILTER, filter);
+	glTextureParameteri(m_storage.texture_handle(), GL_TEXTURE_MIN_FILTER, static_cast<GLenum>(m_min_filter));
+	glTextureParameteri(m_storage.texture_handle(), GL_TEXTURE_MAG_FILTER, static_cast<GLenum>(m_mag_filter));
 }
 
 
-void ImageTexture2D::set_filtering(Texture::MipMapping m, Texture::Filtering f) noexcept
+void ImageTexture2D::set_wrapping(Texture::Wrapping s, Texture::Wrapping t) noexcept
 {
-	m_mipmapping = m;
-	m_filtering = f;
+	m_wrapping_s = s;
+	m_wrapping_t = t;
 	if(unlikely(!m_storage.valid())) return;
-	set_min_filter(m_storage.texture_handle(), m_mipmapping, m_filtering);
+	GLenum wrapping_s{s}, wrapping_t{t};
 
-	GLenum mag_filtering{GL_INVALID_ENUM};
-	switch (m_filtering) {
-	case Texture::Filtering::Linear:
-		mag_filtering = GL_LINEAR;
-		break;
-
-	case Texture::Filtering::Nearest:
-		mag_filtering = GL_NEAREST;
-		break;
-	}
-	assert(mag_filtering != GL_INVALID_ENUM);
-	glTextureParameteri(m_storage.texture_handle(), GL_TEXTURE_MAG_FILTER, mag_filtering);
-}
-
-
-void ImageTexture2D::set_wrapping(Texture::Wrapping w) noexcept
-{
-	m_wrapping = w;
-	if(unlikely(!m_storage.valid())) return;
-	GLenum wrapping{GL_INVALID_ENUM};
-
-	auto get_wrapping = [](Texture::Wrapping w)
-	{
-		static const GLenum apival[]
-		{
-			GL_CLAMP_TO_BORDER,
-			GL_CLAMP_TO_EDGE,
-			GL_MIRROR_CLAMP_TO_EDGE,
-			GL_REPEAT,
-			GL_MIRRORED_REPEAT
-		};
-
-		return apival[static_cast<uint8_t>(w)];
-	};
-
-	wrapping = get_wrapping(w);
-
-	assert(wrapping != GL_INVALID_ENUM);
-
-	glTextureParameteri(m_storage.texture_handle(), GL_TEXTURE_WRAP_S, wrapping);
-	glTextureParameteri(m_storage.texture_handle(), GL_TEXTURE_WRAP_R, wrapping);
+	glTextureParameteri(m_storage.texture_handle(), GL_TEXTURE_WRAP_S, wrapping_s);
+	glTextureParameteri(m_storage.texture_handle(), GL_TEXTURE_WRAP_T, wrapping_t);
 }
 
 
@@ -501,8 +554,8 @@ void ImageTexture2D::set_default_params()
 {
 	if(unlikely(!valid())) return;
 
-	set_filtering(m_mipmapping, m_filtering);
-	set_wrapping(m_wrapping);
+	set_filtering(m_min_filter, m_mag_filter);
+	set_wrapping(m_wrapping_s, m_wrapping_t);
 	set_anisotropy(m_anisotropic_samples);
 	set_border_color(m_border_color);
 	set_swizzle_mask(m_swizzle_mask);

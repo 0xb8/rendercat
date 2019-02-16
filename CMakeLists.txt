@@ -41,6 +41,7 @@ add_executable(rendercat
 	src/shader_set.cpp
 	src/texture.cpp
 	src/texture2d.cpp
+	src/texture_cache.cpp
 	src/core/bbox.cpp
 	src/core/camera.cpp
 	src/core/frustum.cpp
@@ -77,6 +78,7 @@ target_link_libraries(rendercat
 		stb::image
 		tinyheaders::tinyfiles
 		tinyobjloader
+		fx-gltf
 )
 
 if(CMAKE_COMPILER_IS_GNUCC)

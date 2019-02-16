@@ -8,80 +8,45 @@
 namespace rc {
 
 class TextureCache;
-struct Material
+class Material
 {
+	uint32_t  m_flags = 0;
 	friend class Scene;
-	static void set_texture_cache(TextureCache* c);
-	static void set_default_diffuse(const std::string_view path) noexcept;
-	static Material create_default_material();
+public:
 
-	explicit Material(const std::string_view name_) : name(name_) { }
+	explicit Material(const std::string_view name_);
 	~Material() = default;
 
 	RC_DEFAULT_MOVE(Material)
 	RC_DISABLE_COPY(Material)
 
+	ImageTexture2D     diffuse_map;
+	ImageTexture2D     normal_map;
+	ImageTexture2D     specular_map;
+	ImageTexture2D     metallic_roughness_map;
+	ImageTexture2D     occlusion_map;
+	ImageTexture2D     emission_map;
+
+	std::string        name;
+	zcm::vec4          diffuse_factor  = 1.0f;
+	zcm::vec3          specular_factor = 1.0f;
+	zcm::vec3          emissive_factor = 1.0f;
+	float              metallic_factor     = 1.0f;
+	float              roughness_factor    = 1.0f;
+
+	float              alpha_cutoff = 0.5f;
+	float              shininess    = 8.0f;
+	bool               double_sided = true;
+	Texture::AlphaMode alpha_mode;
+
+	static void set_default_diffuse(const std::string_view path) noexcept;
+	static Material create_default_material();
+	static ImageTexture2D load_image_texture(std::string_view basedir, std::string_view path, Texture::ColorSpace colorspace);
+
 	bool valid() const;
-	bool has_texture_kind(Texture::Kind) const noexcept;
-
 	void bind(uint32_t s) const noexcept;
-
-	void set_diffuse_color(const zcm::vec4& color) noexcept
-	{
-		m_diffuse_color = color;
-	}
-
-	void set_specular_color_shininess(const zcm::vec3& color, float shininess = 8.0f) noexcept
-	{
-		m_specular_color = color;
-		m_shininess = shininess;
-	}
-
-	void set_rougness_metallic(float rougness, float metallic) noexcept
-	{
-		m_roughness = rougness;
-		m_metallic = metallic;
-	}
-
-	void set_emissive_color(const zcm::vec3& color) noexcept
-	{
-		m_emissive_color = color;
-	}
-
-	void add_diffuse_map(const std::string_view name, const std::string_view basedir);
-	void add_normal_map(const std::string_view name, const std::string_view basedir);
-	void add_specular_map(const std::string_view name, const std::string_view basedir);
-
-	Texture::AlphaMode alpha_mode() const noexcept
-	{
-		return m_alpha_mode;
-	}
-	void set_alpha_mode(Texture::AlphaMode m, float alpha_cutoff = 0.5f) noexcept;
-
-	std::string name;
-	bool face_culling_enabled = true;
-
-private:
-
-	static TextureCache* cache;
-	static ImageTexture2D default_diffuse;
-
-	uint32_t  m_flags = 0;
-
-	zcm::vec4 m_diffuse_color;
-	zcm::vec3 m_specular_color;
-	zcm::vec3 m_emissive_color;
-	float     m_alpha_cutoff = 0.5f;
-	float     m_shininess = 0.0f;
-	float     m_roughness = 1.0f;
-	float     m_metallic  = 0.0f;
-
-
-	ImageTexture2D  m_diffuse_map;
-	ImageTexture2D  m_normal_map;
-	ImageTexture2D  m_specular_map;
-
-	Texture::AlphaMode m_alpha_mode = Texture::AlphaMode::Unknown;
+	bool has_texture_kind(Texture::Kind) const noexcept;
+	bool set_texture_kind(Texture::Kind, bool) noexcept;
 };
 
 } // namespace rc

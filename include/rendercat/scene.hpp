@@ -10,7 +10,6 @@
 #include <rendercat/mesh.hpp>
 #include <rendercat/core/camera.hpp>
 #include <rendercat/material.hpp>
-#include <rendercat/texture_cache.hpp>
 #include <rendercat/core/point_light.hpp>
 #include <rendercat/cubemap.hpp>
 
@@ -79,7 +78,6 @@ struct Scene
 	Scene();
 
 	static constexpr size_t missing_material_idx = 0u;
-	rc::TextureCache m_texture_cache;
 
 	std::vector<rc::Material>    materials;
 	std::vector<model::Mesh> submeshes;
@@ -96,7 +94,7 @@ struct Scene
 
 	void update();
 
-	Model* load_model(const std::string_view name, const std::string_view basedir);
+	Model* load_model_gltf(const std::string_view name, const std::string_view basedir);
 
 	rc::Camera main_camera;
 

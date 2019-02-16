@@ -1,4 +1,5 @@
 #include <rendercat/scene.hpp>
+#include <rendercat/texture_cache.hpp>
 #include <rendercat/util/color_temperature.hpp>
 #include <imgui.hpp>
 #include <zcm/geometric.hpp>
@@ -12,10 +13,9 @@ Scene::Scene()
 	{
 		Material::set_default_diffuse("assets/materials/missing.tga");
 		materials.emplace_back(Material::create_default_material());
-		Material::set_texture_cache(&m_texture_cache);
 	}
 
-	cubemap.load_textures("assets/materials/cubemaps/field_evening");
+	cubemap.load_textures("assets/materials/cubemaps/field_day");
 
 	main_camera.state.position = {0.0f, 1.5f, 0.4f};
 	directional_light.direction = zcm::normalize(directional_light.direction);
@@ -61,16 +61,18 @@ Scene::Scene()
 	sp.position = {9.3f, 3.3f, 3.4f};
 	spot_lights.push_back(sp);
 
-	load_model("sponza_scaled.obj", "sponza_crytek/");
-	load_model("yorha_2b.obj",      "yorha_2b/");
+	//load_model("sponza_scaled.obj", "sponza_crytek/");
+	//load_model("yorha_2b.obj",      "yorha_2b/");
+	load_model_gltf("sponza.gltf", "sponzagltf/");
 
-	m_texture_cache.clear();
+	Texture::Cache::clear();
 }
 
-Model* Scene::load_model(const std::string_view name, const std::string_view basedir)
+
+Model* Scene::load_model_gltf(const std::string_view name, const std::string_view basedir)
 {
 	model::data data;
-	if(model::load_obj_file(&data, name, basedir)) {
+	if(model::load_gltf_file(data, name, basedir)) {
 		auto base_material = materials.size();
 
 		for(size_t i = 0; i < data.materials.size(); ++i) {
@@ -79,17 +81,17 @@ Model* Scene::load_model(const std::string_view name, const std::string_view bas
 
 		Model model;
 		model.name = name.substr(0, name.find_last_of('.'));
-		model.submesh_count = data.submeshes.size();
+		model.submesh_count = data.primitives.size();
 		model.materials = std::unique_ptr<uint32_t[]>(new uint32_t[model.submesh_count]);
 		model.submeshes = std::unique_ptr<uint32_t[]>(new uint32_t[model.submesh_count]);
 
-		for(size_t i = 0; i < data.submeshes.size(); ++i) {
-			if(data.submesh_material[i] >= 0 && (unsigned)data.submesh_material[i] < data.materials.size())	{
-				model.materials[i] =  data.submesh_material[i] + base_material;
+		for(size_t i = 0; i < data.primitives.size(); ++i) {
+			if(data.primitive_material[i] >= 0 && (unsigned)data.primitive_material[i] < data.materials.size())	{
+				model.materials[i] =  data.primitive_material[i] + base_material;
 			} else {
 				model.materials[i] = missing_material_idx;
 			}
-			submeshes.emplace_back(std::move(data.submeshes[i]));
+			submeshes.emplace_back(std::move(data.primitives[i]));
 			model.submeshes[i] = submeshes.size() - 1;
 		}
 		models.emplace_back(std::move(model));
@@ -97,6 +99,7 @@ Model* Scene::load_model(const std::string_view name, const std::string_view bas
 	}
 	return nullptr;
 }
+
 
 static void show_help_tooltip(const char* desc)
 {
@@ -438,24 +441,22 @@ void Scene::update()
 				ImGui::SameLine();
 				ImGui::PushStyleColor(ImGuiCol_Text, col);
 
-				if(material.alpha_mode() == Texture::AlphaMode::Opaque) {
+				if(material.alpha_mode == Texture::AlphaMode::Opaque) {
 					ImGui::TextUnformatted("Opaque "); ImGui::SameLine();
 				}
-				if(material.alpha_mode() == Texture::AlphaMode::Mask) {
+				if(material.alpha_mode == Texture::AlphaMode::Mask) {
 					ImGui::TextUnformatted("Alpha Mask "); ImGui::SameLine();
 				}
-				if(material.alpha_mode() == Texture::AlphaMode::Blend) {
+				if(material.alpha_mode == Texture::AlphaMode::Blend) {
 					ImGui::TextUnformatted("Blend "); ImGui::SameLine();
 				}
 				ImGui::PopStyleColor();
 				ImGui::NewLine();
-				ImGui::TextUnformatted("Face culling: ");
-				ImGui::SameLine();
 				ImGui::PushStyleColor(ImGuiCol_Text, col);
-				if(material.face_culling_enabled) {
-					ImGui::TextUnformatted("Enabled ");
+				if(material.double_sided) {
+					ImGui::TextUnformatted("Double-Sided (backface culling off)");
 				} else {
-					ImGui::TextUnformatted("Disabled ");
+					ImGui::TextUnformatted("Single-Sided (backface culling on)");
 				}
 				ImGui::PopStyleColor();
 				ImGui::TextUnformatted("Texture maps: ");
@@ -471,8 +472,8 @@ void Scene::update()
 					ImGui::Text("Color space:     %s", Texture::enum_value_str(storage.color_space()));
 					ImGui::Text("Channels:        %d", storage.channels());
 					ImGui::Text("Internal format: %s", Texture::enum_value_str(storage.format()));
-					ImGui::Text("Mip Mapping:     %s", Texture::enum_value_str(map.mipmapping()));
-					ImGui::Text("Filtering:       %s", Texture::enum_value_str(map.filtering()));
+					ImGui::Text("Min Filter:      %s", Texture::enum_value_str(map.min_filter()));
+					ImGui::Text("Mag Filter:      %s", Texture::enum_value_str(map.mag_filter()));
 					ImGui::Text("Aniso Samples:   %d", map.anisotropy());
 					ImGui::Text("Swizzle Mask:    %s %s %s %s",
 					            Texture::enum_value_str(map.swizzle_mask().red),
@@ -506,22 +507,25 @@ void Scene::update()
 					ImGui::PopID();
 				};
 
-				display_map(material.m_diffuse_map,  Texture::Kind::Diffuse);
-				display_map(material.m_normal_map,   Texture::Kind::Normal);
-				display_map(material.m_specular_map, Texture::Kind::Specular);
+				display_map(material.diffuse_map,  Texture::Kind::Diffuse);
+				display_map(material.normal_map,   Texture::Kind::Normal);
+				display_map(material.specular_map, Texture::Kind::Specular);
+				display_map(material.metallic_roughness_map, Texture::Kind::MetallicRoughness);
+				display_map(material.emission_map, Texture::Kind::Emission);
+				display_map(material.occlusion_map, Texture::Kind::Occlusion);
 				ImGui::Spacing();
 
 				ImGui::TextUnformatted("Diffuse color");
-				ImGui::ColorEdit3("##matdiffcolor", zcm::value_ptr(material.m_diffuse_color),
+				ImGui::ColorEdit3("##matdiffcolor", zcm::value_ptr(material.diffuse_factor),
 					ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 
 				ImGui::TextUnformatted("Specular color");
-				ImGui::ColorEdit3("##matspeccolor", zcm::value_ptr(material.m_specular_color),
+				ImGui::ColorEdit3("##matspeccolor", zcm::value_ptr(material.specular_factor),
 					ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 
-				ImGui::DragFloat("Shininess",   &(material.m_shininess), 0.1f, 1.0f, 128.0f);
-				ImGui::SliderFloat("Roughness", &(material.m_roughness), 0.0f, 1.0f);
-				ImGui::SliderFloat("Metallic",  &(material.m_metallic),  0.0f, 1.0f);
+				ImGui::DragFloat("Shininess",   &(material.shininess), 0.1f, 1.0f, 128.0f);
+				ImGui::SliderFloat("Roughness", &(material.roughness_factor), 0.0f, 1.0f);
+				ImGui::SliderFloat("Metallic",  &(material.metallic_factor),  0.0f, 1.0f);
 				ImGui::TreePop();
 			}
 			ImGui::PopID();
@@ -557,6 +561,22 @@ void Scene::update()
 						ImGui::Text("%s", submesh.name.data());	ImGui::NextColumn();
 						ImGui::Text("%u / %u", submesh.numverts, submesh.numverts_unique); ImGui::NextColumn();
 						ImGui::Text("%u", submesh.touched_lights); ImGui::NextColumn();
+
+						ImGui::Spacing();
+
+						ImGui::Text("   Bbox"); ImGui::NextColumn();
+						ImGui::Text("min: %f, %f, %f",
+						            submesh.bbox.min()[0],
+						            submesh.bbox.min()[1],
+						            submesh.bbox.min()[2]); ImGui::NextColumn();
+						ImGui::Text("max: %f, %f, %f",
+						            submesh.bbox.max()[0],
+						            submesh.bbox.max()[1],
+						            submesh.bbox.max()[2]); ImGui::NextColumn();
+
+						ImGui::Text("   Material"); ImGui::NextColumn();
+						ImGui::Text("%d", model.materials[j]); ImGui::NextColumn();
+						ImGui::NextColumn();
 					}
 					ImGui::Columns();
 					ImGui::TreePop();

@@ -134,21 +134,6 @@ void Cubemap::load_textures(std::string_view basedir)
 		glTextureParameteri(*tex, GL_TEXTURE_CUBE_MAP_SEAMLESS, GL_TRUE);
 	}
 
-	struct stb_guard
-	{
-		stb_guard()
-		{
-			stbi_set_flip_vertically_on_load(0);
-		}
-		~stb_guard()
-		{
-			stbi_set_flip_vertically_on_load(1);
-		}
-	};
-
-	// because madness
-	stb_guard guard;
-
 	bool texture_storage_allocated{false};
 	int face{0};
 	int prev_face_width{0}, prev_face_height{0};

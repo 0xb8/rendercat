@@ -4,7 +4,10 @@
 #include <string>
 #include <fmt/core.h>
 #include <stb_image.h>
+#include <zcm/vec2.hpp>
 
+
+using namespace rc;
 
 template<typename T, typename = std::enable_if_t<std::is_enum_v<T>>>
 static inline constexpr auto repr(T e)
@@ -17,46 +20,43 @@ static inline constexpr uint32_t clear_mask(uint32_t val, uint32_t mask)
 	return val & ~mask;
 }
 
-using namespace rc;
-
-ImageTexture2D  Material::default_diffuse;
-TextureCache*   Material::cache = nullptr;
-
-void Material::set_texture_cache(TextureCache * c)
-{
-	assert(c && "invalid texture cache pointer");
-	cache = c;
-}
-
-void Material::set_default_diffuse(const std::string_view path) noexcept
-{
-	stbi_set_flip_vertically_on_load(1);
-	default_diffuse = ImageTexture2D::fromFile(path, Texture::ColorSpace::sRGB);
-
-	assert(default_diffuse.valid() && "invalid default diffuse");
-
-	default_diffuse.set_filtering(Texture::MipMapping::Disable, Texture::Filtering::Nearest);
-	default_diffuse.set_anisotropy(1);
-}
-
-Material Material::create_default_material()
-{
-	assert(default_diffuse.valid() && "default diffuse not yet set or invalid");
-	Material missing{"missing"};
-	missing.m_diffuse_map = default_diffuse.share();
-	return missing;
-}
-
 static bool test(uint32_t f, Texture::Kind t) noexcept
 {
 	return f & repr(t);
 }
 
+
+static ImageTexture2D  _default_diffuse;
+
+
+Material::Material(const std::string_view name_) : name(name_) { }
+
+void Material::set_default_diffuse(const std::string_view path) noexcept
+{
+	//stbi_set_flip_vertically_on_load(1);
+	_default_diffuse = ImageTexture2D::fromFile(path, Texture::ColorSpace::sRGB);
+
+	assert(_default_diffuse.valid() && "invalid default diffuse");
+
+	_default_diffuse.set_filtering(Texture::MinFilter::Nearest, Texture::MagFilter::Nearest);
+	_default_diffuse.set_anisotropy(1);
+}
+
+Material Material::create_default_material()
+{
+	assert(_default_diffuse.valid() && "default diffuse not yet set or invalid");
+	Material missing{"missing"};
+	missing.diffuse_map = _default_diffuse.share();
+	missing.set_texture_kind(Texture::Kind::Diffuse, true);
+	return missing;
+}
+
+
 bool Material::valid() const
 {
 	using namespace Texture;
 	bool ret = true;
-	if(m_alpha_mode == AlphaMode::Unknown) {
+	if(alpha_mode == AlphaMode::Unknown) {
 		fmt::print(stderr, "[material] invalid material: has alpha channel but AlphaMode is Unknown\n");
 		ret = false;
 	}
@@ -69,114 +69,87 @@ bool Material::valid() const
 	return ret;
 }
 
-void Material::set_alpha_mode(Texture::AlphaMode m, float alpha_cutoff) noexcept
-{
-	m_alpha_mode = m;
-	m_alpha_cutoff = alpha_cutoff;
-}
 
 void Material::bind(uint32_t s) const noexcept
 {
 	using namespace Texture;
 
-	unif::v4(s, "material.diffuse",   m_diffuse_color);
-	unif::v4(s, "material.specular",  zcm::vec4(m_specular_color, m_shininess));
-	unif::f1(s, "material.alpha_cutoff", m_alpha_cutoff);
+	unif::v4(s, "material.diffuse",   diffuse_factor);
+	unif::v4(s, "material.specular",  zcm::vec4(specular_factor, shininess));
+	unif::v3(s, "material.emission",  emissive_factor);
+	unif::v2(s, "material.roughness_metallic", zcm::vec2(roughness_factor, metallic_factor));
+	unif::f1(s, "material.alpha_cutoff", alpha_cutoff);
 
 	auto flags = m_flags;
-	if(m_alpha_mode == Texture::AlphaMode::Mask) {
+	if(alpha_mode == Texture::AlphaMode::Mask) {
 		flags |= RC_SHADER_TEXTURE_ALPHA_MASK;
 	}
-	if(m_alpha_mode == Texture::AlphaMode::Blend) {
+	if(alpha_mode == Texture::AlphaMode::Blend) {
 		flags |= RC_SHADER_TEXTURE_BLEND;
 	}
-	unif::i1(s,  "material.type", flags);
 
 	if(test(m_flags, Kind::Diffuse)) {
-		if(!m_diffuse_map.bind_to_unit(0)) {
-			default_diffuse.bind_to_unit(0);
+		if(!diffuse_map.bind_to_unit(0)) {
+			_default_diffuse.bind_to_unit(0);
 		}
 	}
 	if(test(m_flags, Kind::Normal)) {
-		m_normal_map.bind_to_unit(1);
+		normal_map.bind_to_unit(1);
 	}
 	if(test(m_flags, Kind::Specular)) {
-		m_specular_map.bind_to_unit(2);
+		specular_map.bind_to_unit(2);
 	}
+
+	if (test(m_flags, Kind::Occlusion)) {
+		flags |= RC_SHADER_TEXTURE_KIND_OCCLUSION;
+		occlusion_map.bind_to_unit(4);
+	}
+	if (test(m_flags, Kind::MetallicRoughness)) {
+		flags |= RC_SHADER_TEXTURE_KIND_ROUGNESS | RC_SHADER_TEXTURE_KIND_METALLIC;
+		metallic_roughness_map.bind_to_unit(3);
+	}
+	unif::i1(s,  "material.type", flags);
 }
 
 bool Material::has_texture_kind(Texture::Kind k) const noexcept
 {
-	return m_flags & repr(k);
+	return test(m_flags, k);
 }
 
-static ImageTexture2D try_from_cache_or_load(TextureCache* cache, std::string&& path, Texture::ColorSpace space)
+bool Material::set_texture_kind(Texture::Kind k, bool has) noexcept
 {
-	assert(cache != nullptr);
-	ImageTexture2D *cached = nullptr;
+	bool prev = test(m_flags, k);
+	if (has) {
+		m_flags |= repr(k);
+	} else {
+		m_flags = clear_mask(m_flags, repr(k));
+	}
+	return prev;
+}
+
+static ImageTexture2D try_from_cache_or_load(std::string&& path, Texture::ColorSpace space)
+{
 	ImageTexture2D ret;
-	cached = cache->get(path);
+	auto cached = Texture::Cache::get(path);
 	if(cached) {
 		ret = cached->share();
 	} else {
 		ret = ImageTexture2D::fromFile(path, space);
 		if(ret.valid()) {
-			cache->add(std::move(path), ret.share());
+			Texture::Cache::add(std::move(path), ret.share());
 		}
 	}
 	return ret;
 }
 
 
-void Material::add_diffuse_map(const std::string_view name, const std::string_view basedir)
+ImageTexture2D Material::load_image_texture(std::string_view basedir, std::string_view name, Texture::ColorSpace colorspace)
 {
-	std::string diffuse_path;
-	diffuse_path = basedir;
+	std::string filepath;
+	filepath = basedir;
 	if(basedir.find_last_of('/') != basedir.length()-1)
-		diffuse_path.push_back('/');
-	diffuse_path.append(name);
+		filepath.push_back('/');
+	filepath.append(name);
 
-	m_diffuse_map = try_from_cache_or_load(cache, std::move(diffuse_path), Texture::ColorSpace::sRGB);
-
-
-	if(m_diffuse_map.valid())
-	{
-		m_flags |= repr(Texture::Kind::Diffuse);
-		if(m_diffuse_map.channels() == 4) {
-			m_alpha_mode = Texture::AlphaMode::Unknown;
-		} else {
-			m_alpha_mode = Texture::AlphaMode::Opaque;
-		}
-	}
+	return try_from_cache_or_load(std::move(filepath), colorspace);
 }
-
-void Material::add_normal_map(const std::string_view name, const std::string_view basedir)
-{
-	std::string normal_path;
-	normal_path = basedir;
-	if(basedir.find_last_of('/') != basedir.length()-1)
-		normal_path.push_back('/');
-	normal_path.append(name);
-
-	m_normal_map = try_from_cache_or_load(cache, std::move(normal_path), Texture::ColorSpace::Linear);
-
-	if(m_normal_map.valid()) {
-		m_flags |= repr(Texture::Kind::Normal);
-	}
-}
-
-void Material::add_specular_map(const std::string_view name, const std::string_view basedir)
-{
-	std::string specular_path;
-	specular_path = basedir;
-	if(basedir.find_last_of('/') != basedir.length()-1)
-		specular_path.push_back('/');
-	specular_path.append(name);
-
-	m_specular_map = try_from_cache_or_load(cache, std::move(specular_path), Texture::ColorSpace::Linear);
-
-	if(m_specular_map.valid()) {
-		m_flags |= repr(Texture::Kind::Specular);
-	}
-}
-

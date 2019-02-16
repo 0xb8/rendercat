@@ -27,3 +27,10 @@
 	path = third_party/zcm
 	url = https://github.com/zettdaymond/zcm.git
 	branch = master
+[submodule "third_party/fx-gltf/fx-gltf"]
+	path = third_party/fx-gltf/fx-gltf
+	url = https://github.com/jessey-git/fx-gltf.git
+[submodule "third_party/nlohmann_json"]
+	path = third_party/nlohmann_json
+	url = https://github.com/nlohmann/json.git
+	branch = develop

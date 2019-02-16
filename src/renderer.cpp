@@ -347,19 +347,25 @@ static void process_spot_lights(const std::vector<SpotLight>& spot_lights,
 static void submit_draw_call(const model::Mesh& submesh)
 {
 	glBindVertexArray(*submesh.vao);
-	assert(submesh.index_type == GL_UNSIGNED_INT || submesh.index_type == GL_UNSIGNED_SHORT);
-	assert(submesh.index_max > submesh.index_min);
-	glDrawRangeElements(GL_TRIANGLES, submesh.index_min, submesh.index_max, submesh.numverts, GLenum(submesh.index_type), nullptr);
+
+	if (submesh.index_type) {
+		assert(submesh.index_type == GL_UNSIGNED_INT || submesh.index_type == GL_UNSIGNED_SHORT || submesh.index_type == GL_UNSIGNED_BYTE);
+		//assert(submesh.index_max > submesh.index_min);
+		glDrawElements((GLenum)submesh.draw_mode, /*submesh.index_min, submesh.index_max,*/ submesh.numverts, GLenum(submesh.index_type), nullptr);
+	} else {
+		glDrawArrays((GLenum)submesh.draw_mode, 0, submesh.numverts);
+	}
+
 }
 
 static void render_generic(const model::Mesh& submesh,
                            const Material& material,
                            uint32_t shader)
 {
-	if(material.face_culling_enabled) {
-		glEnable(GL_CULL_FACE);
-	} else {
+	if(material.double_sided) {
 		glDisable(GL_CULL_FACE);
+	} else {
+		glEnable(GL_CULL_FACE);
 	}
 
 	material.bind(shader);
@@ -451,11 +457,11 @@ void Renderer::draw()
 			const model::Mesh& submesh = m_scene->submeshes[model.submeshes[submesh_idx]];
 			const Material& material   = m_scene->materials[model.materials[submesh_idx]];
 
-			if(material.alpha_mode() == Texture::AlphaMode::Mask) {
+			if(material.alpha_mode == Texture::AlphaMode::Mask) {
 				m_masked_meshes.push_back(ModelMeshIdx{model_idx, submesh_idx});
 				continue;
 			}
-			if(material.alpha_mode() == Texture::AlphaMode::Blend) {
+			if(material.alpha_mode == Texture::AlphaMode::Blend) {
 				m_blended_meshes.push_back(ModelMeshIdx{model_idx, submesh_idx});
 				continue;
 			}

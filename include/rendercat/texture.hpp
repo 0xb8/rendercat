@@ -6,11 +6,11 @@
 namespace rc {
 namespace Texture {
 
-	enum class AlphaMode : std::uint16_t {
+	enum class AlphaMode : std::uint8_t {
 		Unknown = 0,
-		Opaque  = 1 << 1,
-		Mask    = 1 << 2,
-		Blend   = 1 << 3
+		Opaque,
+		Mask,
+		Blend,
 	};
 
 	enum class Kind : std::uint16_t
@@ -23,6 +23,8 @@ namespace Texture {
 		Metallic  = RC_SHADER_TEXTURE_KIND_METALLIC,
 		Occlusion = RC_SHADER_TEXTURE_KIND_OCCLUSION,
 		Emission  = RC_SHADER_TEXTURE_KIND_EMISSION,
+		MetallicRoughness = Metallic | Roughness,
+		MetallicRoughbessOcclusion = Metallic | Roughness | Occlusion,
 	};
 
 	enum class ColorSpace : std::int8_t
@@ -31,7 +33,7 @@ namespace Texture {
 		sRGB
 	};
 
-	enum class InternalFormat : std::uint32_t
+	enum class InternalFormat : std::uint16_t
 	{
 		InvalidFormat    = 0,
 		KeepParentFormat = 1,
@@ -63,7 +65,7 @@ namespace Texture {
 		Compressed_SRGB_ALPHA_DXT5 = 0x8C4F
 	};
 
-	enum class TexelDataType : std::uint32_t
+	enum class TexelDataType : std::uint16_t
 	{
 		UnsignedByte  = 0x1401,
 		Byte          = 0x1400,
@@ -75,26 +77,29 @@ namespace Texture {
 		Float         = 0x1406
 	};
 
-	enum class MipMapping : std::uint8_t
-	{
-		Disable,
-		MipNearest,
-		MipLinear
-	};
+	enum class MagFilter : uint16_t
+        {
+            Nearest = 9728,
+            Linear = 9729
+        };
 
-	enum class Filtering : std::uint8_t
-	{
-		Nearest,
-		Linear
-	};
+        enum class MinFilter : uint16_t
+        {
+            Nearest = 9728,
+            Linear = 9729,
+            NearestMipMapNearest = 9984,
+            LinearMipMapNearest = 9985,
+            NearestMipMapLinear = 9986,
+            LinearMipMapLinear = 9987
+        };
 
-	enum class Wrapping : std::uint8_t
+	enum class Wrapping : std::uint16_t
 	{
-		ClampToBorder,
-		ClampToEdge,
-		ClampToEdgeMirror,
-		Repeat,
-		RepeatMirror
+		Repeat = 0x2901,
+		MirroredRepeat = 0x8370,
+		ClampToBorder = 0x812D,
+		ClampToEdge = 0x812F,
+		MirrorClampToEdge = 0x8743
 	};
 
 	enum class ChannelValue : std::uint8_t
@@ -119,10 +124,10 @@ namespace Texture {
 	const char* enum_value_str(AlphaMode) noexcept;
 	const char* enum_value_str(ColorSpace) noexcept;
 	const char* enum_value_str(ChannelValue) noexcept;
-	const char* enum_value_str(Filtering) noexcept;
+	const char* enum_value_str(MagFilter) noexcept;
+	const char* enum_value_str(MinFilter) noexcept;
 	const char* enum_value_str(InternalFormat) noexcept;
 	const char* enum_value_str(Kind) noexcept;
-	const char* enum_value_str(MipMapping) noexcept;
 	const char* enum_value_str(Wrapping) noexcept;
 
 } // namespace Texture

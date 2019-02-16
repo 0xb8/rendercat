@@ -33,25 +33,31 @@ const char* rc::Texture::enum_value_str(InternalFormat f) noexcept
 	return "Some other"; // TODO: fill up other formats
 }
 
-const char* rc::Texture::enum_value_str(MipMapping m) noexcept
+const char* rc::Texture::enum_value_str(MinFilter m) noexcept
 {
 	switch (m) {
-	case MipMapping::Disable:
-		return "Disabled";
-	case MipMapping::MipLinear:
-		return "MipLinear";
-	case MipMapping::MipNearest:
-		return "MipNearest";
+	case MinFilter::Nearest:
+		return "Nearest";
+	case MinFilter::Linear:
+		return "Linear";
+	case MinFilter::NearestMipMapLinear:
+		return "NearestMipMapLinear";
+	case MinFilter::NearestMipMapNearest:
+		return "NearestMipMapNearest";
+	case MinFilter::LinearMipMapLinear:
+		return "LinearMipMapLinear";
+	case MinFilter::LinearMipMapNearest:
+		return "LinearMipMapNearest";
 	}
 	unreachable();
 }
 
-const char* rc::Texture::enum_value_str(Filtering f) noexcept
+const char* rc::Texture::enum_value_str(MagFilter f) noexcept
 {
 	switch (f) {
-	case Filtering::Nearest:
+	case MagFilter::Nearest:
 		return "Nearest";
-	case Filtering::Linear:
+	case MagFilter::Linear:
 		return "Linear";
 	}
 	unreachable();
@@ -64,12 +70,12 @@ const char* rc::Texture::enum_value_str(Wrapping w) noexcept
 		return "ClampToBorder";
 	case Wrapping::ClampToEdge:
 		return "ClampToEdge";
-	case Wrapping::ClampToEdgeMirror:
-		return "ClampToEdgeMirror";
+	case Wrapping::MirrorClampToEdge:
+		return "MirrorClampToEdge";
 	case Wrapping::Repeat:
 		return "Repeat";
-	case Wrapping::RepeatMirror:
-		return "RepeatMirror";
+	case Wrapping::MirroredRepeat:
+		return "MirroredRepeat";
 	}
 	unreachable();
 }
@@ -127,6 +133,10 @@ const char* rc::Texture::enum_value_str(Kind map) noexcept
 		return "Specular";
 	case Kind::None:
 		return "None";
+	case Kind::MetallicRoughness:
+		return "MetallicRoughness";
+	case Kind::MetallicRoughbessOcclusion:
+		return "MetallicRoughbessOcclusion";
 	}
 	unreachable();
 }

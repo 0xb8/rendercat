@@ -20,20 +20,10 @@ struct TextureStorage2D
 	                            unsigned numlevels,
 	                            Texture::InternalFormat view_format = Texture::InternalFormat::KeepParentFormat);
 
-	TextureStorage2D share()
-	{
-		return share_view(0, m_mip_levels);
-	}
+	TextureStorage2D share();
 
-	bool shared() const noexcept
-	{
-		return m_shared;
-	}
-
-	int share_count() const noexcept
-	{
-		return m_shared;
-	}
+	bool shared() const noexcept;
+	int  ref_count() const noexcept;
 
 	void sub_image(uint16_t level,
 	               uint16_t width,
@@ -47,40 +37,16 @@ struct TextureStorage2D
 	                          size_t data_len,
 	                          const void* data);
 
-	uint16_t levels() const noexcept
-	{
-		return m_mip_levels;
-	}
+	bool valid() const noexcept;
 
-	uint16_t width()  const noexcept
-	{
-		return m_width;
-	}
-
-	uint16_t height() const noexcept
-	{
-		return m_height;
-	}
-
-
-	Texture::InternalFormat format() const noexcept
-	{
-		return m_internal_format;
-	}
-
-	bool valid() const noexcept
-	{
-		return m_handle.operator bool() && m_internal_format != Texture::InternalFormat::InvalidFormat;
-	}
-
-	uint32_t texture_handle() const noexcept
-	{
-		return *m_handle;
-	}
-
-
+	uint16_t levels() const noexcept;
 	uint16_t channels() const noexcept;
+	uint16_t width()  const noexcept;
+	uint16_t height() const noexcept;
+
 	Texture::ColorSpace color_space() const noexcept;
+	Texture::InternalFormat format() const noexcept;
+	uint32_t texture_handle() const noexcept;
 
 private:
 	mutable rc::texture_handle m_handle;
@@ -101,80 +67,31 @@ struct ImageTexture2D
 
 	ImageTexture2D share();
 
-	bool shared() const noexcept
-	{
-		return m_storage.shared();
-	}
+	bool shared() const noexcept;
+	bool valid() const noexcept;
 
-	bool valid() const noexcept
-	{
-		return m_storage.valid();
-	}
+	uint32_t texture_handle() const noexcept;
 
-	uint32_t texture_handle() const noexcept
-	{
-		return m_storage.texture_handle();
-	}
+	uint16_t width() const noexcept;
+	uint16_t height() const noexcept;
+	uint16_t levels() const noexcept;
+	uint16_t channels() const noexcept;
+	uint16_t anisotropy() const noexcept;
+	zcm::vec4 border_color() const noexcept;
 
-	uint16_t width() const noexcept
-	{
-		return m_storage.width();
-	}
+	const TextureStorage2D& storage() const noexcept;
 
-	uint16_t height() const noexcept
-	{
-		return m_storage.height();
-	}
+	Texture::SwizzleMask swizzle_mask() const noexcept;
+	Texture::MagFilter mag_filter() const noexcept;
+	Texture::MinFilter min_filter() const noexcept;
+	Texture::Wrapping wrapping_s() const noexcept;
+	Texture::Wrapping wrapping_t() const noexcept;
 
-	uint16_t levels() const noexcept
-	{
-		return m_storage.levels();
-	}
-
-	uint16_t channels() const noexcept
-	{
-		return m_storage.channels();
-	}
-
-	const TextureStorage2D& storage() const noexcept
-	{
-		return m_storage;
-	}
-
-	Texture::SwizzleMask swizzle_mask() const noexcept
-	{
-		return m_swizzle_mask;
-	}
-
-	Texture::MipMapping mipmapping() const noexcept
-	{
-		return m_mipmapping;
-	}
-
-	Texture::Wrapping wrapping() const noexcept
-	{
-		return m_wrapping;
-	}
-
-	uint16_t anisotropy() const noexcept
-	{
-		return m_anisotropic_samples;
-	}
-
-	Texture::Filtering filtering() const noexcept
-	{
-		return m_filtering;
-	}
-
-	zcm::vec4 border_color() const noexcept
-	{
-		return m_border_color;
-	}
 
 	bool bind_to_unit(uint32_t unit) const noexcept;
 
-	void set_filtering(Texture::MipMapping, Texture::Filtering)  noexcept;
-	void set_wrapping(Texture::Wrapping) noexcept;
+	void set_filtering(Texture::MinFilter, Texture::MagFilter)  noexcept;
+	void set_wrapping(Texture::Wrapping s, Texture::Wrapping t) noexcept;
 
 	void set_anisotropy(unsigned samples)  noexcept;
 	void set_border_color(const zcm::vec4&) noexcept;
@@ -186,9 +103,10 @@ private:
 	TextureStorage2D      m_storage;
 	zcm::vec4             m_border_color{};
 	Texture::SwizzleMask  m_swizzle_mask{};
-	Texture::MipMapping   m_mipmapping = Texture::MipMapping::MipLinear;
-	Texture::Filtering    m_filtering  = Texture::Filtering::Linear;
-	Texture::Wrapping     m_wrapping = Texture::Wrapping::Repeat;
+	Texture::MagFilter    m_mag_filter = Texture::MagFilter::Linear;
+	Texture::MinFilter    m_min_filter = Texture::MinFilter::LinearMipMapLinear;
+	Texture::Wrapping     m_wrapping_s = Texture::Wrapping::Repeat;
+	Texture::Wrapping     m_wrapping_t = Texture::Wrapping::Repeat;
 	uint8_t               m_anisotropic_samples = 16; // min value required by spec
 };
 

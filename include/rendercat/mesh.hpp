@@ -6,17 +6,18 @@
 #include <rendercat/util/gl_unique_handle.hpp>
 #include <string_view>
 #include <vector>
+#include <zcm/quat.hpp>
 
 namespace rc {
 namespace model {
 
-	struct Vertex;
+	struct attr_description_t;
+
 	struct Mesh
 	{
 		std::string name;
 		buffer_handle ebo;
-		buffer_handle dynamic_vbo;
-		buffer_handle static_vbo;
+		buffer_handle vbo;
 		vertex_array_handle vao;
 		uint32_t numverts = 0;
 		uint32_t numverts_unique = 0;
@@ -24,6 +25,7 @@ namespace model {
 		uint32_t index_max = 0;
 		uint32_t touched_lights = 0;
 		uint32_t index_type{};
+		uint32_t draw_mode{};
 		bbox3 bbox;
 
 		bool valid() const noexcept
@@ -31,8 +33,10 @@ namespace model {
 			return numverts != 0 && vao;
 		}
 
-		Mesh(const std::string & name_, std::vector<Vertex>&& verts);
+		explicit Mesh(std::string name_);
 		~Mesh() = default;
+
+		void upload_data(attr_description_t index, std::vector<attr_description_t> attrs);
 
 		RC_DEFAULT_MOVE_NOEXCEPT(Mesh)
 		RC_DISABLE_COPY(Mesh)
@@ -40,18 +44,12 @@ namespace model {
 
 	struct data
 	{
-		std::vector<Material> materials;
-		std::vector<Mesh>     submeshes;
-		std::vector<int>      submesh_material;
+		std::vector<Material>  materials;
+		std::vector<Mesh>      primitives;
+		std::vector<int>       primitive_material;
 	};
 
-
-	bool load_obj_file(data* res,
-			   const std::string_view name,
-			   const std::string_view basedir = std::string_view{});
-
-	// TODO: gltf loader
-	bool load_gltf_file(data* res,
+	bool load_gltf_file(data& res,
 	                    const std::string_view name,
 			    const std::string_view basedir = std::string_view{});
 } // namespace model
