@@ -24,7 +24,6 @@ const int MATERIAL_EMISSION_MAPPED  = 1 << 13;
 
 const int MAX_DYNAMIC_LIGHTS = 16;
 
-
 struct Material {
 	vec4      diffuse;
 	vec4      specular; // .rgb - color, .a - shininess
@@ -91,6 +90,7 @@ uniform int num_spot_lights;
 uniform int num_msaa_samples;
 
 uniform bool shadows_enabled;
+uniform bool has_tangents;
 
 
 float calcDirectionalShadow(vec4 fragPosLightSpace, float NdotL)
@@ -143,12 +143,31 @@ vec3 getMaterialSpecular()
 	}
 }
 
+mat3 getTBN()
+{
+	if (has_tangents) {
+		return mat3(fs_in.Tangent, fs_in.BitangentSign * cross(fs_in.Normal, fs_in.Tangent), fs_in.Normal);
+	} else {
+		vec3 pos_dx = dFdx(fs_in.FragPos);
+		vec3 pos_dy = dFdy(fs_in.FragPos);
+		vec3 tex_dx = dFdx(vec3(fs_in.TexCoords, 0.0));
+		vec3 tex_dy = dFdy(vec3(fs_in.TexCoords, 0.0));
+		vec3 t = (tex_dy.y * pos_dx - tex_dx.y * pos_dy) / (tex_dx.x * tex_dy.y - tex_dy.x * tex_dx.y);
+
+		vec3 n = fs_in.Normal;
+		t = normalize(t - n * dot(n, t));
+		vec3 b = normalize(cross(n, t));
+
+		return mat3(t, b, n);
+	}
+}
+
 vec3 getNormal()
 {
 	if((material.type & MATERIAL_NORMAL_MAPPED) != 0) {
 		// NOTE: texture conversion could be normalized, but doesn't affect the quality much
 		vec3 normal = texture(material_normal, fs_in.TexCoords).rgb;
-		mat3 TBN = mat3(fs_in.Tangent, fs_in.BitangentSign * cross(fs_in.Normal, fs_in.Tangent), fs_in.Normal);
+		mat3 TBN = getTBN();
 		return normalize(TBN * (normal * 2.0 - 1.0));
 	} else {
 		// normalize interpolated normals to prevent issues with specular pixel flicker.

@@ -17,6 +17,7 @@ uniform mat4 model;
 uniform mat4 proj_view;
 uniform mat4 light_proj_view;
 uniform mat3 normal_matrix;
+uniform bool has_tangents;
 
 void main()
 {
@@ -26,6 +27,8 @@ void main()
 	vs_out.TexCoords = aTexCoords;
 
 	vs_out.Normal = normal_matrix * aNormal;
-	vs_out.Tangent = normal_matrix * aTangent.xyz;
-	vs_out.BitangentSign = aTangent.w;
+	if (has_tangents) {
+		vs_out.Tangent = normal_matrix * aTangent.xyz;
+		vs_out.BitangentSign = aTangent.w;
+	}
 }

@@ -64,6 +64,8 @@ Scene::Scene()
 	//load_model("sponza_scaled.obj", "sponza_crytek/");
 	//load_model("yorha_2b.obj",      "yorha_2b/");
 	load_model_gltf("sponza.gltf", "sponzagltf/");
+	load_model_gltf("NormalTangentTest.gltf", "normal_tangent/");
+	load_model_gltf("NormalTangentMirrorTest.gltf", "normal_tangent/");
 
 	Texture::Cache::clear();
 }
@@ -483,7 +485,7 @@ void Scene::update()
 					ImGui::Text("GL Handle:       %d", storage.texture_handle());
 
 					if(storage.shared()) {
-						ImGui::Text("Shared: %d", storage.share_count());
+						ImGui::Text("Shared: %d", storage.ref_count());
 					}
 
 					if(!storage.valid())

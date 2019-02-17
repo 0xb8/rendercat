@@ -52,7 +52,9 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 	glGetIntegerv(GL_MAX_FRAMEBUFFER_HEIGHT,    &max_framebuffer_height);
 	glGetIntegerv(GL_MAX_UNIFORM_LOCATIONS,     &max_uniform_locations);
 	glGetIntegerv(GL_FRAGMENT_SHADER_DERIVATIVE_HINT, &frag_derivative_quality_hint);
-	fmt::print("[renderer] limits:\n"
+#ifndef NDEBUG
+	fmt::print(stderr,
+	           "[renderer] limits:\n"
 	           "    MSAA samples:        {} (color: {} depth: {} FB: {})\n"
 	           "    Framebuffer size:    {} x {}\n"
 	           "    Vertices:            {}\n"
@@ -69,7 +71,7 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 	           max_elements_indices,
 	           max_uniform_locations,
 	           glbinding::aux::Meta::getString(frag_derivative_quality_hint));
-	std::fflush(stdout);
+#endif
 
 	dd::initialize(&debug_draw_ctx);
 	init_shadow();
@@ -348,14 +350,30 @@ static void submit_draw_call(const model::Mesh& submesh)
 {
 	glBindVertexArray(*submesh.vao);
 
-	if (submesh.index_type) {
-		assert(submesh.index_type == GL_UNSIGNED_INT || submesh.index_type == GL_UNSIGNED_SHORT || submesh.index_type == GL_UNSIGNED_BYTE);
-		//assert(submesh.index_max > submesh.index_min);
-		glDrawElements((GLenum)submesh.draw_mode, /*submesh.index_min, submesh.index_max,*/ submesh.numverts, GLenum(submesh.index_type), nullptr);
+	if (likely(submesh.index_type)) {
+
+		assert(submesh.index_type == GL_UNSIGNED_INT
+		       || submesh.index_type == GL_UNSIGNED_SHORT
+		       || submesh.index_type == GL_UNSIGNED_BYTE);
+
+		if (likely(submesh.index_max > submesh.index_min)) {
+
+			glDrawRangeElements((GLenum)submesh.draw_mode,
+			                    submesh.index_min,
+			                    submesh.index_max,
+			                    submesh.numverts,
+			                    GLenum(submesh.index_type),
+			                    nullptr);
+		} else {
+
+			glDrawElements((GLenum)submesh.draw_mode,
+			               submesh.numverts,
+			               GLenum(submesh.index_type),
+			               nullptr);
+		}
 	} else {
 		glDrawArrays((GLenum)submesh.draw_mode, 0, submesh.numverts);
 	}
-
 }
 
 static void render_generic(const model::Mesh& submesh,
@@ -369,6 +387,7 @@ static void render_generic(const model::Mesh& submesh,
 	}
 
 	material.bind(shader);
+	unif::b1(shader, "has_tangents", submesh.has_tangents);
 	submit_draw_call(submesh);
 }
 

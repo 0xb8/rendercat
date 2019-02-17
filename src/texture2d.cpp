@@ -138,13 +138,16 @@ static void get_max_size()
 		glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_tex_size);
 		glGetIntegerv(GL_MAX_TEXTURE_BUFFER_SIZE, &max_buffer_size);
 		glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &max_layers_gl);
-		fmt::print("[texture2d.storage] limits:\n"
+#ifndef NDEBUG
+		fmt::print(stderr,
+		           "[texture2d.storage] limits:\n"
 		           "    Texture size:        {}\n"
 		           "    Texture buf:         {}\n"
 		           "    Layers:              {}\n",
 		           max_tex_size,
 		           max_buffer_size,
 		           max_layers_gl);
+#endif
 		max_size = max_tex_size;
 		max_layers = std::min(max_layers_gl, 1);
 	}
@@ -478,6 +481,7 @@ void ImageTexture2D::set_filtering(Texture::MinFilter min, Texture::MagFilter ma
 
 	glTextureParameteri(m_storage.texture_handle(), GL_TEXTURE_MIN_FILTER, static_cast<GLenum>(m_min_filter));
 	glTextureParameteri(m_storage.texture_handle(), GL_TEXTURE_MAG_FILTER, static_cast<GLenum>(m_mag_filter));
+	assert(glGetError() == GL_NO_ERROR);
 }
 
 
@@ -490,6 +494,7 @@ void ImageTexture2D::set_wrapping(Texture::Wrapping s, Texture::Wrapping t) noex
 
 	glTextureParameteri(m_storage.texture_handle(), GL_TEXTURE_WRAP_S, wrapping_s);
 	glTextureParameteri(m_storage.texture_handle(), GL_TEXTURE_WRAP_T, wrapping_t);
+	assert(glGetError() == GL_NO_ERROR);
 }
 
 

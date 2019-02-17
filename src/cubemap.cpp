@@ -83,7 +83,9 @@ Cubemap::Cubemap()
 		glGetIntegerv(GL_MAX_CUBE_MAP_TEXTURE_SIZE, &max_texture_size);
 		has_seamless_filtering = glIsEnabled(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 		has_seamless_filtering_per_texture = rc::glmeta::extension_supported(gl::GLextension::GL_ARB_seamless_cubemap_per_texture);
-		fmt::print("[cubemap] limits:\n"
+#ifndef NDEBUG
+		fmt::print(stderr,
+		           "[cubemap] limits:\n"
 		           "    Texture size:        {}\n"
 		           "    Seamless filtering:\n"
 		           "        Global:          {}\n"
@@ -92,6 +94,7 @@ Cubemap::Cubemap()
 
 		           glbinding::aux::Meta::getString(has_seamless_filtering),
 		           glbinding::aux::Meta::getString(has_seamless_filtering_per_texture));
+#endif
 	}
 
 	if(!m_vao && !m_vbo) {

@@ -78,7 +78,10 @@ static const fx::gltf::Sampler* get_gltf_sampler(const fx::gltf::Document& doc, 
 static void apply_gltf_sampler(const fx::gltf::Sampler* s, ImageTexture2D& tex) {
 	if (!s) return;
 	tex.set_wrapping(static_cast<Texture::Wrapping>(s->wrapS), static_cast<Texture::Wrapping>(s->wrapT));
-	tex.set_filtering(static_cast<Texture::MinFilter>(s->minFilter), static_cast<Texture::MagFilter>(s->magFilter));
+
+	if (s->minFilter != fx::gltf::Sampler::MinFilter::None && s->magFilter != fx::gltf::Sampler::MagFilter::None) {
+		tex.set_filtering(static_cast<Texture::MinFilter>(s->minFilter), static_cast<Texture::MagFilter>(s->magFilter));
+	}
 }
 
 
@@ -227,6 +230,8 @@ struct rc::model::attr_description_t {
 	uint32_t comp_type = 0;
 	uint32_t comp_count = 0;
 	rc::bbox3 bbox;
+	uint32_t min_idx = 0xFFFFFFFF;
+	uint32_t max_idx = 0;
 };
 
 
@@ -241,24 +246,29 @@ static rc::model::attr_description_t gltf_attr_data(int accessor_idx, const fx::
 	}
 
 	const auto& buffer_view = doc.bufferViews.at(accessor.bufferView);
-
 	const auto& buffer = doc.buffers.at(buffer_view.buffer);
 
 	auto dtype_size = CalculateDataTypeSize(accessor);
 
-
 	rc::model::attr_description_t res;
 	res.bbox = _bbox;
 
-	auto buffer_stride = buffer_view.byteStride ? buffer_view.byteStride : dtype_size;
+	uint32_t buffer_stride = buffer_view.byteStride ? buffer_view.byteStride : dtype_size;
 
 	res.data.reserve(accessor.count * dtype_size);
 
-	for(size_t i = 0; i < accessor.count; ++i)
-	{
-		for (size_t j = 0; j < dtype_size; ++j) {
-			//Access the data of each element of the buffer
-		        res.data.push_back(buffer.data[(buffer_view.byteOffset + accessor.byteOffset) + i * buffer_stride + j]);
+	bool need_index_range = (buffer_view.target == fx::gltf::BufferView::TargetType::ElementArrayBuffer);
+	if (need_index_range) {
+		if (accessor.min.size() == 1 && accessor.max.size() == 1) {
+			res.min_idx = accessor.min[0];
+			res.max_idx = accessor.max[0];
+		}
+	}
+
+	for(uint32_t i = 0; i < accessor.count; ++i) {
+		for (uint32_t j = 0; j < dtype_size; ++j) {
+			uint32_t offset = buffer_view.byteOffset + accessor.byteOffset + i * buffer_stride + j;
+		        res.data.push_back(buffer.data[offset]);
 		}
 	}
 
@@ -363,25 +373,38 @@ bool model::load_gltf_file(data& res, const std::string_view name, const std::st
 }
 
 
-static int get_attr_index(const std::string_view name)
+enum class AttrIndex
+{
+	Invalid = -1,
+	Position = 0,
+	Normal = 1,
+	Tangent = 2,
+	TexCoord0 = 3,
+	TexCoord1 = 4,
+	Color0 = 5,
+	Joints0 = 8,
+	Weights0 = 10
+};
+
+static AttrIndex get_attr_index(const std::string_view name)
 {
 	if (name == "POSITION")
-		return 0;
+		return AttrIndex::Position;
 	if (name == "NORMAL")
-		return 1;
+		return AttrIndex::Normal;
 	if (name == "TANGENT")
-		return 2;
+		return AttrIndex::Tangent;
 	if (name == "TEXCOORD_0")
-		return 3;
+		return AttrIndex::TexCoord0;
 	if (name == "TEXCOORD_1")
-		return 4;
+		return AttrIndex::TexCoord1;
 	if (name == "COLOR_0")
-		return 5;
+		return AttrIndex::Color0;
 	if (name == "JOINTS_0")
-		return 8;
+		return AttrIndex::Joints0;
 	if (name == "WEIGHTS_0")
-		return 10;
-	return -1;
+		return AttrIndex::Weights0;
+	return AttrIndex::Invalid;
 }
 
 
@@ -401,17 +424,21 @@ void model::Mesh::upload_data(attr_description_t index, std::vector<attr_descrip
 		glNamedBufferStorage(*ebo, index.data.size(), index.data.data(), GL_NONE_BIT);
 		index_type = index.comp_type;
 		numverts = index.elem_count;
+
+		index_min = index.min_idx;
+		index_max = index.max_idx;
+
 		glVertexArrayElementBuffer(*vao, *ebo);
 	}
 
 	std::vector<uint8_t> storage;
 
-	attrs.erase(std::remove_if(attrs.begin(), attrs.end(), [](auto& attr)
+	attrs.erase(std::remove_if(attrs.begin(), attrs.end(), [](const auto& attr)
 	{
-		return get_attr_index(attr.name) < 0;
+		return get_attr_index(attr.name) == AttrIndex::Invalid;
 	}), attrs.end());
 
-	std::sort(attrs.begin(), attrs.end(), [](auto& aa, auto& ab)
+	std::sort(attrs.begin(), attrs.end(), [](const auto& aa, const auto& ab)
 	{
 		return get_attr_index(aa.name) < get_attr_index(ab.name);
 	});
@@ -424,7 +451,7 @@ void model::Mesh::upload_data(attr_description_t index, std::vector<attr_descrip
 
 	if (storage.size() == 0) {
 		numverts = 0;
-		fmt::print("[mesh] No vertex data for mesh '{}'!\n", name);
+		fmt::print(stderr, "[mesh] No vertex data for mesh '{}'!\n", name);
 		return;
 	}
 
@@ -434,9 +461,10 @@ void model::Mesh::upload_data(attr_description_t index, std::vector<attr_descrip
 	int binding_index = 0;
 	for (auto& attr : attrs) {
 
-		int attr_index = get_attr_index(attr.name);
+		auto attr_index = get_attr_index(attr.name);
+		assert(attr_index != AttrIndex::Invalid);
 
-		if (attr_index == 0) {
+		if (attr_index == AttrIndex::Position) {
 			bbox = attr.bbox;
 			numverts_unique = attr.elem_count;
 			if (numverts == 0) {
@@ -444,14 +472,19 @@ void model::Mesh::upload_data(attr_description_t index, std::vector<attr_descrip
 			}
 		}
 
+		if (attr_index == AttrIndex::Tangent)
+			has_tangents = true;
+
+		auto attribute_index = static_cast<GLuint>(attr_index);
+
 		// set up VBO: binding index, vbo, offset, stride
 		glVertexArrayVertexBuffer(*vao, binding_index, *vbo, attr.offset, attr.elem_byte_size);
 		// assign VBOs to attributes
-		glVertexArrayAttribBinding(*vao, attr_index, binding_index);
+		glVertexArrayAttribBinding(*vao, attribute_index, binding_index);
 		// specify attrib format: attrib idx, element count, format, normalized, relative offset
-		glVertexArrayAttribFormat(*vao, attr_index, attr.comp_count, GLenum(attr.comp_type), GL_FALSE, 0);
+		glVertexArrayAttribFormat(*vao, attribute_index, attr.comp_count, static_cast<GLenum>(attr.comp_type), GL_FALSE, 0);
 		// enable attrib
-		glEnableVertexArrayAttrib(*vao, attr_index);
+		glEnableVertexArrayAttrib(*vao, attribute_index);
 
 		++binding_index;
 	}

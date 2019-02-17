@@ -27,6 +27,7 @@ namespace model {
 		uint32_t index_type{};
 		uint32_t draw_mode{};
 		bbox3 bbox;
+		bool has_tangents = false;
 
 		bool valid() const noexcept
 		{
