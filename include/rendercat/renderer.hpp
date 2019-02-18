@@ -62,6 +62,12 @@ public:
 	int msaa_level = 0;
 	int MSAASampleCount = 1;
 	int MSAASampleCountMax = 4;
+	int desired_msaa_level = 0;
+	float desired_render_scale = 1.0f;
+	bool draw_mesh_bboxes = false;
+	bool do_shadow_mapping = true;
+	bool window_shown = true;
+
 	static constexpr int MaxLights = 16;
 
 	explicit Renderer(Scene* s);

@@ -5,6 +5,8 @@
 #include <zcm/mat4.hpp>
 #include <zcm/matrix.hpp>
 #include <zcm/matrix_transform.hpp>
+#include <zcm/quaternion.hpp>
+#include <zcm/common.hpp>
 
 #include <rendercat/common.hpp>
 #include <rendercat/mesh.hpp>
@@ -59,15 +61,17 @@ struct Model
 	uint32_t submesh_count;
 
 	zcm::vec3 position;
-	zcm::vec3 rotation_euler;
+	zcm::vec3 scale = 1.0f;
+	zcm::quat rotation;
 
 	zcm::mat4 transform;
 	zcm::mat4 inv_transform;
 
 	void update_transform()
 	{
-		transform = zcm::translate(zcm::mat4(1.0f), position);
-		//transform *= zcm::yawPitchRoll(rotation_euler.x, rotation_euler.y, rotation_euler.z);
+		rotation = zcm::normalize(rotation);
+		transform = zcm::translate(zcm::scale(zcm::mat4{1.0f}, scale), position);
+		transform *= zcm::mat4_cast(rotation);
 
 		inv_transform = zcm::inverse(transform);
 	}
@@ -86,11 +90,6 @@ struct Scene
 	std::vector<SpotLight>   spot_lights;
 
 	bool  window_shown = true;
-	bool  draw_bbox = false;
-	int   desired_msaa_level = 0;
-	float desired_render_scale = 1.0f;
-
-	bool shadows = true;
 
 	void update();
 

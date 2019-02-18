@@ -11,7 +11,7 @@ class TextureCache;
 class Material
 {
 	uint32_t  m_flags = 0;
-	friend class Scene;
+	friend struct Scene;
 public:
 
 	explicit Material(const std::string_view name_);

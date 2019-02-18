@@ -5,6 +5,7 @@
 #include <zcm/geometric.hpp>
 #include <zcm/type_ptr.hpp>
 #include <zcm/quaternion.hpp>
+#include <glbinding-aux/Meta.h>
 
 using namespace rc;
 
@@ -219,6 +220,132 @@ static bool edit_light(T& pl) noexcept
 	return ret;
 }
 
+
+static void show_material_ui(rc::Material& material)
+{
+	auto col = ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
+	ImGui::TextUnformatted("Alpha mode:  ");
+	ImGui::SameLine();
+	ImGui::PushStyleColor(ImGuiCol_Text, col);
+
+	if(material.alpha_mode == Texture::AlphaMode::Opaque) {
+		ImGui::TextUnformatted("Opaque "); ImGui::SameLine();
+	}
+	if(material.alpha_mode == Texture::AlphaMode::Mask) {
+		ImGui::TextUnformatted("Alpha Mask "); ImGui::SameLine();
+	}
+	if(material.alpha_mode == Texture::AlphaMode::Blend) {
+		ImGui::TextUnformatted("Blend "); ImGui::SameLine();
+	}
+	ImGui::PopStyleColor();
+	ImGui::NewLine();
+	ImGui::PushStyleColor(ImGuiCol_Text, col);
+	if(material.double_sided) {
+		ImGui::TextUnformatted("Double-Sided (backface culling off)");
+	} else {
+		ImGui::TextUnformatted("Single-Sided (backface culling on)");
+	}
+	ImGui::PopStyleColor();
+	ImGui::TextUnformatted("Texture maps: ");
+
+	auto display_map_info = [](const auto& map)
+	{
+		auto& storage = map.storage();
+		ImGui::Text("Dimensions:      %d x %d (%d mips)",
+			    map.width(),
+			    map.height(),
+			    map.levels());
+
+		ImGui::Text("Color space:     %s", Texture::enum_value_str(storage.color_space()));
+		ImGui::Text("Channels:        %d", storage.channels());
+		ImGui::Text("Internal format: %s", Texture::enum_value_str(storage.format()));
+		ImGui::Text("Min Filter:      %s", Texture::enum_value_str(map.min_filter()));
+		ImGui::Text("Mag Filter:      %s", Texture::enum_value_str(map.mag_filter()));
+		ImGui::Text("Aniso Samples:   %d", map.anisotropy());
+		ImGui::Text("Swizzle Mask:    %s %s %s %s",
+		            Texture::enum_value_str(map.swizzle_mask().red),
+		            Texture::enum_value_str(map.swizzle_mask().green),
+		            Texture::enum_value_str(map.swizzle_mask().blue),
+		            Texture::enum_value_str(map.swizzle_mask().alpha));
+		ImGui::Text("GL Handle:       %d", storage.texture_handle());
+
+		if(storage.shared()) {
+			ImGui::Text("Shared: %d", storage.ref_count());
+		}
+
+		if(!storage.valid())
+			return;
+
+		// NOTE: imgui assumes direct3d convention, custom UVs for OpenGL are below
+		const auto uv0 = ImVec2(0.0f, 1.0f);
+		const auto uv1 = ImVec2(1.0f, 0.0f);
+		const auto width = ImGui::GetContentRegionAvailWidth() - 5.0f;
+		const auto height = width * ((float)storage.height() / (float)storage.width());
+		ImGui::Image((ImTextureID)(uintptr_t)storage.texture_handle(), ImVec2(width, height), uv0, uv1);
+	};
+
+	auto display_map = [&material,&display_map_info](const auto& map, auto kind)
+	{
+		ImGui::PushID(Texture::enum_value_str(kind));
+		if(material.has_texture_kind(kind) && ImGui::TreeNode("mapparams", "%s Map", Texture::enum_value_str(kind))) {
+			display_map_info(map);
+			ImGui::TreePop();
+		}
+		ImGui::PopID();
+	};
+
+	display_map(material.diffuse_map,  Texture::Kind::Diffuse);
+	display_map(material.normal_map,   Texture::Kind::Normal);
+	display_map(material.specular_map, Texture::Kind::Specular);
+	display_map(material.metallic_roughness_map, Texture::Kind::MetallicRoughness);
+	display_map(material.emission_map, Texture::Kind::Emission);
+	display_map(material.occlusion_map, Texture::Kind::Occlusion);
+	ImGui::Spacing();
+
+	ImGui::TextUnformatted("Diffuse color");
+	ImGui::ColorEdit3("##matdiffcolor", zcm::value_ptr(material.diffuse_factor),
+		ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
+
+	ImGui::TextUnformatted("Specular color");
+	ImGui::ColorEdit3("##matspeccolor", zcm::value_ptr(material.specular_factor),
+		ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
+
+	ImGui::DragFloat("Shininess",   &(material.shininess), 0.1f, 1.0f, 128.0f);
+	ImGui::SliderFloat("Roughness", &(material.roughness_factor), 0.0f, 1.0f);
+	ImGui::SliderFloat("Metallic",  &(material.metallic_factor),  0.0f, 1.0f);
+}
+
+static void show_mesh_ui(rc::model::Mesh& submesh, rc::Material& material)
+{
+	ImGui::Text("Vertices / unique:  %u / %u (%u%%)",
+	            submesh.numverts,
+	            submesh.numverts_unique,
+	            rc::math::percent(submesh.numverts_unique, submesh.numverts));
+	ImGui::Text("Touched lights:     %u", submesh.touched_lights);
+	ImGui::Text("Index Range:        %u - %u", submesh.index_min, submesh.index_max);
+
+	auto index_type = glbinding::aux::Meta::getString(static_cast<gl::GLenum>(submesh.index_type));
+	ImGui::Text("Index Type:         %s", index_type.data());
+
+	auto draw_mode = glbinding::aux::Meta::getString(static_cast<gl::GLenum>(submesh.draw_mode));
+	ImGui::Text("Draw Mode:          %s", draw_mode.data());
+	ImGui::Text("Tangents:           %s", (submesh.has_tangents ? "Baked" : "Shader"));
+
+	auto bbox_min = submesh.bbox.min();
+	auto bbox_max = submesh.bbox.max();
+	ImGui::TextUnformatted("BBox Min");
+	ImGui::InputFloat3("##bboxmin", zcm::value_ptr(bbox_min), "%.3f", ImGuiInputTextFlags_ReadOnly);
+	ImGui::TextUnformatted("BBox Max");
+	ImGui::InputFloat3("##bboxmax", zcm::value_ptr(bbox_max), "%.3f", ImGuiInputTextFlags_ReadOnly);
+
+	if (ImGui::TreeNodeEx("##submeshmaterial",
+	                      ImGuiTreeNodeFlags_NoTreePushOnOpen,
+	                      "Submesh Material: %s", material.name.data()))
+	{
+		show_material_ui(material);
+	}
+}
+
 void Scene::update()
 {
 	for(auto& pl : point_lights) {
@@ -238,16 +365,6 @@ void Scene::update()
 		return;
 	}
 
-	if(ImGui::CollapsingHeader("Renderer")) {
-		const char* labels[] = {"Disabled", "2x", "4x", "8x", "16x"};
-
-		ImGui::Combo("MSAA", &desired_msaa_level, labels, 5);
-		show_help_tooltip("Multi-Sample Antialiasing\n\nValues > 4x may be unsupported on some setups.");
-		ImGui::SliderFloat("Resolution scale", &desired_render_scale, 0.1f, 1.0f, "%.1f");
-		ImGui::Checkbox("Shadows", &shadows);
-		ImGui::Separator();
-		ImGui::Checkbox("Show submesh bboxes", &draw_bbox);
-	}
 
 	if(ImGui::CollapsingHeader("Camera")) {
 		ImGui::InputFloat3("Position", zcm::value_ptr(main_camera.state.position));
@@ -293,8 +410,6 @@ void Scene::update()
 		static bool has_a, has_b;
 
 		if (ImGui::TreeNode("Interpolate")) {
-
-
 			static zcm::quat rot_a, rot_b;
 			static zcm::vec3 pos_a, pos_b;
 			static float fov_a, fov_b;
@@ -435,99 +550,7 @@ void Scene::update()
 		for(unsigned i = 0; i < materials.size(); ++i) {
 			ImGui::PushID(i);
 			if(ImGui::TreeNode("Material", "%s", materials[i].name.data())) {
-				auto& material = materials[i];
-
-
-				auto col = ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
-				ImGui::TextUnformatted("Alpha mode:  ");
-				ImGui::SameLine();
-				ImGui::PushStyleColor(ImGuiCol_Text, col);
-
-				if(material.alpha_mode == Texture::AlphaMode::Opaque) {
-					ImGui::TextUnformatted("Opaque "); ImGui::SameLine();
-				}
-				if(material.alpha_mode == Texture::AlphaMode::Mask) {
-					ImGui::TextUnformatted("Alpha Mask "); ImGui::SameLine();
-				}
-				if(material.alpha_mode == Texture::AlphaMode::Blend) {
-					ImGui::TextUnformatted("Blend "); ImGui::SameLine();
-				}
-				ImGui::PopStyleColor();
-				ImGui::NewLine();
-				ImGui::PushStyleColor(ImGuiCol_Text, col);
-				if(material.double_sided) {
-					ImGui::TextUnformatted("Double-Sided (backface culling off)");
-				} else {
-					ImGui::TextUnformatted("Single-Sided (backface culling on)");
-				}
-				ImGui::PopStyleColor();
-				ImGui::TextUnformatted("Texture maps: ");
-
-				auto display_map_info = [](const auto& map)
-				{
-					auto& storage = map.storage();
-					ImGui::Text("Dimensions:      %d x %d (%d mips)",
-						    map.width(),
-						    map.height(),
-						    map.levels());
-
-					ImGui::Text("Color space:     %s", Texture::enum_value_str(storage.color_space()));
-					ImGui::Text("Channels:        %d", storage.channels());
-					ImGui::Text("Internal format: %s", Texture::enum_value_str(storage.format()));
-					ImGui::Text("Min Filter:      %s", Texture::enum_value_str(map.min_filter()));
-					ImGui::Text("Mag Filter:      %s", Texture::enum_value_str(map.mag_filter()));
-					ImGui::Text("Aniso Samples:   %d", map.anisotropy());
-					ImGui::Text("Swizzle Mask:    %s %s %s %s",
-					            Texture::enum_value_str(map.swizzle_mask().red),
-					            Texture::enum_value_str(map.swizzle_mask().green),
-					            Texture::enum_value_str(map.swizzle_mask().blue),
-					            Texture::enum_value_str(map.swizzle_mask().alpha));
-					ImGui::Text("GL Handle:       %d", storage.texture_handle());
-
-					if(storage.shared()) {
-						ImGui::Text("Shared: %d", storage.ref_count());
-					}
-
-					if(!storage.valid())
-						return;
-
-					// NOTE: imgui assumes direct3d convention, custom UVs for OpenGL are below
-					const auto uv0 = ImVec2(0.0f, 1.0f);
-					const auto uv1 = ImVec2(1.0f, 0.0f);
-					const auto width = ImGui::GetContentRegionAvailWidth() - 5.0f;
-					const auto height = width * ((float)storage.height() / (float)storage.width());
-					ImGui::Image((ImTextureID)(uintptr_t)storage.texture_handle(), ImVec2(width, height), uv0, uv1);
-				};
-
-				auto display_map = [&material,&display_map_info](const auto& map, auto kind)
-				{
-					ImGui::PushID(Texture::enum_value_str(kind));
-					if(material.has_texture_kind(kind) && ImGui::TreeNode("mapparams", "%s Map", Texture::enum_value_str(kind))) {
-						display_map_info(map);
-						ImGui::TreePop();
-					}
-					ImGui::PopID();
-				};
-
-				display_map(material.diffuse_map,  Texture::Kind::Diffuse);
-				display_map(material.normal_map,   Texture::Kind::Normal);
-				display_map(material.specular_map, Texture::Kind::Specular);
-				display_map(material.metallic_roughness_map, Texture::Kind::MetallicRoughness);
-				display_map(material.emission_map, Texture::Kind::Emission);
-				display_map(material.occlusion_map, Texture::Kind::Occlusion);
-				ImGui::Spacing();
-
-				ImGui::TextUnformatted("Diffuse color");
-				ImGui::ColorEdit3("##matdiffcolor", zcm::value_ptr(material.diffuse_factor),
-					ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
-
-				ImGui::TextUnformatted("Specular color");
-				ImGui::ColorEdit3("##matspeccolor", zcm::value_ptr(material.specular_factor),
-					ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
-
-				ImGui::DragFloat("Shininess",   &(material.shininess), 0.1f, 1.0f, 128.0f);
-				ImGui::SliderFloat("Roughness", &(material.roughness_factor), 0.0f, 1.0f);
-				ImGui::SliderFloat("Metallic",  &(material.metallic_factor),  0.0f, 1.0f);
+				show_material_ui(materials[i]);
 				ImGui::TreePop();
 			}
 			ImGui::PopID();
@@ -541,47 +564,27 @@ void Scene::update()
 			ImGui::PushID(i);
 			if(ImGui::TreeNode("Model", "%s", model.name.data())) {
 				ImGui::PushItemWidth(-1.0f);
+				ImGui::TextUnformatted("Scale (XYZ)");
+				ImGui::DragFloat3("##modelscal", zcm::value_ptr(model.scale), 0.01f);
 				ImGui::TextUnformatted("Position (XYZ)");
 				ImGui::DragFloat3("##modelpos", zcm::value_ptr(model.position), 0.01f);
-				zcm::vec3 rot = zcm::degrees(model.rotation_euler);
-				ImGui::TextUnformatted("Rotation (Yaw Pitch Roll)");
-				ImGui::SliderFloat3("##modelrot", zcm::value_ptr(rot), -180.0f, 180.0f, "%.1f\u00B0");
-				rot = zcm::radians(rot);
-				model.rotation_euler = rot;
+				ImGui::TextUnformatted("Rotation Quat");
+				ImGui::SliderFloat4("##modelrot", zcm::value_ptr(model.rotation), -1.0f, 1.0f, "%.3f");
 				model.update_transform();
 
-				if(ImGui::TreeNode("Submeshes", "Submeshes: %u", model.submesh_count)) {
-					ImGui::Columns(3);
-					ImGui::SetColumnOffset(2, ImGui::GetColumnOffset(3) - 65.0f);
-					ImGui::SetColumnOffset(1, ImGui::GetColumnOffset(2) - 110.0f);
-					ImGui::Text("Name");      ImGui::NextColumn();
-					ImGui::Text("Vertices");  ImGui::NextColumn();
-					ImGui::Text("Lights");    ImGui::NextColumn();
-					ImGui::Separator();
+				if(ImGui::TreeNodeEx("##submeshes", ImGuiTreeNodeFlags_CollapsingHeader, "Submeshes: %u", model.submesh_count)) {
 					for(unsigned j = 0; j < model.submesh_count; ++j) {
-						const auto& submesh = submeshes[model.submeshes[j]];
-						ImGui::Text("%s", submesh.name.data());	ImGui::NextColumn();
-						ImGui::Text("%u / %u", submesh.numverts, submesh.numverts_unique); ImGui::NextColumn();
-						ImGui::Text("%u", submesh.touched_lights); ImGui::NextColumn();
+						auto& submesh = submeshes[model.submeshes[j]];
 
-						ImGui::Spacing();
+						ImGui::PushID(submesh.name.begin().operator->(), submesh.name.end().operator->());
+						if (ImGui::TreeNode("##submesh", "%s", submesh.name.data())) {
 
-						ImGui::Text("   Bbox"); ImGui::NextColumn();
-						ImGui::Text("min: %f, %f, %f",
-						            submesh.bbox.min()[0],
-						            submesh.bbox.min()[1],
-						            submesh.bbox.min()[2]); ImGui::NextColumn();
-						ImGui::Text("max: %f, %f, %f",
-						            submesh.bbox.max()[0],
-						            submesh.bbox.max()[1],
-						            submesh.bbox.max()[2]); ImGui::NextColumn();
+							show_mesh_ui(submesh, materials[model.materials[j]]);
 
-						ImGui::Text("   Material"); ImGui::NextColumn();
-						ImGui::Text("%d", model.materials[j]); ImGui::NextColumn();
-						ImGui::NextColumn();
+							ImGui::TreePop();
+						}
+						ImGui::PopID();
 					}
-					ImGui::Columns();
-					ImGui::TreePop();
 				}
 
 				ImGui::PopItemWidth();

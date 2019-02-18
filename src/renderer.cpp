@@ -113,9 +113,9 @@ void Renderer::resize(uint32_t width, uint32_t height, bool force)
 		throw std::runtime_error("framebuffer resize failed: specified size too big");
 
 	// NOTE: for some reason AMD driver accepts 0 samples, but it's wrong
-	int samples = zcm::clamp((int)zcm::exp2(m_scene->desired_msaa_level), 1, MSAASampleCountMax);
-	uint32_t backbuffer_width = width * m_scene->desired_render_scale;
-	uint32_t backbuffer_height = height * m_scene->desired_render_scale;
+	int samples = zcm::clamp((int)zcm::exp2(desired_msaa_level), 1, MSAASampleCountMax);
+	uint32_t backbuffer_width = width * desired_render_scale;
+	uint32_t backbuffer_height = height * desired_render_scale;
 
 	// reinitialize multisampled color texture object
 	rc::texture_handle color_to;
@@ -175,8 +175,8 @@ void Renderer::resize(uint32_t width, uint32_t height, bool force)
 	m_backbuffer_depth_to = std::move(depth_to);
 	m_backbuffer_resolve_fbo = std::move(resolve_fbo);
 	m_backbuffer_resolve_color_to = std::move(resolve_to);
-	m_backbuffer_scale = m_scene->desired_render_scale;
-	msaa_level = m_scene->desired_msaa_level;
+	m_backbuffer_scale = desired_render_scale;
+	msaa_level = desired_msaa_level;
 	MSAASampleCount = samples;
 	m_window_width = width;
 	m_window_height = height;
@@ -262,7 +262,7 @@ void Renderer::set_uniforms(GLuint shader)
 	unif::b1(shader, "directional_fog.enabled",               (m_scene->fog.state & ExponentialDirectionalFog::Enabled));
 
 	unif::i1(shader, "num_msaa_samples", MSAASampleCount);
-	unif::b1(shader, "shadows_enabled", m_scene->shadows);
+	unif::b1(shader, "shadows_enabled", do_shadow_mapping);
 
 	for(unsigned i = 0; i < m_scene->point_lights.size() && i < MaxLights;++i) {
 		const auto& light = m_scene->point_lights[i];
@@ -297,7 +297,7 @@ zcm::mat4 Renderer::set_shadow_uniforms()
 	return proj_view;
 }
 
-static void process_point_lights(const std::vector<PointLight>& point_lights,
+static int process_point_lights(const std::vector<PointLight>& point_lights,
                                  const Frustum& frustum,
                                  const bbox3& submesh_bbox,
                                  uint32_t shader)
@@ -319,9 +319,10 @@ static void process_point_lights(const std::vector<PointLight>& point_lights,
 		}
 	}
 	unif::i1(shader, "num_point_lights", point_light_count);
+	return point_light_count;
 }
 
-static void process_spot_lights(const std::vector<SpotLight>& spot_lights,
+static int process_spot_lights(const std::vector<SpotLight>& spot_lights,
                                 const Frustum& frustum,
                                 const bbox3& submesh_bbox,
                                 uint32_t shader)
@@ -344,6 +345,7 @@ static void process_spot_lights(const std::vector<SpotLight>& spot_lights,
 		}
 	}
 	unif::i1(shader, "num_spot_lights", spot_light_count);
+	return spot_light_count;
 }
 
 static void submit_draw_call(const model::Mesh& submesh)
@@ -431,7 +433,7 @@ void Renderer::draw()
 	if(unlikely(!m_shader)) return;
 	m_shader_set.check_updates();
 
-	if(unlikely(m_scene->desired_render_scale != m_backbuffer_scale || m_scene->desired_msaa_level != msaa_level))
+	if(unlikely(desired_render_scale != m_backbuffer_scale || desired_msaa_level != msaa_level))
 		resize(m_window_width, m_window_height, true);
 
 	// clear masked and blended queue
@@ -440,7 +442,7 @@ void Renderer::draw()
 
 	m_perfquery.begin();
 
-	if(m_scene->shadows) {
+	if(do_shadow_mapping) {
 		// render shadow map
 		draw_shadow();
 	}
@@ -460,7 +462,7 @@ void Renderer::draw()
 	glUseProgram(*m_shader);
 	set_uniforms(*m_shader);
 
-	if (m_scene->shadows) {
+	if (do_shadow_mapping) {
 		// bind shadow map texture
 		glBindTextureUnit(32, *m_shadowmap_depth_to);
 	}
@@ -494,7 +496,7 @@ void Renderer::draw()
 			render_generic(submesh, material, *m_shader);
 
 
-			if(m_scene->draw_bbox)
+			if(draw_mesh_bboxes)
 				dd::aabb(submesh_bbox.min(), submesh_bbox.max(), dd::colors::White);
 		}
 	}
@@ -521,7 +523,7 @@ void Renderer::draw()
 		process_spot_lights(m_scene->spot_lights, m_scene->main_camera.frustum, submesh_bbox, *m_shader);
 		render_generic(submesh, material, *m_shader);
 
-		if(m_scene->draw_bbox)
+		if(draw_mesh_bboxes)
 			dd::aabb(submesh_bbox.min(),submesh_bbox.max(), dd::colors::Aquamarine);
 
 	}
@@ -628,6 +630,21 @@ void Renderer::draw_gui()
 	ImGui::End();
 	ImGui::PopStyleVar(2);
 	ImGui::PopStyleColor();
+
+	if(!ImGui::Begin("Renderer", &window_shown)) {
+		ImGui::End();
+		return;
+	}
+	const char* labels[] = {"Disabled", "2x", "4x", "8x", "16x"};
+
+	ImGui::Combo("MSAA", &desired_msaa_level, labels, 5);
+	//show_help_tooltip("Multi-Sample Antialiasing\n\nValues > 4x may be unsupported on some setups.");
+	ImGui::SliderFloat("Resolution scale", &desired_render_scale, 0.1f, 1.0f, "%.1f");
+	ImGui::Checkbox("Shadows", &do_shadow_mapping);
+	ImGui::Separator();
+	ImGui::Checkbox("Show submesh bboxes", &draw_mesh_bboxes);
+	ImGui::End();
+
 }
 
 void Renderer::draw_skybox()
