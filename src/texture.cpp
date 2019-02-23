@@ -133,10 +133,10 @@ const char* rc::Texture::enum_value_str(Kind map) noexcept
 		return "Specular";
 	case Kind::None:
 		return "None";
-	case Kind::MetallicRoughness:
-		return "MetallicRoughness";
-	case Kind::MetallicRoughbessOcclusion:
-		return "MetallicRoughbessOcclusion";
+	case Kind::RoughnessMetallic:
+		return "RoughnessMetallic";
+	case Kind::OcclusionRoughnessMetallic:
+		return "OcclusionRoughnessMetallic";
 	}
 	unreachable();
 }

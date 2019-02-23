@@ -20,11 +20,6 @@ static inline constexpr uint32_t clear_mask(uint32_t val, uint32_t mask)
 	return val & ~mask;
 }
 
-static bool test(uint32_t f, Texture::Kind t) noexcept
-{
-	return f & repr(t);
-}
-
 
 static ImageTexture2D  _default_diffuse;
 
@@ -60,8 +55,8 @@ bool Material::valid() const
 		fmt::print(stderr, "[material] invalid material: has alpha channel but AlphaMode is Unknown\n");
 		ret = false;
 	}
-	if(test(m_flags, Kind::Specular)) {
-		if(test(m_flags, Kind::Roughness) || test(m_flags, Kind::Metallic) || test(m_flags, Kind::Occlusion)) {
+	if(has_texture_kind(Kind::Specular)) {
+		if(has_texture_kind(Kind::Roughness) || has_texture_kind(Kind::Metallic) || has_texture_kind(Kind::Occlusion)) {
 			fmt::print(stderr, "[material] invalid material: Has PBR and Phong texture maps!\n");
 			ret = false;
 		}
@@ -77,7 +72,10 @@ void Material::bind(uint32_t s) const noexcept
 	unif::v4(s, "material.diffuse",   diffuse_factor);
 	unif::v4(s, "material.specular",  zcm::vec4(specular_factor, shininess));
 	unif::v3(s, "material.emission",  emissive_factor);
-	unif::v2(s, "material.roughness_metallic", zcm::vec2(roughness_factor, metallic_factor));
+	unif::f1(s, "material.normal_scale", normal_scale);
+	unif::f1(s, "material.roughness", roughness_factor);
+	unif::f1(s, "material.metallic",  metallic_factor);
+	unif::f1(s, "material.occlusion_strength", occlusion_strength);
 	unif::f1(s, "material.alpha_cutoff", alpha_cutoff);
 
 	auto flags = m_flags;
@@ -88,42 +86,57 @@ void Material::bind(uint32_t s) const noexcept
 		flags |= RC_SHADER_TEXTURE_BLEND;
 	}
 
-	if(test(m_flags, Kind::Diffuse)) {
+	if(has_texture_kind(Kind::Diffuse)) {
 		if(!diffuse_map.bind_to_unit(0)) {
 			_default_diffuse.bind_to_unit(0);
 		}
 	}
-	if(test(m_flags, Kind::Normal)) {
+	if(has_texture_kind(Kind::Normal)) {
 		normal_map.bind_to_unit(1);
 	}
-	if(test(m_flags, Kind::Specular)) {
+	if(has_texture_kind(Kind::Specular)) {
 		specular_map.bind_to_unit(2);
 	}
+	if (has_texture_kind(Kind::Roughness) || has_texture_kind(Kind::Metallic) || has_texture_kind(Kind::Occlusion)) {
+		flags |= RC_SHADER_TEXTURE_KIND_ORM;
+		occluion_roughness_metallic_map.bind_to_unit(3);
+	}
+	if (has_texture_kind(Kind::Emission)) {
+		flags |= RC_SHADER_TEXTURE_KIND_EMISSION;
+		emission_map.bind_to_unit(4);
+	}
 
-	if (test(m_flags, Kind::Occlusion)) {
-		flags |= RC_SHADER_TEXTURE_KIND_OCCLUSION;
-		occlusion_map.bind_to_unit(4);
-	}
-	if (test(m_flags, Kind::MetallicRoughness)) {
-		flags |= RC_SHADER_TEXTURE_KIND_ROUGNESS | RC_SHADER_TEXTURE_KIND_METALLIC;
-		metallic_roughness_map.bind_to_unit(3);
-	}
 	unif::i1(s,  "material.type", flags);
 }
 
 bool Material::has_texture_kind(Texture::Kind k) const noexcept
 {
-	return test(m_flags, k);
+	return m_flags & repr(k);
 }
 
 bool Material::set_texture_kind(Texture::Kind k, bool has) noexcept
 {
-	bool prev = test(m_flags, k);
+	bool prev = has_texture_kind( k);
 	if (has) {
 		m_flags |= repr(k);
 	} else {
 		m_flags = clear_mask(m_flags, repr(k));
 	}
+
+	using namespace Texture;
+
+	bool has_rougness = has_texture_kind(Kind::Roughness);
+	bool has_metallic = has_texture_kind(Kind::Metallic);
+	bool has_ocllusion = has_texture_kind(Kind::Occlusion);
+
+	if (has_metallic || has_rougness || has_ocllusion) {
+		auto orm_mask = SwizzleMask{};
+		orm_mask.red   = has_ocllusion ? ChannelValue::Red   : ChannelValue::One;
+		orm_mask.green = has_rougness  ? ChannelValue::Green : ChannelValue::One;
+		orm_mask.blue  = has_metallic  ? ChannelValue::Blue  : ChannelValue::One;
+		occluion_roughness_metallic_map.set_swizzle_mask(orm_mask);
+	}
+
 	return prev;
 }
 

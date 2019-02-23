@@ -23,8 +23,8 @@ namespace Texture {
 		Metallic  = RC_SHADER_TEXTURE_KIND_METALLIC,
 		Occlusion = RC_SHADER_TEXTURE_KIND_OCCLUSION,
 		Emission  = RC_SHADER_TEXTURE_KIND_EMISSION,
-		MetallicRoughness = Metallic | Roughness,
-		MetallicRoughbessOcclusion = Metallic | Roughness | Occlusion,
+		RoughnessMetallic = Metallic | Roughness,
+		OcclusionRoughnessMetallic = Metallic | Roughness | Occlusion,
 	};
 
 	enum class ColorSpace : std::int8_t

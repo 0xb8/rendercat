@@ -23,16 +23,17 @@ public:
 	ImageTexture2D     diffuse_map;
 	ImageTexture2D     normal_map;
 	ImageTexture2D     specular_map;
-	ImageTexture2D     metallic_roughness_map;
-	ImageTexture2D     occlusion_map;
+	ImageTexture2D     occluion_roughness_metallic_map;
 	ImageTexture2D     emission_map;
 
 	std::string        name;
-	zcm::vec4          diffuse_factor  = 1.0f;
-	zcm::vec3          specular_factor = 1.0f;
-	zcm::vec3          emissive_factor = 1.0f;
-	float              metallic_factor     = 1.0f;
-	float              roughness_factor    = 1.0f;
+	zcm::vec4          diffuse_factor   = 1.0f;
+	zcm::vec3          specular_factor  = 1.0f;
+	zcm::vec3          emissive_factor  = 0.0f;
+	float              normal_scale     = 1.0f;
+	float              metallic_factor  = 1.0f;
+	float              roughness_factor = 1.0f;
+	float              occlusion_strength = 1.0f;
 
 	float              alpha_cutoff = 0.5f;
 	float              shininess    = 8.0f;

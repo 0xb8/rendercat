@@ -7,9 +7,8 @@
 layout(binding=0) uniform sampler2D material_diffuse;
 layout(binding=1) uniform sampler2D material_normal;
 layout(binding=2) uniform sampler2D material_specular_map;
-layout(binding=3) uniform sampler2D material_metallic_roughness;
+layout(binding=3) uniform sampler2D material_occlusion_roughness_metallic;
 layout(binding=4) uniform sampler2D material_emission;
-layout(binding=5) uniform sampler2D material_occlusion;
 layout(binding=32) uniform sampler2DShadow shadow_map;
 
 const int MATERIAL_BLENDED          = 1 << 5;
@@ -17,18 +16,19 @@ const int MATERIAL_ALPHA_MASKED     = 1 << 6;
 const int MATERIAL_DIFFUSE_MAPPED   = 1 << 7;
 const int MATERIAL_NORMAL_MAPPED    = 1 << 8;
 const int MATERIAL_SPECULAR_MAPPED  = 1 << 9;
-const int MATERIAL_ROUGHNESS_MAPPED = 1 << 10;
-const int MATERIAL_METALLIC_MAPPED  = 1 << 11;
-const int MATERIAL_OCCLUSION_MAPPED = 1 << 12;
 const int MATERIAL_EMISSION_MAPPED  = 1 << 13;
+const int MATERIAL_ORM_MAPPED       = 1 << 14;
 
 const int MAX_DYNAMIC_LIGHTS = 16;
 
 struct Material {
 	vec4      diffuse;
 	vec4      specular; // .rgb - color, .a - shininess
-	vec3      occlusion;
-	vec2      rougness_metallic;
+	vec3      emission;
+	float     normal_scale;
+	float     roughness;
+	float     metallic;
+	float     occlusion_strength;
 	float     alpha_cutoff;
 	int       type;
 };
@@ -114,8 +114,9 @@ float calcDirectionalShadow(vec4 fragPosLightSpace, float NdotL)
 
 vec4 getMaterialDiffuse()
 {
+	vec4 diffuse = material.diffuse;
 	if((material.type & MATERIAL_DIFFUSE_MAPPED) != 0) {
-		vec4 diffuse = texture(material_diffuse, fs_in.TexCoords) * material.diffuse;
+		diffuse *= texture(material_diffuse, fs_in.TexCoords);
 		if((material.type & MATERIAL_ALPHA_MASKED) != 0) {
 			if(num_msaa_samples > 1) {
 				diffuse.a = (diffuse.a - material.alpha_cutoff) / max(fwidth(diffuse.a), 0.0001) + 0.5;
@@ -123,24 +124,40 @@ vec4 getMaterialDiffuse()
 			} else if(diffuse.a < material.alpha_cutoff) {
 				discard;
 			}
-		} else {
-			diffuse.a = 1.0;
 		}
-		return diffuse;
-	} else {
-		return material.diffuse;
 	}
+	return diffuse;
 }
 
 vec3 getMaterialSpecular()
 {
 	if((material.type & MATERIAL_SPECULAR_MAPPED) != 0) {
 		return texture(material_specular_map, fs_in.TexCoords).rgb;
-	} else if ((material.type & MATERIAL_ROUGHNESS_MAPPED) != 0) {
-		return vec3(texture(material_metallic_roughness, fs_in.TexCoords).g);
 	} else {
 		return material.specular.rgb;
 	}
+}
+
+vec3 getMaterialORM()
+{
+	vec3 res = vec3(1.0, material.roughness, material.metallic);
+	if ((material.type & MATERIAL_ORM_MAPPED) != 0)
+		res *= texture(material_occlusion_roughness_metallic, fs_in.TexCoords).rgb;
+	return res;
+}
+
+vec3 applyOcclusion(vec3 color, float occlusion)
+{
+	return mix(color, color * occlusion, material.occlusion_strength);
+}
+
+vec3 getMaterialEmission()
+{
+	vec3 res = material.emission;
+	if((material.type & MATERIAL_EMISSION_MAPPED) != 0) {
+		res *= texture(material_emission, fs_in.TexCoords).rgb;
+	}
+	return res;
 }
 
 mat3 getTBN()
@@ -165,10 +182,10 @@ mat3 getTBN()
 vec3 getNormal()
 {
 	if((material.type & MATERIAL_NORMAL_MAPPED) != 0) {
-		// NOTE: texture conversion could be normalized, but doesn't affect the quality much
-		vec3 normal = texture(material_normal, fs_in.TexCoords).rgb;
+		vec3 normalTexture = texture(material_normal, fs_in.TexCoords).rgb * 2.0 - 1.0;
+		vec3 normal = normalize(normalTexture * vec3(material.normal_scale, material.normal_scale, 1.0));
 		mat3 TBN = getTBN();
-		return normalize(TBN * (normal * 2.0 - 1.0));
+		return normalize(TBN * normal);
 	} else {
 		// normalize interpolated normals to prevent issues with specular pixel flicker.
 		return normalize(fs_in.Normal);
@@ -316,5 +333,5 @@ void main()
 		final_color = orig_color;
 	}
 
-	FragColor = vec4(final_color, diffuse.a);
+	FragColor = vec4(final_color + getMaterialEmission(), diffuse.a);
 }

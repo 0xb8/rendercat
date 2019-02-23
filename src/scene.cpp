@@ -297,22 +297,27 @@ static void show_material_ui(rc::Material& material)
 	display_map(material.diffuse_map,  Texture::Kind::Diffuse);
 	display_map(material.normal_map,   Texture::Kind::Normal);
 	display_map(material.specular_map, Texture::Kind::Specular);
-	display_map(material.metallic_roughness_map, Texture::Kind::MetallicRoughness);
+	display_map(material.occluion_roughness_metallic_map, Texture::Kind::RoughnessMetallic);
+	display_map(material.occluion_roughness_metallic_map, Texture::Kind::Occlusion);
 	display_map(material.emission_map, Texture::Kind::Emission);
-	display_map(material.occlusion_map, Texture::Kind::Occlusion);
 	ImGui::Spacing();
 
 	ImGui::TextUnformatted("Diffuse color");
-	ImGui::ColorEdit3("##matdiffcolor", zcm::value_ptr(material.diffuse_factor),
+	ImGui::ColorEdit4("##matdiffcolor", zcm::value_ptr(material.diffuse_factor),
 		ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 
-	ImGui::TextUnformatted("Specular color");
-	ImGui::ColorEdit3("##matspeccolor", zcm::value_ptr(material.specular_factor),
+	ImGui::TextUnformatted("Emissive color");
+	ImGui::ColorEdit3("##matemissivecolor", zcm::value_ptr(material.emissive_factor),
 		ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 
-	ImGui::DragFloat("Shininess",   &(material.shininess), 0.1f, 1.0f, 128.0f);
+	if (material.has_texture_kind(Texture::Kind::Normal)) {
+		ImGui::SliderFloat("Normal Scale", &(material.normal_scale), -10.0f, 10.0f);
+	}
 	ImGui::SliderFloat("Roughness", &(material.roughness_factor), 0.0f, 1.0f);
 	ImGui::SliderFloat("Metallic",  &(material.metallic_factor),  0.0f, 1.0f);
+	if (material.has_texture_kind(Texture::Kind::Occlusion)) {
+		ImGui::SliderFloat("Occlusion Strength", &(material.occlusion_strength), 0.0f, 1.0f);
+	}
 }
 
 static void show_mesh_ui(rc::model::Mesh& submesh, rc::Material& material)

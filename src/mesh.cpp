@@ -107,38 +107,15 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 		}
 	}
 	{
-		auto roughness_path = get_texture_uri(doc, mat.pbrMetallicRoughness.metallicRoughnessTexture);
-		if (!roughness_path.empty()) {
-			auto map = Material::load_image_texture(texture_path, roughness_path, Texture::ColorSpace::Linear);
-			if (map.valid()) {
-				material.metallic_roughness_map = std::move(map);
-				apply_gltf_sampler(get_gltf_sampler(doc, mat.pbrMetallicRoughness.metallicRoughnessTexture),
-				                   material.diffuse_map);
-				material.set_texture_kind(Texture::Kind::MetallicRoughness, true);
-			}
-		}
-	}
-	{
 		auto normal_path = get_texture_uri(doc, mat.normalTexture);
 		if (!normal_path.empty()) {
 			auto map = Material::load_image_texture(texture_path, normal_path, Texture::ColorSpace::Linear);
 			if (map.valid()) {
 				material.normal_map = std::move(map);
 				apply_gltf_sampler(get_gltf_sampler(doc, mat.normalTexture),
-				                   material.diffuse_map);
+				                   material.normal_map);
 				material.set_texture_kind(Texture::Kind::Normal, true);
-			}
-		}
-	}
-	{
-		auto occlusion_path = get_texture_uri(doc, mat.occlusionTexture);
-		if (!occlusion_path.empty()) {
-			auto map = Material::load_image_texture(texture_path, occlusion_path, Texture::ColorSpace::Linear);
-			if (map.valid()) {
-				material.occlusion_map = std::move(map);
-				apply_gltf_sampler(get_gltf_sampler(doc, mat.occlusionTexture),
-				                   material.diffuse_map);
-				material.set_texture_kind(Texture::Kind::Occlusion, true);
+				material.normal_scale = mat.normalTexture.scale;
 			}
 		}
 	}
@@ -149,11 +126,34 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 			if (map.valid()) {
 				material.emission_map = std::move(map);
 				apply_gltf_sampler(get_gltf_sampler(doc, mat.emissiveTexture),
-				                   material.diffuse_map);
+				                   material.emission_map);
 				material.set_texture_kind(Texture::Kind::Emission, true);
 			}
 		}
 	}
+	{
+		auto roughness_path = get_texture_uri(doc, mat.pbrMetallicRoughness.metallicRoughnessTexture);
+		if (!roughness_path.empty()) {
+			auto map = Material::load_image_texture(texture_path, roughness_path, Texture::ColorSpace::Linear);
+			if (map.valid()) {
+				material.occluion_roughness_metallic_map = std::move(map);
+				apply_gltf_sampler(get_gltf_sampler(doc, mat.pbrMetallicRoughness.metallicRoughnessTexture),
+				                   material.occluion_roughness_metallic_map);
+				material.set_texture_kind(Texture::Kind::RoughnessMetallic, true);
+			}
+		}
+
+		auto occlusion_path = get_texture_uri(doc, mat.occlusionTexture);
+		if (!occlusion_path.empty()) {
+			if (occlusion_path != roughness_path) {
+				fmt::print(stderr, "[mesh] ignoring separate occlusion texture -  not implemented\n");
+			} else {
+				material.set_texture_kind(Texture::Kind::Occlusion, true);
+				material.occlusion_strength = mat.occlusionTexture.strength;
+			}
+		}
+	}
+
 	return material;
 }
 
