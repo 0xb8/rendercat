@@ -27,18 +27,20 @@
 using namespace gl45core;
 
 namespace consts {
-	static const float window_target_fps = 60.0f;
-	static const float window_target_frametime = 1.0f / window_target_fps;
 	static const char* window_title = "rendercat";
+	static bool        window_maximized = true;
+	static bool        window_fullscreen = false;
+	static int         window_monitor_id = 1;
 }
 
 namespace globals {
 
+	static float glfw_target_fps = 60.0f;
 	static bool glfw_framebuffer_resized = false;
 	static int  glfw_framebuffer_width = 1280;
 	static int  glfw_framebuffer_height = 720;
 
-	static float delta_time = consts::window_target_frametime;
+	static float delta_time = 1.0f / glfw_target_fps;
 	static float last_frame_time = 0.0f;
 }
 
@@ -321,7 +323,7 @@ int main() try
 	std::ios_base::sync_with_stdio(false);
 	glfwInit();
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
 #ifndef NDEBUG
@@ -342,6 +344,32 @@ int main() try
 
 	glfwMakeContextCurrent(window);
 
+	if (consts::window_maximized) {
+		glfwMaximizeWindow(window);
+		glfwGetWindowSize(window, &globals::glfw_framebuffer_width, &globals::glfw_framebuffer_height);
+		fmt::print("maximized window size is {} x {}\n", globals::glfw_framebuffer_width, globals::glfw_framebuffer_height);
+	} else if (consts::window_fullscreen) {
+		int monitor_count = -1;
+		auto monitors = glfwGetMonitors(&monitor_count);
+
+		auto monitor = consts::window_monitor_id < monitor_count ? monitors[consts::window_monitor_id] : glfwGetPrimaryMonitor();
+		if (monitor) {
+			int mode_count = -1;
+			auto modes = glfwGetVideoModes(monitor, &mode_count);
+			if (mode_count > 0) {
+
+				globals::glfw_framebuffer_width = modes[mode_count-1].width;
+				globals::glfw_framebuffer_height = modes[mode_count-1].height;
+				int rate = modes[mode_count-1].refreshRate;
+				globals::glfw_target_fps = rate;
+				glfwSetWindowMonitor(window, monitor, 0, 0,
+				                     globals::glfw_framebuffer_width,
+				                     globals::glfw_framebuffer_height,
+				                     rate);
+			}
+		}
+	}
+
 	glbinding::Binding::initialize(glfwGetProcAddress, false);
 
 	rc::glmeta::log_all_supported_extensions("logs/gl_extensions.log");
@@ -361,7 +389,7 @@ int main() try
 
 		auto& st = ImGui::GetStyle();
 		ImGui::StyleColorsDark(&st);
-		st.Colors[ImGuiCol_WindowBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.60f);
+		st.Colors[ImGuiCol_WindowBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.75f);
 		st.GrabRounding = 0.0f;
 		st.WindowRounding = 0.0f;
 		st.WindowBorderSize = 0.0f;
@@ -373,8 +401,12 @@ int main() try
 	rc::Renderer renderer(&scene);
 	renderer.resize(globals::glfw_framebuffer_width,
 	                globals::glfw_framebuffer_height);
-
+	glfwPollEvents();
+	renderer.clear_screen();
+	glfwSwapBuffers(window);
 	init_glfw_callbacks(window);
+	scene.init();
+
 
 	globals::last_frame_time = glfwGetTime();
 
@@ -401,7 +433,7 @@ int main() try
 		auto end_time = glfwGetTime();
 		globals::delta_time = end_time - globals::last_frame_time;
 		globals::last_frame_time = end_time;
-		auto st = std::max(consts::window_target_frametime - globals::delta_time, 0.0f);
+		auto st = std::max((1.0f / globals::glfw_target_fps) - globals::delta_time, 0.0f);
 		std::this_thread::sleep_for(std::chrono::duration<float>(st));
 	}
 

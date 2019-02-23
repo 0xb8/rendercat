@@ -189,6 +189,13 @@ void Renderer::resize(uint32_t width, uint32_t height, bool force)
 	std::fflush(stderr);
 }
 
+void Renderer::clear_screen()
+{
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glViewport(0, 0, m_window_width, m_window_height);
+	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
+}
+
 static void renderQuad()
 {
 	static GLuint vao;

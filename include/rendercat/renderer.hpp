@@ -74,6 +74,7 @@ public:
 	~Renderer() = default;
 
 	void resize(uint32_t width, uint32_t height, bool force = false);
+	void clear_screen();
 	void draw();
 	void draw_gui();
 };

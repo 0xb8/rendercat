@@ -408,6 +408,11 @@ static AttrIndex get_attr_index(const std::string_view name)
 }
 
 
+bool model::Mesh::valid() const noexcept
+{
+	return numverts != 0 && vao;
+}
+
 model::Mesh::Mesh(std::string name_) : name(std::move(name_))
 {
 

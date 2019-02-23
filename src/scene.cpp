@@ -9,7 +9,8 @@
 
 using namespace rc;
 
-Scene::Scene()
+
+void Scene::init()
 {
 	{
 		Material::set_default_diffuse("assets/materials/missing.tga");
@@ -64,9 +65,8 @@ Scene::Scene()
 
 	//load_model("sponza_scaled.obj", "sponza_crytek/");
 	//load_model("yorha_2b.obj",      "yorha_2b/");
+	load_model_gltf("2b.gltf", "yorha_2b_gltf/");
 	load_model_gltf("sponza.gltf", "sponzagltf/");
-	load_model_gltf("NormalTangentTest.gltf", "normal_tangent/");
-	load_model_gltf("NormalTangentMirrorTest.gltf", "normal_tangent/");
 
 	Texture::Cache::clear();
 }

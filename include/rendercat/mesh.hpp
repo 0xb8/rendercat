@@ -29,10 +29,7 @@ namespace model {
 		bbox3 bbox;
 		bool has_tangents = false;
 
-		bool valid() const noexcept
-		{
-			return numverts != 0 && vao;
-		}
+		bool valid() const noexcept;
 
 		explicit Mesh(std::string name_);
 		~Mesh() = default;

@@ -79,7 +79,7 @@ struct Model
 
 struct Scene
 {
-	Scene();
+	Scene() = default;
 
 	static constexpr size_t missing_material_idx = 0u;
 
@@ -91,6 +91,7 @@ struct Scene
 
 	bool  window_shown = true;
 
+	void init();
 	void update();
 
 	Model* load_model_gltf(const std::string_view name, const std::string_view basedir);
