@@ -35,50 +35,6 @@ static GLboolean has_seamless_filtering_per_texture; // requires GL_ARB_seamless
 
 Cubemap::Cubemap()
 {
-	static const float cubemap_vertices[] = {
-		-1.0f,  1.0f, -1.0f,
-		-1.0f, -1.0f, -1.0f,
-		 1.0f, -1.0f, -1.0f,
-		 1.0f, -1.0f, -1.0f,
-		 1.0f,  1.0f, -1.0f,
-		-1.0f,  1.0f, -1.0f,
-
-		-1.0f, -1.0f,  1.0f,
-		-1.0f, -1.0f, -1.0f,
-		-1.0f,  1.0f, -1.0f,
-		-1.0f,  1.0f, -1.0f,
-		-1.0f,  1.0f,  1.0f,
-		-1.0f, -1.0f,  1.0f,
-
-		 1.0f, -1.0f, -1.0f,
-		 1.0f, -1.0f,  1.0f,
-		 1.0f,  1.0f,  1.0f,
-		 1.0f,  1.0f,  1.0f,
-		 1.0f,  1.0f, -1.0f,
-		 1.0f, -1.0f, -1.0f,
-
-		-1.0f, -1.0f,  1.0f,
-		-1.0f,  1.0f,  1.0f,
-		 1.0f,  1.0f,  1.0f,
-		 1.0f,  1.0f,  1.0f,
-		 1.0f, -1.0f,  1.0f,
-		-1.0f, -1.0f,  1.0f,
-
-		-1.0f,  1.0f, -1.0f,
-		 1.0f,  1.0f, -1.0f,
-		 1.0f,  1.0f,  1.0f,
-		 1.0f,  1.0f,  1.0f,
-		-1.0f,  1.0f,  1.0f,
-		-1.0f,  1.0f, -1.0f,
-
-		-1.0f, -1.0f, -1.0f,
-		-1.0f, -1.0f,  1.0f,
-		 1.0f, -1.0f, -1.0f,
-		 1.0f, -1.0f, -1.0f,
-		-1.0f, -1.0f,  1.0f,
-		 1.0f, -1.0f,  1.0f
-	};
-
 	if(!max_texture_size) {
 		glGetIntegerv(GL_MAX_CUBE_MAP_TEXTURE_SIZE, &max_texture_size);
 		has_seamless_filtering = glIsEnabled(GL_TEXTURE_CUBE_MAP_SEAMLESS);
@@ -97,20 +53,7 @@ Cubemap::Cubemap()
 #endif
 	}
 
-	if(!m_vao && !m_vbo) {
-		GLuint vao, vbo;
-
-		glCreateVertexArrays(1, &vao);
-		glCreateBuffers(1, &vbo);
-		glNamedBufferStorage(vbo, sizeof(cubemap_vertices), &cubemap_vertices, GL_NONE_BIT);
-
-		glEnableVertexArrayAttrib(vao, 0);
-		glVertexArrayVertexBuffer(vao, 0, vbo, 0, 3*sizeof(float));
-		glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
-		glVertexArrayAttribBinding(vao, 0, 0);
-		m_vao.reset(vao);
-		m_vbo.reset(vbo);
-	}
+	glCreateVertexArrays(1, m_vao.get());
 }
 
 void Cubemap::load_textures(std::string_view basedir)
@@ -184,12 +127,12 @@ void Cubemap::load_textures(std::string_view basedir)
 
 void Cubemap::draw(uint32_t shader, const zcm::mat4 & view, const zcm::mat4 & projection) noexcept
 {
-	unif::m4(shader, 0, zcm::mat4{zcm::mat3{view}});
-	unif::m4(shader, 1, projection);
+	// remove translation part from view matrix
+	unif::m4(shader, 0, projection * zcm::mat4{zcm::mat3{view}});
 
 	glUseProgram(shader);
 	glBindVertexArray(*m_vao);
 	glBindTextureUnit(0, *m_cubemap);
-	glDrawArrays(GL_TRIANGLES, 0, 36);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 14); // see cubemap.vert
 	glBindVertexArray(0);
 }

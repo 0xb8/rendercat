@@ -8,7 +8,6 @@ namespace rc {
 
 class Cubemap
 {
-	buffer_handle        m_vbo;
 	vertex_array_handle  m_vao;
 	texture_handle       m_cubemap;
 

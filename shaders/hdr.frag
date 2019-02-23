@@ -1,7 +1,6 @@
 #version 440 core
 
-in vec2 TexCoords;
-
+in  vec2 TexCoords;
 out vec4 FragColor;
 
 layout(binding=0) uniform sampler2DMS hdrBuffer;
@@ -45,8 +44,6 @@ void main()
 		res += Uncharted2Tonemap(color * exposure * 2);
 	}
 	res /= sample_count * W;
-
-
 
 	//vec3 tonemapped_color = Uncharted2Tonemap(color * exposure * 2.0);
 

@@ -192,33 +192,8 @@ void Renderer::resize(uint32_t width, uint32_t height, bool force)
 static void renderQuad()
 {
 	static GLuint vao;
-	static GLuint vbo;
 	if (unlikely(vao == 0)) {
-		float quadVertices[] = {
-			// positions        // texture Coords
-			-1.0f,  1.0f, 1.0f, 0.0f, 1.0f,
-			-1.0f, -1.0f, 1.0f, 0.0f, 0.0f,
-			 1.0f,  1.0f, 1.0f, 1.0f, 1.0f,
-			 1.0f, -1.0f, 1.0f, 1.0f, 0.0f,
-		};
 		glCreateVertexArrays(1, &vao);
-		glCreateBuffers(1, &vbo);
-
-		glNamedBufferStorage(vbo, sizeof(quadVertices), &quadVertices, GL_NONE_BIT);
-
-		// set up VBO: binding index, vbo, offset, stride
-		glVertexArrayVertexBuffer(vao, 0, vbo, 0, 5*sizeof(float));
-
-		glEnableVertexArrayAttrib(vao, 0);
-		glEnableVertexArrayAttrib(vao, 1);
-
-		// specify attrib format: attrib idx, element count, format, normalized, relative offset
-		glVertexArrayAttribFormat(vao, 0, 3, GL_FLOAT, GL_FALSE, 0);
-		glVertexArrayAttribFormat(vao, 1, 2, GL_FLOAT, GL_FALSE, 3*sizeof(float));
-
-		// assign VBOs to attributes
-		glVertexArrayAttribBinding(vao, 0, 0);
-		glVertexArrayAttribBinding(vao, 1, 0);
 	}
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
