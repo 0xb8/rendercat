@@ -34,10 +34,10 @@ static Material from_gltf_material(const fx::gltf::Material& mat)
 	}(mat);
 	material.alpha_cutoff = mat.alphaCutoff;
 
-	material.diffuse_factor = {mat.pbrMetallicRoughness.baseColorFactor[0],
-	                           mat.pbrMetallicRoughness.baseColorFactor[1],
-	                           mat.pbrMetallicRoughness.baseColorFactor[2],
-	                           mat.pbrMetallicRoughness.baseColorFactor[3]};
+	material.base_color_factor = {mat.pbrMetallicRoughness.baseColorFactor[0],
+	                              mat.pbrMetallicRoughness.baseColorFactor[1],
+	                              mat.pbrMetallicRoughness.baseColorFactor[2],
+	                              mat.pbrMetallicRoughness.baseColorFactor[3]};
 
 	material.emissive_factor = {mat.emissiveFactor[0],
 	                            mat.emissiveFactor[1],
@@ -97,12 +97,9 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 		if (!diffuse_path.empty()) {
 			auto map = Material::load_image_texture(texture_path, diffuse_path, Texture::ColorSpace::sRGB);
 			if (map.valid()) {
-				material.diffuse_map = std::move(map);
-
+				material.set_base_color_map(std::move(map));
 				apply_gltf_sampler(get_gltf_sampler(doc, mat.pbrMetallicRoughness.baseColorTexture),
-				                   material.diffuse_map);
-
-				material.set_texture_kind(Texture::Kind::Diffuse, true);
+				                   material.base_color_map);
 			}
 		}
 	}
@@ -111,11 +108,10 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 		if (!normal_path.empty()) {
 			auto map = Material::load_image_texture(texture_path, normal_path, Texture::ColorSpace::Linear);
 			if (map.valid()) {
-				material.normal_map = std::move(map);
+				material.set_normal_map(std::move(map));
+				material.normal_scale = mat.normalTexture.scale;
 				apply_gltf_sampler(get_gltf_sampler(doc, mat.normalTexture),
 				                   material.normal_map);
-				material.set_texture_kind(Texture::Kind::Normal, true);
-				material.normal_scale = mat.normalTexture.scale;
 			}
 		}
 	}
@@ -124,10 +120,9 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 		if (!emission_path.empty()) {
 			auto map = Material::load_image_texture(texture_path, emission_path, Texture::ColorSpace::Linear);
 			if (map.valid()) {
-				material.emission_map = std::move(map);
+				material.set_emission_map(std::move(map));
 				apply_gltf_sampler(get_gltf_sampler(doc, mat.emissiveTexture),
 				                   material.emission_map);
-				material.set_texture_kind(Texture::Kind::Emission, true);
 			}
 		}
 	}
@@ -136,9 +131,9 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 		if (!roughness_path.empty()) {
 			auto map = Material::load_image_texture(texture_path, roughness_path, Texture::ColorSpace::Linear);
 			if (map.valid()) {
-				material.occluion_roughness_metallic_map = std::move(map);
+				material.occlusion_roughness_metallic_map = std::move(map);
 				apply_gltf_sampler(get_gltf_sampler(doc, mat.pbrMetallicRoughness.metallicRoughnessTexture),
-				                   material.occluion_roughness_metallic_map);
+				                   material.occlusion_roughness_metallic_map);
 				material.set_texture_kind(Texture::Kind::RoughnessMetallic, true);
 			}
 		}
@@ -146,11 +141,17 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 		auto occlusion_path = get_texture_uri(doc, mat.occlusionTexture);
 		if (!occlusion_path.empty()) {
 			if (occlusion_path != roughness_path) {
-				fmt::print(stderr, "[mesh] ignoring separate occlusion texture -  not implemented\n");
+				auto map = Material::load_image_texture(texture_path, occlusion_path, Texture::ColorSpace::Linear);
+				if (map.valid()) {
+					material.set_occlusion_map(std::move(map));
+					apply_gltf_sampler(get_gltf_sampler(doc, mat.occlusionTexture),
+					                   material.occlusion_map);
+				}
 			} else {
+				material.set_texture_kind(Texture::Kind::OcclusionSeparate, false);
 				material.set_texture_kind(Texture::Kind::Occlusion, true);
-				material.occlusion_strength = mat.occlusionTexture.strength;
 			}
+			material.occlusion_strength = mat.occlusionTexture.strength;
 		}
 	}
 

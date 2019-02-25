@@ -241,6 +241,16 @@ int TextureStorage2D::ref_count() const noexcept
 	return m_shared;
 }
 
+void TextureStorage2D::reset() noexcept
+{
+	m_handle.reset();
+	m_shared = 0;
+	m_internal_format = Texture::InternalFormat::InvalidFormat;
+	m_width = 0;
+	m_height = 0;
+	m_mip_levels = 0;
+}
+
 void TextureStorage2D::sub_image(uint16_t level,
                                  uint16_t width,
                                   uint16_t height,
@@ -396,6 +406,11 @@ bool ImageTexture2D::shared() const noexcept
 bool ImageTexture2D::valid() const noexcept
 {
 	return m_storage.valid();
+}
+
+void ImageTexture2D::reset() noexcept
+{
+	m_storage.reset();
 }
 
 uint32_t ImageTexture2D::texture_handle() const noexcept

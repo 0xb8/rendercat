@@ -24,6 +24,7 @@ struct TextureStorage2D
 
 	bool shared() const noexcept;
 	int  ref_count() const noexcept;
+	void reset() noexcept;
 
 	void sub_image(uint16_t level,
 	               uint16_t width,
@@ -69,6 +70,7 @@ struct ImageTexture2D
 
 	bool shared() const noexcept;
 	bool valid() const noexcept;
+	void reset() noexcept;
 
 	uint32_t texture_handle() const noexcept;
 
@@ -86,7 +88,6 @@ struct ImageTexture2D
 	Texture::MinFilter min_filter() const noexcept;
 	Texture::Wrapping wrapping_s() const noexcept;
 	Texture::Wrapping wrapping_t() const noexcept;
-
 
 	bool bind_to_unit(uint32_t unit) const noexcept;
 

@@ -16,15 +16,14 @@ namespace Texture {
 	enum class Kind : std::uint16_t
 	{
 		None      = 0,
-		Diffuse   = RC_SHADER_TEXTURE_KIND_DIFFUSE,
+		BaseColor = RC_SHADER_TEXTURE_KIND_BASE_COLOR,
 		Normal    = RC_SHADER_TEXTURE_KIND_NORMAL,
-		Specular  = RC_SHADER_TEXTURE_KIND_SPECULAR,
-		Roughness = RC_SHADER_TEXTURE_KIND_ROUGNESS,
-		Metallic  = RC_SHADER_TEXTURE_KIND_METALLIC,
+		SpecularGlossiness  = RC_SHADER_TEXTURE_KIND_SPECULAR_GLOSSINESS,
+		RoughnessMetallic = RC_SHADER_TEXTURE_KIND_ROUGNESS_METALLIC,
 		Occlusion = RC_SHADER_TEXTURE_KIND_OCCLUSION,
+		OcclusionRoughnessMetallic = Occlusion | RoughnessMetallic,
+		OcclusionSeparate = Occlusion | RC_SHADER_TEXTURE_SEPARATE_OCCLUSION,
 		Emission  = RC_SHADER_TEXTURE_KIND_EMISSION,
-		RoughnessMetallic = Metallic | Roughness,
-		OcclusionRoughnessMetallic = Metallic | Roughness | Occlusion,
 	};
 
 	enum class ColorSpace : std::int8_t

@@ -17,6 +17,10 @@ const char* rc::Texture::enum_value_str(ColorSpace s) noexcept
 const char* rc::Texture::enum_value_str(InternalFormat f) noexcept
 {
 	switch (f) {
+	case InternalFormat::InvalidFormat:
+		return "InvalidFormat";
+	case InternalFormat::KeepParentFormat:
+		return "";
 	case InternalFormat::R_8:
 		return "R_8";
 	case InternalFormat::RGB_8:
@@ -27,10 +31,44 @@ const char* rc::Texture::enum_value_str(InternalFormat f) noexcept
 		return "RGBA_8";
 	case InternalFormat::SRGB_8_ALPHA_8:
 		return "SRGB_8_ALPHA_8";
-	default:
-		break;
+	case InternalFormat::R_16:
+		return "R_16";
+	case InternalFormat::RG_8:
+		return "RG_8";
+	case InternalFormat::RG_16:
+		return "RG_16";
+	case InternalFormat::RGB_10:
+		return "RGB_10";
+	case InternalFormat::R_16F:
+		return "R_16F";
+	case InternalFormat::R_32F:
+		return "R_32F";
+	case InternalFormat::RG_16F:
+		return "RG_16F";
+	case InternalFormat::RGB_16F:
+		return "RGB_16F";
+	case InternalFormat::RGBA_16F:
+		return "RGBA_16F";
+	case InternalFormat::R_11F_G11F_B10F:
+		return "R_11F_G11F_B10F";
+	case InternalFormat::Compressed_RGB_DXT1:
+		return "Compressed_RGB_DXT1";
+	case InternalFormat::Compressed_RGBA_DXT1:
+		return "Compressed_RGBA_DXT1";
+	case InternalFormat::Compressed_RGBA_DXT3:
+		return "Compressed_RGBA_DXT3";
+	case InternalFormat::Compressed_RGBA_DXT5:
+		return "Compressed_RGBA_DXT5";
+	case InternalFormat::Compressed_SRGB_DXT1:
+		return "Compressed_SRGB_DXT1";
+	case InternalFormat::Compressed_SRGB_ALPHA_DXT1:
+		return "Compressed_SRGB_ALPHA_DXT1";
+	case InternalFormat::Compressed_SRGB_ALPHA_DXT3:
+		return "Compressed_SRGB_ALPHA_DXT3";
+	case InternalFormat::Compressed_SRGB_ALPHA_DXT5:
+		return "Compressed_SRGB_ALPHA_DXT5";
 	}
-	return "Some other"; // TODO: fill up other formats
+	unreachable();
 }
 
 const char* rc::Texture::enum_value_str(MinFilter m) noexcept
@@ -117,26 +155,24 @@ const char* rc::Texture::enum_value_str(AlphaMode mode) noexcept
 const char* rc::Texture::enum_value_str(Kind map) noexcept
 {
 	switch (map) {
-	case Kind::Diffuse:
-		return "Diffuse";
+	case Kind::BaseColor:
+		return "BaseColor";
 	case Kind::Emission:
 		return "Emission";
-	case Kind::Metallic:
-		return "Metallic";
 	case Kind::Normal:
 		return "Normal";
 	case Kind::Occlusion:
 		return "Occlusion";
-	case Kind::Roughness:
-		return "Roughness";
-	case Kind::Specular:
-		return "Specular";
+	case Kind::SpecularGlossiness:
+		return "SpecularGlossiness";
 	case Kind::None:
 		return "None";
 	case Kind::RoughnessMetallic:
 		return "RoughnessMetallic";
 	case Kind::OcclusionRoughnessMetallic:
 		return "OcclusionRoughnessMetallic";
+	case Kind::OcclusionSeparate:
+		return "OcclusionSeparate";
 	}
 	unreachable();
 }
