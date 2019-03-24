@@ -6,7 +6,8 @@ add_library(imgui STATIC
 	imgui/imgui_demo.cpp
 	imgui/imgui_draw.cpp
 	imgui/imgui_widgets.cpp
-	imgui_impl_glfw.cpp
+	imgui/examples/imgui_impl_glfw.cpp
+	imgui/examples/imgui_impl_opengl3.cpp
 )
 
 add_library(imgui::imgui ALIAS imgui)
@@ -27,6 +28,13 @@ target_compile_definitions(imgui
 		IMGUI_DISABLE_WIN32_DEFAULT_CLIPBOARD_FUNCS
 		IMGUI_DISABLE_WIN32_DEFAULT_IME_FUNCS
 		IMGUI_DISABLE_OBSOLETE_FUNCTIONS
+	PRIVATE
+		IMGUI_IMPL_OPENGL_LOADER_CUSTOM="${PROJECT_SOURCE_DIR}/imgui_opengl_loader.h"
 )
 
-target_include_directories(imgui PUBLIC "${PROJECT_SOURCE_DIR}")
+target_include_directories(imgui
+	PUBLIC
+		"${PROJECT_SOURCE_DIR}"
+	PRIVATE
+		"${PROJECT_SOURCE_DIR}/imgui/"
+		"${PROJECT_SOURCE_DIR}/imgui/examples")

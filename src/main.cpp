@@ -23,6 +23,7 @@
 
 #include <imgui.hpp>
 #include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl3.h>
 
 using namespace gl45core;
 
@@ -143,17 +144,15 @@ static void rc_set_input_captured(GLFWwindow* window, bool value)
 		input::mouse_just_captured = true;
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 		glfwSetCursorDeltaCallback(window, glfw_mouse_motion_callback);
-		glfwSetCursorPosCallback(window, nullptr);
 		glfwSetCharCallback(window, nullptr);
 		glfwSetMouseButtonCallback(window, nullptr);
 		glfwSetScrollCallback(window, glfw_scroll_callback);
 	} else {
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-		glfwSetCharCallback(window, ImGui_ImplGlfwGL3_CharCallback);
+		glfwSetCharCallback(window, ImGui_ImplGlfw_CharCallback);
 		glfwSetCursorDeltaCallback(window, nullptr);
-		glfwSetCursorPosCallback(window, ImGui_ImplGlfwGL3_CursorPosCallback);
-		glfwSetMouseButtonCallback(window, ImGui_ImplGlfwGL3_MouseButtonCallback);
-		glfwSetScrollCallback(window, ImGui_ImplGlfwGL3_ScrollCallback);
+		glfwSetMouseButtonCallback(window, ImGui_ImplGlfw_MouseButtonCallback);
+		glfwSetScrollCallback(window, ImGui_ImplGlfw_ScrollCallback);
 	}
 }
 
@@ -166,7 +165,7 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 
 	// if not capturing input, just call GUI key callback
 	if(!input::captured) {
-		ImGui_ImplGlfwGL3_KeyCallback(window, key, scancode, action, mods);
+		ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
 		return;
 	}
 
@@ -381,7 +380,8 @@ int main() try
 
 	{
 		ImGui::CreateContext();
-		ImGui_ImplGlfwGL3_Init(window);
+		ImGui_ImplGlfw_InitForOpenGL(window, false);
+		ImGui_ImplOpenGL3_Init("#version 430 core");
 
 		auto& io = ImGui::GetIO();
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
@@ -420,13 +420,16 @@ int main() try
 			renderer.resize(globals::glfw_framebuffer_width,
 			                globals::glfw_framebuffer_height);
 		}
-		ImGui_ImplGlfwGL3_NewFrame();
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
 		scene.update();
 
 		renderer.draw();
 		renderer.draw_gui();
+
 		ImGui::Render();
-		ImGui_ImplGlfwGL3_RenderDrawData(ImGui::GetDrawData());
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 		process_screenshot();
 
 		glfwSwapBuffers(window);
@@ -437,7 +440,8 @@ int main() try
 		std::this_thread::sleep_for(std::chrono::duration<float>(st));
 	}
 
-	ImGui_ImplGlfwGL3_Shutdown();
+	ImGui_ImplOpenGL3_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();
 	glfwTerminate();
 	return 0;

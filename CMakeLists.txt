@@ -3,6 +3,7 @@ project(rendercat VERSION 0.1)
 cmake_policy(SET CMP0077 NEW)
 
 #SET(BUILD_SHARED_LIBS ON)
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -82,6 +83,9 @@ target_link_libraries(rendercat
 )
 
 if(CMAKE_COMPILER_IS_GNUCC)
+	set_property(
+		SOURCE src/mesh.cpp
+		APPEND PROPERTY COMPILE_OPTIONS $<$<CONFIG:DEBUG>:-O3 -g0>)
 	target_compile_options(rendercat
 		PRIVATE
 			"-Wall"
