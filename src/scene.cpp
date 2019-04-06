@@ -17,92 +17,13 @@ void Scene::init()
 		materials.emplace_back(Material::create_default_material());
 	}
 
-	cubemap.load_textures("assets/materials/cubemaps/field_day");
+	//cubemap.load_textures("assets/materials/cubemaps/field_day");
 
 	main_camera.state.position = {0.0f, 1.5f, 0.4f};
 	directional_light.direction = zcm::normalize(directional_light.direction);
-	PointLight pl;
-	pl.position = {4.0f, 1.0f, 1.0f};
-	pl.diffuse = {1.0f, 0.2f, 0.1f};
-	pl.radius = 3.5f;
-	pl.set_flux(75.0f);
-
-	point_lights.push_back(pl);
-
-	pl.position = {4.0f, 1.0f, -1.5f};
-	point_lights.push_back(pl);
-
-	pl.position = {-5.0f, 1.0f, -1.5f};
-	point_lights.push_back(pl);
-
-	pl.position = {-5.0f, 1.0f, 1.0f};
-	point_lights.push_back(pl);
-
-	pl.position ={1.0f, 1.0f, 1.0f};
-	point_lights.push_back(pl);
-
-	pl.position = {1.0f, 1.5f, -1.0f};
-	pl.diffuse = {0.1, 0.2, 1.0};
-	point_lights.push_back(pl);
-
-	SpotLight sp;
-	sp.diffuse = {0.9f, 0.86f, 0.88f};
-	sp.set_direction({0.0f, 1.0f, 0.0f});
-	sp.radius = 4.0f;
-	sp.set_flux(60.0f);
-
-	sp.position = {-10.0f, 3.3f, -3.8f};
-	spot_lights.push_back(sp);
-
-	sp.position = {-10.0f, 3.3f, 3.4f};
-	spot_lights.push_back(sp);
-
-	sp.position = {9.3f, 3.3f, -3.8f};
-	spot_lights.push_back(sp);
-
-	sp.position = {9.3f, 3.3f, 3.4f};
-	spot_lights.push_back(sp);
-
-	//load_model("sponza_scaled.obj", "sponza_crytek/");
-	//load_model("yorha_2b.obj",      "yorha_2b/");
-	load_model_gltf("2b.gltf", "yorha_2b_gltf/");
-	load_model_gltf("sponza.gltf", "sponzagltf/");
 
 	Texture::Cache::clear();
 }
-
-
-Model* Scene::load_model_gltf(const std::string_view name, const std::string_view basedir)
-{
-	model::data data;
-	if(model::load_gltf_file(data, name, basedir)) {
-		auto base_material = materials.size();
-
-		for(size_t i = 0; i < data.materials.size(); ++i) {
-			materials.emplace_back(std::move(data.materials[i]));
-		}
-
-		Model model;
-		model.name = name.substr(0, name.find_last_of('.'));
-		model.submesh_count = data.primitives.size();
-		model.materials = std::unique_ptr<uint32_t[]>(new uint32_t[model.submesh_count]);
-		model.submeshes = std::unique_ptr<uint32_t[]>(new uint32_t[model.submesh_count]);
-
-		for(size_t i = 0; i < data.primitives.size(); ++i) {
-			if(data.primitive_material[i] >= 0 && (unsigned)data.primitive_material[i] < data.materials.size())	{
-				model.materials[i] =  data.primitive_material[i] + base_material;
-			} else {
-				model.materials[i] = missing_material_idx;
-			}
-			submeshes.emplace_back(std::move(data.primitives[i]));
-			model.submeshes[i] = submeshes.size() - 1;
-		}
-		models.emplace_back(std::move(model));
-		return &models.back();
-	}
-	return nullptr;
-}
-
 
 static void show_help_tooltip(const char* desc)
 {
@@ -294,16 +215,15 @@ static void show_material_ui(rc::Material& material)
 		ImGui::PopID();
 	};
 
-	display_map(material.diffuse_map,  Texture::Kind::Diffuse);
+	display_map(material.base_color_map,  Texture::Kind::BaseColor);
 	display_map(material.normal_map,   Texture::Kind::Normal);
-	display_map(material.specular_map, Texture::Kind::Specular);
-	display_map(material.occluion_roughness_metallic_map, Texture::Kind::RoughnessMetallic);
-	display_map(material.occluion_roughness_metallic_map, Texture::Kind::Occlusion);
+	display_map(material.occlusion_roughness_metallic_map, Texture::Kind::RoughnessMetallic);
+	display_map(material.occlusion_map, Texture::Kind::Occlusion);
 	display_map(material.emission_map, Texture::Kind::Emission);
 	ImGui::Spacing();
 
 	ImGui::TextUnformatted("Diffuse color");
-	ImGui::ColorEdit4("##matdiffcolor", zcm::value_ptr(material.diffuse_factor),
+	ImGui::ColorEdit4("##matdiffcolor", zcm::value_ptr(material.base_color_factor),
 		ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 
 	ImGui::TextUnformatted("Emissive color");

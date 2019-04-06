@@ -6,7 +6,6 @@
 #include <rendercat/util/gl_unique_handle.hpp>
 #include <string_view>
 #include <vector>
-#include <zcm/quat.hpp>
 
 namespace rc {
 namespace model {

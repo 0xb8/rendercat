@@ -29,6 +29,7 @@ endif()
 
 
 find_package(OpenGL REQUIRED)
+find_package(glbinding REQUIRED)
 
 add_subdirectory(third_party)
 
@@ -78,8 +79,6 @@ target_link_libraries(rendercat
 		OpenGL::GL
 		stb::image
 		tinyheaders::tinyfiles
-		tinyobjloader
-		fx-gltf
 )
 
 if(CMAKE_COMPILER_IS_GNUCC)

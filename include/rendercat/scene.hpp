@@ -94,8 +94,6 @@ struct Scene
 	void init();
 	void update();
 
-	Model* load_model_gltf(const std::string_view name, const std::string_view basedir);
-
 	rc::Camera main_camera;
 
 	DirectionalLight directional_light

@@ -41,6 +41,7 @@ class Renderer
 	zcm::mat4 set_shadow_uniforms();
 	void draw_shadow();
 	void draw_skybox();
+	void draw_debug();
 	void init_shadow();
 
 	DDRenderInterfaceCoreGL debug_draw_ctx;

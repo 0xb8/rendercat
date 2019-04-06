@@ -14,8 +14,6 @@
 #include <glbinding/gl45core/enum.h>
 #include <glbinding/gl45core/types.h>
 #include <glbinding/gl45core/functions.h>
-#include <glbinding-aux/Meta.h>
-#include <rendercat/util/gl_meta.hpp>
 
 using namespace gl45core;
 using namespace rc;
@@ -38,19 +36,6 @@ Cubemap::Cubemap()
 	if(!max_texture_size) {
 		glGetIntegerv(GL_MAX_CUBE_MAP_TEXTURE_SIZE, &max_texture_size);
 		has_seamless_filtering = glIsEnabled(GL_TEXTURE_CUBE_MAP_SEAMLESS);
-		has_seamless_filtering_per_texture = rc::glmeta::extension_supported(gl::GLextension::GL_ARB_seamless_cubemap_per_texture);
-#ifndef NDEBUG
-		fmt::print(stderr,
-		           "[cubemap] limits:\n"
-		           "    Texture size:        {}\n"
-		           "    Seamless filtering:\n"
-		           "        Global:          {}\n"
-		           "        Per-texture:     {}\n",
-		           max_texture_size,
-
-		           glbinding::aux::Meta::getString(has_seamless_filtering),
-		           glbinding::aux::Meta::getString(has_seamless_filtering_per_texture));
-#endif
 	}
 
 	glCreateVertexArrays(1, m_vao.get());

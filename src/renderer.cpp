@@ -514,39 +514,9 @@ void Renderer::draw()
 		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
 	}
 
-	for(auto&& light : m_scene->point_lights) {
-		if(!(light.state & PointLight::ShowWireframe))
-			continue;
 
-		if(m_scene->main_camera.frustum.sphere_culled(light.position, light.radius))
-			continue;
 
-		dd::sphere(light.position, light.diffuse, 0.01f * light.radius, 0, false);
-		dd::sphere(light.position, light.diffuse, light.radius);
-	}
-
-	for(auto&& light : m_scene->spot_lights) {
-		if(!(light.state & SpotLight::ShowWireframe))
-			continue;
-
-		if(m_scene->main_camera.frustum.sphere_culled(light.position, light.radius))
-			continue;
-
-		dd::sphere(light.position, light.diffuse, 0.01f * light.radius, 0, false);
-		dd::cone(light.position,
-		         zcm::normalize(-light.direction()) * light.radius,
-		         light.diffuse,
-		         light.angle_outer() * light.radius, 0.0f);
-		dd::cone(light.position,
-		         zcm::normalize(-light.direction()) * light.radius,
-		         light.diffuse,
-		         light.angle_inner() * light.radius, 0.0f);
-	}
-
-	const auto& frustum = m_scene->main_camera.frustum;
-	if(frustum.state & Frustum::ShowWireframe) {
-		frustum.draw_debug();
-	}
+	draw_debug();
 
 	glEnable(GL_CULL_FACE);
 	draw_skybox();
@@ -636,5 +606,56 @@ void Renderer::draw_skybox()
 	auto projection = make_projection(m_scene->main_camera.state);
 	m_scene->cubemap.draw(*m_cubemap_shader, view, projection);
 	glDepthFunc(GL_GREATER);
+}
+
+void Renderer::draw_debug()
+{
+	auto view = make_view(m_scene->main_camera.state);
+	auto projection = make_projection(m_scene->main_camera.state);
+	auto view_projection = projection * view;
+	for(auto&& light : m_scene->point_lights) {
+		if(!(light.state & PointLight::ShowWireframe))
+			continue;
+
+		if(m_scene->main_camera.frustum.sphere_culled(light.position, light.radius))
+			continue;
+
+		dd::sphere(light.position, light.diffuse, 0.01f * light.radius, 0, false);
+		dd::sphere(light.position, light.diffuse, light.radius);
+	}
+
+	for(auto&& light : m_scene->spot_lights) {
+		if(!(light.state & SpotLight::ShowWireframe))
+			continue;
+
+		if(m_scene->main_camera.frustum.sphere_culled(light.position, light.radius))
+			continue;
+
+		dd::sphere(light.position, light.diffuse, 0.01f * light.radius, 0, false);
+		dd::cone(light.position,
+		         zcm::normalize(-light.direction()) * light.radius,
+		         light.diffuse,
+		         light.angle_outer() * light.radius, 0.0f);
+		dd::cone(light.position,
+		         zcm::normalize(-light.direction()) * light.radius,
+		         light.diffuse,
+		         light.angle_inner() * light.radius, 0.0f);
+	}
+
+	const auto& frustum = m_scene->main_camera.frustum;
+	if(frustum.state & Frustum::ShowWireframe) {
+		frustum.draw_debug();
+	}
+
+
+	dd::line(zcm::vec3{0, 0, 0}, zcm::vec3{1, 1, 1}, dd::colors::Cyan);
+	zcm::mat4 m{1.f};
+
+
+	dd::xzSquareGrid(-10, 10, 0, 0.5, dd::colors::Gray);
+
+	dd::plane(zcm::vec3{1}, zcm::normalize(zcm::vec3{-1, 0, 1}), dd::colors::Red, dd::colors::GoldenRod, 3.0f, 1.0f);
+	dd::vertexNormal(zcm::vec3{2}, zcm::normalize(zcm::vec3{0.343f, 0.6f, 0.55f}), 1.0f);
+
 }
 
