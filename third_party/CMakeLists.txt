@@ -12,6 +12,7 @@ add_subdirectory(glfw)
 
 set(ZCM_ENABLE_TESTS OFF)
 set(ZCM_ENABLE_COVERAGE_IN_DEBUG OFF)
+set(ZCM_ENABLE_SWIZZLE OFF)
 add_subdirectory(zcm)
 add_subdirectory(imgui_integration)
 add_subdirectory(debug_draw_integration)
