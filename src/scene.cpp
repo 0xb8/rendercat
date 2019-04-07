@@ -130,8 +130,6 @@ static bool edit_light(T& pl) noexcept
 		pl.set_flux(power);
 	}
 
-
-
 	bool ret = true;
 	if (ImGui::BeginPopup("RemovePopup")) {
 		if(ImGui::Button("Confirm"))
@@ -167,6 +165,7 @@ static void show_material_ui(rc::Material& material)
 		ImGui::TextUnformatted("Single-Sided (backface culling on)");
 	}
 	ImGui::PopStyleColor();
+
 	ImGui::TextUnformatted("Texture maps: ");
 
 	auto display_map_info = [](const auto& map)
@@ -208,7 +207,7 @@ static void show_material_ui(rc::Material& material)
 	auto display_map = [&material,&display_map_info](const auto& map, auto kind)
 	{
 		ImGui::PushID(Texture::enum_value_str(kind));
-		if(material.has_texture_kind(kind) && ImGui::TreeNode("mapparams", "%s Map", Texture::enum_value_str(kind))) {
+		if(material.has_texture_kind(kind) && ImGui::TreeNode("##mapparams", "%s Map", Texture::enum_value_str(kind))) {
 			display_map_info(map);
 			ImGui::TreePop();
 		}
@@ -217,8 +216,10 @@ static void show_material_ui(rc::Material& material)
 
 	display_map(material.base_color_map,  Texture::Kind::BaseColor);
 	display_map(material.normal_map,   Texture::Kind::Normal);
+	display_map(material.specular_map, Texture::Kind::SpecularGlossiness);
 	display_map(material.occlusion_roughness_metallic_map, Texture::Kind::RoughnessMetallic);
-	display_map(material.occlusion_map, Texture::Kind::Occlusion);
+	display_map(material.occlusion_roughness_metallic_map, Texture::Kind::OcclusionRoughnessMetallic);
+	display_map(material.occlusion_map, Texture::Kind::OcclusionSeparate);
 	display_map(material.emission_map, Texture::Kind::Emission);
 	ImGui::Spacing();
 
@@ -295,24 +296,26 @@ void Scene::update()
 		ImGui::InputFloat3("Position", zcm::value_ptr(main_camera.state.position));
 		ImGui::SliderFloat4("Orientation", zcm::value_ptr(main_camera.state.orientation), -1.f, 1.f);
 
-		auto forward = main_camera.state.get_forward();
-		auto up = main_camera.state.get_up();
-		auto right = main_camera.state.get_right();
-		ImGui::Spacing();
-		ImGui::InputFloat3("Forward", zcm::value_ptr(forward), "%.3f", ImGuiInputTextFlags_ReadOnly);
-		ImGui::InputFloat3("Up", zcm::value_ptr(up), "%.3f", ImGuiInputTextFlags_ReadOnly);
-		ImGui::InputFloat3("Right", zcm::value_ptr(right), "%.3f", ImGuiInputTextFlags_ReadOnly);
-		ImGui::Spacing();
+		if (ImGui::TreeNode("Alternate Orientation")) {
+			auto forward = main_camera.state.get_forward();
+			auto up = main_camera.state.get_up();
+			auto right = main_camera.state.get_right();
+			ImGui::Spacing();
+			ImGui::InputFloat3("Forward", zcm::value_ptr(forward), "%.3f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat3("Up", zcm::value_ptr(up), "%.3f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat3("Right", zcm::value_ptr(right), "%.3f", ImGuiInputTextFlags_ReadOnly);
 
-		auto euler_angles = zcm::eulerAngles(main_camera.state.orientation);
-		ImGui::InputFloat3("Pitch/Yaw/Roll", zcm::value_ptr(euler_angles), "%.3f", ImGuiInputTextFlags_ReadOnly);
-		auto angle = zcm::angle(main_camera.state.orientation);
-		auto axis = zcm::axis(main_camera.state.orientation);
-		zcm::vec4 angle_axis {angle, axis.x, axis.y, axis.z};
-		ImGui::InputFloat4("Angle/Axis", zcm::value_ptr(angle_axis), "%.3f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::Spacing();
+			auto euler_angles = zcm::eulerAngles(main_camera.state.orientation);
+			ImGui::InputFloat3("Pitch/Yaw/Roll", zcm::value_ptr(euler_angles), "%.3f", ImGuiInputTextFlags_ReadOnly);
+			auto angle = zcm::angle(main_camera.state.orientation);
+			auto axis = zcm::axis(main_camera.state.orientation);
+			zcm::vec4 angle_axis {angle, axis.x, axis.y, axis.z};
+			ImGui::InputFloat4("Angle/Axis", zcm::value_ptr(angle_axis), "%.3f", ImGuiInputTextFlags_ReadOnly);
+			ImGui::TreePop();
+		}
 
 		ImGui::Spacing();
-
 
 		float camera_fov_deg = zcm::degrees(main_camera.state.fov);
 		if (ImGui::SliderFloat("FOV", &camera_fov_deg, FPSCameraBehavior::fov_min, FPSCameraBehavior::fov_max))
@@ -320,7 +323,7 @@ void Scene::update()
 			main_camera.state.fov = zcm::radians(camera_fov_deg);
 		}
 		ImGui::SliderFloat("Near Z", &main_camera.state.znear, CameraState::znear_min, 10.0f);
-		ImGui::SliderFloat("Far Z", &main_camera.state.zfar, main_camera.state.znear, 1000.0f);
+		//ImGui::SliderFloat("Far Z", &main_camera.state.zfar, main_camera.state.znear, 1000.0f);
 		ImGui::SliderFloat("Exposure", &main_camera.state.exposure, 0.001f, 10.0f);
 
 		bool frustum_locked = main_camera.frustum.state & rc::Frustum::Locked;
@@ -360,11 +363,14 @@ void Scene::update()
 				ImGui::SliderFloat("Interpolate", &t, 0.0f, 1.0f);
 				main_camera.state.orientation = zcm::slerp(rot_a, rot_b,t);
 				main_camera.state.position = zcm::mix(pos_a, pos_b, t);
-				main_camera.state.fov = zcm::radians(zcm::mix(fov_a, fov_b, t));
+				main_camera.state.fov = zcm::mix(fov_a, fov_b, t);
 				main_camera.state.exposure = zcm::mix(exp_a, exp_b, t);
 
-				if (ImGui::Button("Reset")) {
+				if (ImGui::Button("Reset Start State")) {
 					has_a = false;
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Reset Start State")) {
 					has_b = false;
 				}
 			}
@@ -503,9 +509,7 @@ void Scene::update()
 
 						ImGui::PushID(submesh.name.begin().operator->(), submesh.name.end().operator->());
 						if (ImGui::TreeNode("##submesh", "%s", submesh.name.data())) {
-
 							show_mesh_ui(submesh, materials[model.materials[j]]);
-
 							ImGui::TreePop();
 						}
 						ImGui::PopID();
