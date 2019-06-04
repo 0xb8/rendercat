@@ -337,6 +337,9 @@ int main() try
 	                               nullptr,
 	                               nullptr);
 
+	if (glfwRawMouseMotionSupported())
+		glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+
 	if (window == nullptr) {
 		throw std::runtime_error("Failed to create GLFW window.");
 	}
