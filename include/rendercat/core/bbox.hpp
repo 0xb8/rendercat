@@ -3,6 +3,7 @@
 #include <zcm/fwd.hpp>
 #include <zcm/vec2.hpp>
 #include <zcm/vec3.hpp>
+#include <zcm/vec4.hpp>
 #include <rendercat/core/ray.hpp>
 #include <limits>
 
@@ -101,6 +102,8 @@ public:
 	/// Otherwise, returns \p point itself.
 	zcm::vec2 closest_point(zcm::vec2 point) const noexcept;
 
+	/// Returns the bounding circle of bbox.
+	zcm::vec3 bounding_circle() const noexcept;
 
 	/// Returns one of the intersection types. If either of the bboxes are invalid,
 	/// then OUTSIDE is returned.
@@ -210,12 +213,18 @@ public:
 	/// Otherwise, returns \p point itself.
 	zcm::vec3 closest_point(zcm::vec3 point) const noexcept;
 
+	/// Returns the bounding sphere of bbox.
+	zcm::vec4 bounding_sphere() const noexcept;
+
 	/// Returns one of the intersection types. If either of the bboxes are invalid,
 	/// then OUTSIDE is returned.
 	static Intersection intersects(const bbox3& a, const bbox3& b) noexcept;
 
-	/// Tests if sphere positioned at \p pos with radius \p r intersects bbox.
+	/// Tests if sphere positioned at \p pos with radius \p r intersects \p bbox.
 	static Intersection intersects_sphere(const bbox3& bbox, zcm::vec3 center, float radius) noexcept;
+
+	/// Tests if cone with apex at \p origin with direction \p forward, cone angle \p angle and size \p size intersects \p bbox.
+	static Intersection intersects_cone(const bbox3& bbox, zcm::vec3 origin, zcm::vec3 forward, float angle, float size) noexcept;
 
 	/// Tests if \p ray intersects \p bbox.
 	static Intersection intersects_ray(const bbox3& bbox, const ray3_inv& ray) noexcept;

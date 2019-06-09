@@ -5,6 +5,8 @@
 #include <zcm/mat4.hpp>
 #include <zcm/quat.hpp>
 #include <zcm/common.hpp>
+#include <zcm/angle_and_trigonometry.hpp>
+#include <zcm/exponential.hpp>
 #include <cassert>
 
 using namespace rc;
@@ -182,6 +184,12 @@ zcm::vec2 bbox2::closest_point(zcm::vec2 point) const noexcept
 	return zcm::clamp(point, mMin, mMax);
 }
 
+glm::vec3 bbox2::bounding_circle() const noexcept
+{
+	auto rad = zcm::length(diagonal()) * 0.5f;
+	return zcm::vec3{center(), rad};
+}
+
 bbox3::bbox3(zcm::vec3 p1, zcm::vec3 p2) noexcept
 {
 	include(p1);
@@ -298,6 +306,12 @@ zcm::vec3 bbox3::closest_point(zcm::vec3 point) const noexcept
 	return zcm::clamp(point, mMin, mMax);
 }
 
+glm::vec4 bbox3::bounding_sphere() const noexcept
+{
+	auto rad = zcm::length(diagonal()) * 0.5f;
+	return zcm::vec4{center(), rad};
+}
+
 Intersection bbox2::intersects(const bbox2 & a, const bbox2 & b) noexcept
 {
 	if (a.is_null() || b.is_null())
@@ -363,6 +377,23 @@ Intersection bbox3::intersects_sphere(const bbox3& bbox, zcm::vec3 center, float
 	return intersects_sphere_impl(bbox.closest_point(center),
 	                              center,
 	                              radius);
+}
+
+Intersection bbox3::intersects_cone(const bbox3 & bbox, zcm::vec3 origin, zcm::vec3 forward, float angle, float size) noexcept
+{
+	auto sphere = bbox.bounding_sphere();
+
+	// ref: https://bartwronski.com/2017/04/13/cull-that-cone/
+	// TODO: separate into sphere/cone test
+	auto V = sphere.xyz - origin;
+	float  VlenSq = zcm::length2(V);
+	float  V1len  = zcm::dot(V, forward);
+	float  distanceClosestPoint = zcm::cos(angle) * zcm::sqrt(VlenSq - V1len*V1len) - V1len * zcm::sin(angle);
+
+	bool angleCull = distanceClosestPoint > sphere.w;
+	bool frontCull = V1len >  sphere.w + size;
+	bool backCull  = V1len < -sphere.w;
+	return (angleCull || frontCull || backCull) ? Intersection::Outside : Intersection::Intersect;
 }
 
 Intersection bbox2::intersects_ray(const bbox2& bbox, const ray2_inv& ray) noexcept

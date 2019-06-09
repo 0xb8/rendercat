@@ -318,8 +318,11 @@ static int process_spot_lights(const std::vector<SpotLight>& spot_lights,
 		if(frustum.sphere_culled(light.position, light.radius))
 			continue;
 
-		// TODO: implement cone-AABB collision check
-		if(bbox3::intersects_sphere(submesh_bbox, light.position, light.radius) != Intersection::Outside) {
+		if(bbox3::intersects_cone(submesh_bbox,
+		                          light.position,
+		                          -light.direction(),
+		                          light.angle_outer(),
+		                          light.radius) != Intersection::Outside) {
 			auto dist = zcm::length(light.position - submesh_bbox.closest_point(light.position));
 			if(light.distance_attenuation(dist) > 0.0f) {
 				unif::i1(shader, indexed_uniform("spot_light_indices", "", spot_light_count++), i);
@@ -532,15 +535,10 @@ void Renderer::draw()
 		if(m_scene->main_camera.frustum.sphere_culled(light.position, light.radius))
 			continue;
 
-		dd::sphere(light.position, light.diffuse, 0.01f * light.radius, 0, false);
 		dd::cone(light.position,
 		         zcm::normalize(-light.direction()) * light.radius,
 		         light.diffuse,
 		         light.angle_outer() * light.radius, 0.0f);
-		dd::cone(light.position,
-		         zcm::normalize(-light.direction()) * light.radius,
-		         light.diffuse,
-		         light.angle_inner() * light.radius, 0.0f);
 	}
 
 	const auto& frustum = m_scene->main_camera.frustum;

@@ -278,7 +278,7 @@ static void show_material_ui(rc::Material& material)
 		// NOTE: imgui assumes direct3d convention, custom UVs for OpenGL are below
 		const auto uv0 = ImVec2(0.0f, 1.0f);
 		const auto uv1 = ImVec2(1.0f, 0.0f);
-		const auto width = ImGui::GetContentRegionAvailWidth() - 5.0f;
+		const auto width = ImGui::GetContentRegionAvail().x - 5.0f;
 		const auto height = width * ((float)storage.height() / (float)storage.width());
 		ImGui::Image((ImTextureID)(uintptr_t)storage.texture_handle(), ImVec2(width, height), uv0, uv1);
 	};
