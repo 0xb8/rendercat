@@ -184,7 +184,7 @@ zcm::vec2 bbox2::closest_point(zcm::vec2 point) const noexcept
 	return zcm::clamp(point, mMin, mMax);
 }
 
-glm::vec3 bbox2::bounding_circle() const noexcept
+zcm::vec3 bbox2::bounding_circle() const noexcept
 {
 	auto rad = zcm::length(diagonal()) * 0.5f;
 	return zcm::vec3{center(), rad};
@@ -306,7 +306,7 @@ zcm::vec3 bbox3::closest_point(zcm::vec3 point) const noexcept
 	return zcm::clamp(point, mMin, mMax);
 }
 
-glm::vec4 bbox3::bounding_sphere() const noexcept
+zcm::vec4 bbox3::bounding_sphere() const noexcept
 {
 	auto rad = zcm::length(diagonal()) * 0.5f;
 	return zcm::vec4{center(), rad};
