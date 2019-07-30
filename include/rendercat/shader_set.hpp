@@ -15,6 +15,7 @@ public:
 	bool check_updates();
 
 	uint32_t* load_program(std::initializer_list<std::string_view>);
+	bool deleteProgram(uint32_t**);
 
 	static constexpr size_t max_programs = 16;
 

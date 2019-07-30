@@ -24,6 +24,7 @@ struct PerfQuery
 	void begin();
 	void end();
 
+	float get();
 	void collect();
 
 private:

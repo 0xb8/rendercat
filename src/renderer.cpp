@@ -75,6 +75,7 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 
 	dd::initialize(&debug_draw_ctx);
 	init_shadow();
+	init_brdf();
 }
 
 void Renderer::init_shadow()
@@ -98,6 +99,31 @@ void Renderer::init_shadow()
 		std::fflush(stderr);
 		return;
 	}
+}
+
+void Renderer::init_brdf()
+{
+	m_brdf_shader = m_shader_set.load_program({"brdf_lut.comp"});
+	if (!m_brdf_shader) {
+		fmt::print(stderr, "[renderer] could not init BRDF LUT compute shader!");
+		std::fflush(stderr);
+		return;
+	}
+
+	PerfQuery qry;
+	qry.begin();
+
+	int size = 512;
+
+	glCreateTextures(GL_TEXTURE_2D, 1, m_brdf_lut_to.get());
+	glTextureStorage2D(*m_brdf_lut_to, 1, GL_RG16F, size, size);
+
+	glBindImageTexture(0, *m_brdf_lut_to, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RG16F);
+	glUseProgram(*m_brdf_shader);
+	glDispatchCompute(size/8, size/8, 1);
+	qry.end();
+	m_shader_set.deleteProgram(&m_brdf_shader);
+	fmt::print(stdout, "[renderer] BRDF LUT generation took {} ms.\n", qry.get());
 }
 
 
@@ -579,6 +605,14 @@ void Renderer::draw()
 
 void Renderer::draw_gui()
 {
+#if 0
+	ImGui::Begin("BRDF LUT");
+	const auto uv0 = ImVec2(0.0f, 1.0f);
+	const auto uv1 = ImVec2(1.0f, 0.0f);
+	ImGui::Image((ImTextureID)(uintptr_t)(*m_brdf_lut_to), ImVec2(512, 512), uv0, uv1);
+	ImGui::End();
+#endif
+
 	ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiCond_Always);
 	ImGui::SetNextWindowSize(ImVec2(375, 40));
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.1f));

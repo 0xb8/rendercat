@@ -31,6 +31,19 @@ void PerfQuery::end()
 	glEndQuery(GL_TIME_ELAPSED);
 }
 
+float PerfQuery::get()
+{
+	assert((m_state[current_query] == QueryState::Ended) && "Must end() query before calling get()");
+	uint64_t time_elapsed = 0;
+	glGetQueryObjectui64v(*m_query[current_query], GL_QUERY_RESULT, &time_elapsed);
+	if(!time_elapsed)
+		return -1.0f;
+
+	float gpu_time = (double)time_elapsed / 1000000.0;
+	return gpu_time;
+}
+
+
 void PerfQuery::collect()
 {
 	for(int i = 0; i < query_count; ++i) {

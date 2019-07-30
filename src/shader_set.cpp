@@ -193,8 +193,10 @@ ShaderSet::ShaderSet(std::string_view directory) : m_directory(directory) { }
 ShaderSet::~ShaderSet()
 {
 	for(unsigned i = 0; i < m_program_count; ++i) {
-		std::destroy_at(m_programs[i]);
-		m_programs[i] = nullptr;
+		if (m_programs[i]) {
+			std::destroy_at(m_programs[i]);
+			m_programs[i] = nullptr;
+		}
 	}
 }
 
@@ -202,11 +204,11 @@ bool ShaderSet::check_updates()
 {
 	bool ret = false;
 	for(unsigned i = 0; i < m_program_count; ++i) {
-		ret |= (m_programs[i])->reload();
+		if (m_programs[i])
+			ret |= (m_programs[i])->reload();
 	}
 	return ret;
 }
-
 
 gl::GLuint * ShaderSet::load_program(std::initializer_list<std::string_view> names)
 {
@@ -233,6 +235,22 @@ gl::GLuint * ShaderSet::load_program(std::initializer_list<std::string_view> nam
 
 	return nullptr;
 
+}
+
+
+bool ShaderSet::deleteProgram(uint32_t** p)
+{
+	if (p) {
+		for (unsigned i = 0; i < m_program_count; ++i) {
+			if (m_programs[i] && (m_programs[i]->handle.get() == *p)) {
+				delete m_programs[i];
+				m_programs[i] = nullptr;
+				*p = nullptr;
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 

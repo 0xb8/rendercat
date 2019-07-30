@@ -20,12 +20,15 @@ class Renderer
 	uint32_t* m_cubemap_shader = nullptr;
 	uint32_t* m_hdr_shader = nullptr;
 	uint32_t* m_shadow_shader = nullptr;
+	uint32_t* m_brdf_shader = nullptr;
 
 	uint32_t m_backbuffer_width  = 0;
 	uint32_t m_backbuffer_height = 0;
 	uint32_t m_window_width  = 0;
 	uint32_t m_window_height = 0;
 	float    m_backbuffer_scale  = 1.0f;
+
+	rc::texture_handle     m_brdf_lut_to;
 
 	rc::framebuffer_handle m_shadowmap_fbo;
 	rc::texture_handle     m_shadowmap_depth_to;
@@ -42,6 +45,7 @@ class Renderer
 	void draw_shadow();
 	void draw_skybox();
 	void init_shadow();
+	void init_brdf();
 
 	DDRenderInterfaceCoreGL debug_draw_ctx;
 
