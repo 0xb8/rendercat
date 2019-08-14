@@ -21,7 +21,7 @@ using namespace rc;
 static Material from_gltf_material(const fx::gltf::Material& mat)
 {
 	Material material(mat.name);
-	material.alpha_mode = [](auto mat){
+	material.set_alpha_mode([](auto mat){
 		switch (mat.alphaMode) {
 			case fx::gltf::Material::AlphaMode::Opaque:
 				return Texture::AlphaMode::Opaque;
@@ -31,21 +31,22 @@ static Material from_gltf_material(const fx::gltf::Material& mat)
 				return Texture::AlphaMode::Mask;
 		}
 		return Texture::AlphaMode::Unknown;
-	}(mat);
-	material.alpha_cutoff = mat.alphaCutoff;
+	}(mat));
 
-	material.base_color_factor = {mat.pbrMetallicRoughness.baseColorFactor[0],
-	                              mat.pbrMetallicRoughness.baseColorFactor[1],
-	                              mat.pbrMetallicRoughness.baseColorFactor[2],
-	                              mat.pbrMetallicRoughness.baseColorFactor[3]};
+	material.set_alpha_cutoff(mat.alphaCutoff);
+	material.set_base_color_factor({mat.pbrMetallicRoughness.baseColorFactor[0],
+	                                mat.pbrMetallicRoughness.baseColorFactor[1],
+	                                mat.pbrMetallicRoughness.baseColorFactor[2],
+	                                mat.pbrMetallicRoughness.baseColorFactor[3]});
 
-	material.emissive_factor = {mat.emissiveFactor[0],
-	                            mat.emissiveFactor[1],
-	                            mat.emissiveFactor[2]};
+	material.set_emissive_factor({mat.emissiveFactor[0],
+	                              mat.emissiveFactor[1],
+	                              mat.emissiveFactor[2]});
 
-	material.roughness_factor = mat.pbrMetallicRoughness.roughnessFactor;
-	material.metallic_factor = mat.pbrMetallicRoughness.metallicFactor;
-	material.double_sided = mat.doubleSided;
+	material.set_roughness_factor(mat.pbrMetallicRoughness.roughnessFactor);
+	material.set_metallic_factor(mat.pbrMetallicRoughness.metallicFactor);
+	material.set_double_sided(mat.doubleSided);
+	material.flush();
 
 	return material;
 }
@@ -99,7 +100,7 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 			if (map.valid()) {
 				material.set_base_color_map(std::move(map));
 				apply_gltf_sampler(get_gltf_sampler(doc, mat.pbrMetallicRoughness.baseColorTexture),
-				                   material.base_color_map);
+				                   material.textures.base_color_map);
 			}
 		}
 	}
@@ -109,9 +110,9 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 			auto map = Material::load_image_texture(texture_path, normal_path, Texture::ColorSpace::Linear);
 			if (map.valid()) {
 				material.set_normal_map(std::move(map));
-				material.normal_scale = mat.normalTexture.scale;
+				material.data->normal_scale = mat.normalTexture.scale;
 				apply_gltf_sampler(get_gltf_sampler(doc, mat.normalTexture),
-				                   material.normal_map);
+				                   material.textures.normal_map);
 			}
 		}
 	}
@@ -122,7 +123,7 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 			if (map.valid()) {
 				material.set_emission_map(std::move(map));
 				apply_gltf_sampler(get_gltf_sampler(doc, mat.emissiveTexture),
-				                   material.emission_map);
+				                   material.textures.emission_map);
 			}
 		}
 	}
@@ -131,9 +132,9 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 		if (!roughness_path.empty()) {
 			auto map = Material::load_image_texture(texture_path, roughness_path, Texture::ColorSpace::Linear);
 			if (map.valid()) {
-				material.occlusion_roughness_metallic_map = std::move(map);
+				material.textures.occlusion_roughness_metallic_map = std::move(map);
 				apply_gltf_sampler(get_gltf_sampler(doc, mat.pbrMetallicRoughness.metallicRoughnessTexture),
-				                   material.occlusion_roughness_metallic_map);
+				                   material.textures.occlusion_roughness_metallic_map);
 				material.set_texture_kind(Texture::Kind::RoughnessMetallic, true);
 			}
 		}
@@ -145,15 +146,17 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 				if (map.valid()) {
 					material.set_occlusion_map(std::move(map));
 					apply_gltf_sampler(get_gltf_sampler(doc, mat.occlusionTexture),
-					                   material.occlusion_map);
+					                   material.textures.occlusion_map);
 				}
 			} else {
 				material.set_texture_kind(Texture::Kind::OcclusionSeparate, false);
 				material.set_texture_kind(Texture::Kind::Occlusion, true);
 			}
-			material.occlusion_strength = mat.occlusionTexture.strength;
+			material.data->occlusion_strength = mat.occlusionTexture.strength;
 		}
 	}
+
+	material.unmap();
 
 	return material;
 }
@@ -332,6 +335,38 @@ static std::vector<std::pair<model::Mesh, int>> load_gltf_mesh(const fx::gltf::M
 	return res;
 }
 
+static void load_gltf_mesh_with_material(model::data& res,
+                                         std::map<int, int>& materials_cache,
+                                         std::string_view material_path,
+                                         const fx::gltf::Document& doc,
+                                         zcm::vec3 scale, zcm::vec3 translate, zcm::quat rotate,
+                                         size_t mesh_id) {
+
+
+	const auto& mesh = doc.meshes[mesh_id];
+	auto meshes_materials = load_gltf_mesh(mesh, doc);
+
+
+
+	for (auto&& mm : meshes_materials) {
+
+		res.primitives.push_back(std::move(mm.first));
+		res.scale.push_back(scale);
+		res.translate.push_back(translate);
+		res.rotation.push_back(rotate);
+
+		auto matcache_pos = materials_cache.find(mm.second);
+
+		if (matcache_pos != materials_cache.end()) {
+			res.primitive_material.push_back(matcache_pos->second);
+		} else {
+			res.primitive_material.push_back(res.materials.size());
+			materials_cache.insert(std::make_pair(mm.second, (int)res.materials.size()));
+			res.materials.push_back(load_gltf_material(doc, mm.second, material_path));
+		}
+	}
+}
+
 
 bool model::load_gltf_file(data& res, const std::string_view name, const std::string_view basedir)
 {
@@ -348,25 +383,56 @@ bool model::load_gltf_file(data& res, const std::string_view name, const std::st
 
 	fx::gltf::Document doc = fx::gltf::LoadFromText(model_path_full);
 
-	int mesh_count = doc.meshes.size();
+	if (doc.scenes.empty()) {
 
-	for (int i = 0; i < mesh_count; ++i) {
+		for (size_t i = 0; i < doc.meshes.size(); ++i) {
 
-		const auto& mesh = doc.meshes[i];
-		auto meshes_materials = load_gltf_mesh(mesh, doc);
+			load_gltf_mesh_with_material(res,
+			                             materials_cache,
+			                             material_path,
+			                             doc,
+			                             zcm::vec3{1.0f},
+			                             zcm::vec3{0.0f},
+			                             zcm::quat{},
+			                             i);
 
-		for (auto&& mm : meshes_materials) {
+		}
 
-			res.primitives.push_back(std::move(mm.first));
+	}
 
-			auto matcache_pos = materials_cache.find(mm.second);
 
-			if (matcache_pos != materials_cache.end()) {
-				res.primitive_material.push_back(matcache_pos->second);
-			} else {
-				res.primitive_material.push_back(res.materials.size());
-				materials_cache.insert(std::make_pair(mm.second, (int)res.materials.size()));
-				res.materials.push_back(load_gltf_material(doc, mm.second, material_path));
+	for (const auto& scene : doc.scenes) {
+
+		for (const auto& node_idx : scene.nodes) {
+			const auto& node = doc.nodes.at(node_idx);
+
+
+			if (node.mesh >= 0) {
+
+				zcm::vec3 node_scale{zcm::no_init_t{}}, node_translate{zcm::no_init_t{}};
+				zcm::quat node_rotate{zcm::no_init_t{}};
+
+				node_scale.x = node.scale[0];
+				node_scale.y = node.scale[1];
+				node_scale.z = node.scale[2];
+
+				node_translate.x = node.translation[0];
+				node_translate.y = node.translation[1];
+				node_translate.z = node.translation[2];
+
+				node_rotate.x = node.rotation[0];
+				node_rotate.y = node.rotation[1];
+				node_rotate.z = node.rotation[2];
+				node_rotate.w = node.rotation[3];
+
+				load_gltf_mesh_with_material(res,
+				                             materials_cache,
+				                             material_path,
+				                             doc,
+				                             node_scale,
+				                             node_translate,
+				                             node_rotate,
+				                             node.mesh);
 			}
 		}
 	}

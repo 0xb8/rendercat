@@ -8,18 +8,24 @@ namespace rc {
 
 class Cubemap
 {
-	vertex_array_handle  m_vao;
-	texture_handle       m_cubemap;
-
 public:
+
 	Cubemap();
 	~Cubemap() = default;
 
 	RC_DEFAULT_MOVE_NOEXCEPT(Cubemap)
 	RC_DISABLE_COPY(Cubemap)
 
-	void load_textures(std::string_view basedir);
-	void draw(uint32_t shader, const zcm::mat4& view, const zcm::mat4& projection) noexcept;
+	void load_cube(std::string_view basedir);
+	void load_equirectangular(std::string_view path);
+	Cubemap integrate_diffuse_irradiance();
+	Cubemap convolve_specular();
+
+	void draw(const zcm::mat4& view, const zcm::mat4& projection) noexcept;
+	void bind_to_unit(uint32_t unit);
+
+private:
+	texture_handle m_cubemap;
 };
 
 } // namespace rc

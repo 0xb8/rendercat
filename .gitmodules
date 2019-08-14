@@ -34,3 +34,6 @@
 	path = third_party/nlohmann_json
 	url = https://github.com/nlohmann/json.git
 	branch = develop
+[submodule "third_party/doctest"]
+	path = third_party/doctest
+	url = https://github.com/onqtam/doctest.git

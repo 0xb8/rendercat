@@ -15,10 +15,14 @@ set(FRAGMENT_SHADER_SOURCES
 )
 
 set(COMPUTE_SHADER_SOURCES
-	brdf_lut.comp)
+	brdf_lut.comp
+	cubemap_from_equirectangular.comp
+	cubemap_diffuse_irradiance.comp
+	cubemap_specular_envmap.comp)
 
 source_group("Vertex Shaders" FILES ${VERTEX_SHADER_SOURCES})
 source_group("Fragment Shaders" FILES ${FRAGMENT_SHADER_SOURCES})
+source_group("Compute Shaders" FILES ${COMPUTE_SHADER_SOURCES})
 
 find_program(GLSLANG_EXECUTABLE glslangValidator)
 if(NOT GLSLANG_EXECUTABLE)

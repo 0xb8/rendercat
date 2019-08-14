@@ -6,6 +6,14 @@
 #include <stb_image.h>
 #include <zcm/vec2.hpp>
 
+#include <glbinding/gl45core/boolean.h>
+#include <glbinding/gl45core/bitfield.h>
+#include <glbinding/gl45core/types.h>
+#include <glbinding/gl45core/enum.h>
+#include <glbinding/gl45core/functions.h>
+
+using namespace gl45core;
+
 
 using namespace rc;
 
@@ -27,9 +35,38 @@ static inline constexpr bool test(uint32_t flags, Texture::Kind kind)
 
 
 static ImageTexture2D  _default_diffuse;
+static const auto map_flags_persistent = GL_MAP_WRITE_BIT | GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT;
 
 
-Material::Material(const std::string_view name_) : name(name_) { }
+Material::Material(const std::string_view name_) : name(name_) {
+
+	glCreateBuffers(1, params_ubo.get());
+	glNamedBufferStorage(*params_ubo, sizeof (UniformData), nullptr,
+	                     map_flags_persistent | GL_DYNAMIC_STORAGE_BIT);
+	map(true);
+}
+
+Material::~Material()
+{
+	unmap();
+}
+
+
+#define IMPLEMENT_MATERIAL_MOVE(x, ret) x {                                    \
+	name = std::move(o.name);                                              \
+	textures = std::move(o.textures);                                      \
+	params_ubo = std::move(o.params_ubo);                                  \
+	data = std::exchange(o.data, nullptr);                                 \
+	m_double_sided = o.m_double_sided;                                         \
+	m_alpha_mode = o.m_alpha_mode;                                             \
+	m_flags = o.m_flags;                                                   \
+	ret;                                                                   \
+}
+
+IMPLEMENT_MATERIAL_MOVE(Material::Material(Material && o) noexcept, )
+IMPLEMENT_MATERIAL_MOVE(Material& Material::operator=(Material && o) noexcept, return *this)
+#undef IMPLEMENT_MATERIAL_MOVE
+
 
 void Material::set_default_diffuse(const std::string_view path) noexcept
 {
@@ -46,7 +83,7 @@ Material Material::create_default_material()
 {
 	assert(_default_diffuse.valid() && "default diffuse not yet set or invalid");
 	Material missing{"missing"};
-	missing.base_color_map = _default_diffuse.share();
+	missing.textures.base_color_map = _default_diffuse.share();
 	missing.set_texture_kind(Texture::Kind::BaseColor, true);
 	return missing;
 }
@@ -56,89 +93,161 @@ bool Material::valid() const
 {
 	using namespace Texture;
 	bool ret = true;
-	if(alpha_mode == AlphaMode::Unknown) {
+	if(m_alpha_mode == AlphaMode::Unknown) {
 		fmt::print(stderr, "[material] invalid material: has alpha channel but AlphaMode is Unknown\n");
 		ret = false;
 	}
-	if(has_texture_kind(Kind::SpecularGlossiness)) {
-		if(has_texture_kind(Kind::RoughnessMetallic) || has_texture_kind(Kind::Occlusion)) {
-			fmt::print(stderr, "[material] invalid material: Has PBR and Phong texture maps!\n");
-			ret = false;
-		}
-	}
 	return ret;
+}
+
+void Material::flush()
+{
+	if (data)
+		glFlushMappedNamedBufferRange(*params_ubo, 0, sizeof (UniformData));
+}
+
+void Material::map(bool init)
+{
+	if (data) return;
+	if (params_ubo) {
+		auto map = glMapNamedBufferRange(*params_ubo, 0, sizeof(UniformData), map_flags_persistent | GL_MAP_FLUSH_EXPLICIT_BIT);
+		assert(map);
+		if (init)
+			data = new(map) UniformData{};
+		else
+			data = reinterpret_cast<UniformData*>(map);
+	} else {
+		data = nullptr;
+	}
+}
+
+void Material::unmap()
+{
+	if (params_ubo && data) {
+		glUnmapNamedBuffer(*params_ubo);
+	}
+	data = nullptr;
 }
 
 
 void Material::bind(uint32_t s) const noexcept
 {
 	using namespace Texture;
-
-	unif::v4(s, "material.diffuse",            base_color_factor);
-	unif::v4(s, "material.specular",           zcm::vec4{0.0f, 0.0f, 0.0f, 1.0f});
-	unif::v3(s, "material.emission",           emissive_factor);
-	unif::f1(s, "material.normal_scale",       normal_scale);
-	unif::f1(s, "material.roughness",          roughness_factor);
-	unif::f1(s, "material.metallic",           metallic_factor);
-	unif::f1(s, "material.occlusion_strength", occlusion_strength);
-	unif::f1(s, "material.alpha_cutoff",       alpha_cutoff);
-
-	auto flags = m_flags;
-	if(alpha_mode == Texture::AlphaMode::Mask) {
-		flags |= RC_SHADER_TEXTURE_ALPHA_MASK;
-	}
-	if(alpha_mode == Texture::AlphaMode::Blend) {
-		flags |= RC_SHADER_TEXTURE_BLEND;
-	}
+	assert(params_ubo);
+	glBindBufferBase(GL_UNIFORM_BUFFER, 0, *params_ubo);
 
 	if(has_texture_kind(Kind::BaseColor)) {
-		if(!base_color_map.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_DIFFUSE)) {
+		if(!textures.base_color_map.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_DIFFUSE)) {
 			_default_diffuse.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_DIFFUSE);
 		}
 	}
 	if(has_texture_kind(Kind::Normal)) {
-		normal_map.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_NORMAL);
+		textures.normal_map.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_NORMAL);
 	}
 
 	if (has_texture_kind(Kind::OcclusionSeparate)) {
-		occlusion_map.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_OCCLUSION);
+		textures.occlusion_map.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_OCCLUSION);
 	} else if (has_texture_kind(Kind::Occlusion)) {
-		occlusion_roughness_metallic_map.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_OCCLUSION);
+		textures.occlusion_roughness_metallic_map.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_OCCLUSION);
 	}
 
 	if (has_texture_kind(Kind::RoughnessMetallic)) {
-		occlusion_roughness_metallic_map.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_ROUGHNESS_METALLIC);
+		textures.occlusion_roughness_metallic_map.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_ROUGHNESS_METALLIC);
 	}
 
 	if (has_texture_kind(Kind::Emission)) {
-		emission_map.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_EMISSION);
+		textures.emission_map.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_EMISSION);
 	}
+}
 
-	unif::i1(s,  "material.type", flags);
+Texture::AlphaMode Material::alpha_mode() const noexcept
+{
+	return m_alpha_mode;
+}
+
+bool Material::double_sided() const noexcept
+{
+	return m_double_sided;
+}
+
+
+void Material::set_base_color_factor(zcm::vec4 f) noexcept
+{
+	assert(data);
+	data->base_color_factor = f;
+}
+
+void Material::set_emissive_factor(zcm::vec3 f) noexcept
+{
+	assert(data);
+	data->emissive_factor = f;
+}
+
+void Material::set_normal_scale(float f) noexcept
+{
+	assert(data);
+	data->normal_scale = f;
+}
+
+void Material::set_roughness_factor(float f) noexcept
+{
+	assert(data);
+	data->roughness_factor = f;
+}
+
+void Material::set_metallic_factor(float f) noexcept
+{
+	assert(data);
+	data->metallic_factor = f;
+}
+
+void Material::set_occlusion_strength(float s) noexcept
+{
+	assert(data);
+	data->occlusion_strength = s;
+}
+
+void Material::set_alpha_cutoff(float c) noexcept
+{
+	assert(data);
+	data->alpha_cutoff = c;
+}
+
+void Material::set_alpha_mode(Texture::AlphaMode m) noexcept
+{
+	assert(data);
+	m_alpha_mode = m;
+	set_shader_flags();
+}
+
+void Material::set_double_sided(bool d) noexcept
+{
+	assert(data);
+	m_double_sided = d;
 }
 
 void Material::set_base_color_map(ImageTexture2D&& map)
 {
-	base_color_map = std::move(map);
+	textures.base_color_map = std::move(map);
 	set_texture_kind(Texture::Kind::BaseColor, true);
 }
 
 void Material::set_normal_map(ImageTexture2D&& map)
 {
-	normal_map = std::move(map);
+	textures.normal_map = std::move(map);
 	set_texture_kind(Texture::Kind::Normal, true);
 }
 
 
 void Material::set_emission_map(ImageTexture2D&& map)
 {
-	emission_map = std::move(map);
+	textures.emission_map = std::move(map);
 	set_texture_kind(Texture::Kind::Emission, true);
 }
 
 void Material::set_occlusion_map(ImageTexture2D && map)
 {
-	occlusion_map = std::move(map);
+	textures.occlusion_map = std::move(map);
 	set_texture_kind(Texture::Kind::OcclusionSeparate, true);
 }
 
@@ -158,6 +267,7 @@ bool Material::set_texture_kind(Texture::Kind k, bool has_map) noexcept
 		m_flags = clear_mask(m_flags, repr(k));
 		cleanup(prev_flags, m_flags);
 	}
+	set_shader_flags();
 
 	return prev;
 }
@@ -172,23 +282,33 @@ void Material::cleanup(uint32_t prev_flags, uint32_t new_flags) noexcept
 	};
 
 	if (had_texture_kind(prev_flags, new_flags, Kind::BaseColor)) {
-		base_color_map.reset();
+		textures.base_color_map.reset();
 	}
 	if (had_texture_kind(prev_flags, new_flags, Kind::Normal)) {
-		normal_map.reset();
+		textures.normal_map.reset();
 	}
 	if (had_texture_kind(prev_flags, new_flags, Kind::Emission)) {
-		emission_map.reset();
-	}
-	if (had_texture_kind(prev_flags, new_flags, Kind::SpecularGlossiness)) {
-		specular_map.reset();
+		textures.emission_map.reset();
 	}
 	if (had_texture_kind(prev_flags, new_flags, Kind::OcclusionSeparate)) {
-		occlusion_map.reset();
+		textures.occlusion_map.reset();
 	}
 	if (had_texture_kind(prev_flags, new_flags, Kind::OcclusionRoughnessMetallic)) {
-		occlusion_roughness_metallic_map.reset();
+		textures.occlusion_roughness_metallic_map.reset();
 	}
+}
+
+void Material::set_shader_flags()
+{
+	assert(data);
+	auto flags = m_flags;
+	if(m_alpha_mode == Texture::AlphaMode::Mask) {
+		flags |= RC_SHADER_TEXTURE_ALPHA_MASK;
+	}
+	if(m_alpha_mode == Texture::AlphaMode::Blend) {
+		flags |= RC_SHADER_TEXTURE_BLEND;
+	}
+	data->type = flags;
 }
 
 static ImageTexture2D try_from_cache_or_load(std::string&& path, Texture::ColorSpace space)

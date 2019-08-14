@@ -163,8 +163,6 @@ const char* rc::Texture::enum_value_str(Kind map) noexcept
 		return "Normal";
 	case Kind::Occlusion:
 		return "Occlusion";
-	case Kind::SpecularGlossiness:
-		return "SpecularGlossiness";
 	case Kind::None:
 		return "None";
 	case Kind::RoughnessMetallic:

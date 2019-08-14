@@ -1,8 +1,9 @@
 add_subdirectory(fmt)
 add_subdirectory(mikktspace)
-add_subdirectory(tiny_obj)
 add_subdirectory(tinyheaders_integration)
 add_subdirectory(stb_integration)
+
+add_subdirectory(doctest)
 
 set(GLFW_BUILD_EXAMPLES OFF)
 set(GLFW_BUILD_TESTS    OFF)
@@ -20,7 +21,7 @@ set(JSON_BuildTests OFF CACHE INTERNAL "")
 add_subdirectory(nlohmann_json)
 add_subdirectory(fx-gltf)
 
-if(CMAKE_COMPILER_IS_GNUCXX)
+if(CMAKE_CXX_COMPILER_ID MATCHES Clang|GNU)
 	set(DEBUG_OPTIMIZED_OPTS "-O3")
 	target_compile_options(stb_image      PRIVATE  $<$<CONFIG:DEBUG>:${DEBUG_OPTIMIZED_OPTS}>)
 	target_compile_options(tinyfiles      PRIVATE  $<$<CONFIG:DEBUG>:${DEBUG_OPTIMIZED_OPTS}>)

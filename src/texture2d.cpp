@@ -169,7 +169,7 @@ TextureStorage2D::TextureStorage2D(uint16_t width,
 	   || is_internal_format_invalid(format))
 		return;
 
-	m_mip_levels = static_cast<std::uint8_t>(zcm::floor(zcm::log2(std::max(width, height))) + 1);
+	m_mip_levels = static_cast<std::uint8_t>(rc::math::num_mipmap_levels(width, height));
 	m_width = width;
 	m_height = height;
 	m_internal_format = format;

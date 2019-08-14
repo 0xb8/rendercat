@@ -37,7 +37,6 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 	assert(s != nullptr);
 
 	m_shader = m_shader_set.load_program({"generic.vert", "generic.frag"});
-	m_cubemap_shader = m_shader_set.load_program({"cubemap.vert", "cubemap.frag"});
 	m_hdr_shader = m_shader_set.load_program({"fullscreen_quad.vert", "hdr.frag"});
 
 	glEnable(GL_FRAMEBUFFER_SRGB);
@@ -110,10 +109,7 @@ void Renderer::init_brdf()
 		return;
 	}
 
-	PerfQuery qry;
-	qry.begin();
-
-	int size = 512;
+	int size = 256;
 
 	glCreateTextures(GL_TEXTURE_2D, 1, m_brdf_lut_to.get());
 	glTextureStorage2D(*m_brdf_lut_to, 1, GL_RG16F, size, size);
@@ -121,11 +117,12 @@ void Renderer::init_brdf()
 	glBindImageTexture(0, *m_brdf_lut_to, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RG16F);
 	glUseProgram(*m_brdf_shader);
 	glDispatchCompute(size/8, size/8, 1);
-	qry.end();
 	m_shader_set.deleteProgram(&m_brdf_shader);
-	fmt::print(stdout, "[renderer] BRDF LUT generation took {} ms.\n", qry.get());
+	glTextureParameteri(*m_brdf_lut_to, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTextureParameteri(*m_brdf_lut_to, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTextureParameteri(*m_brdf_lut_to, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTextureParameteri(*m_brdf_lut_to, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 }
-
 
 void Renderer::resize(uint32_t width, uint32_t height, bool force)
 {
@@ -253,12 +250,12 @@ void Renderer::set_uniforms(GLuint shader)
 	debug_draw_ctx.mvpMatrix = view_projection;
 
 	unif::m4(shader, "proj_view", view_projection);
+	unif::f1(shader, "znear", m_scene->main_camera.state.znear);
+	unif::v3(shader, "camera_forward", m_scene->main_camera.state.get_forward());
 	unif::v3(shader, "viewPos",   m_scene->main_camera.state.position);
 
+	unif::v4(shader, "directional_light.color_intensity",   m_scene->directional_light.color_intensity);
 	unif::v3(shader, "directional_light.direction", m_scene->directional_light.direction);
-	unif::v3(shader, "directional_light.ambient",   m_scene->directional_light.ambient);
-	unif::v3(shader, "directional_light.diffuse",   m_scene->directional_light.diffuse);
-	unif::v3(shader, "directional_light.specular",  m_scene->directional_light.specular);
 
 	unif::v4(shader, "directional_fog.inscattering_color",     m_scene->fog.inscattering_color);
 	unif::v4(shader, "directional_fog.dir_inscattering_color", m_scene->fog.dir_inscattering_color);
@@ -274,17 +271,20 @@ void Renderer::set_uniforms(GLuint shader)
 
 	for(unsigned i = 0; i < m_scene->point_lights.size() && i < MaxLights;++i) {
 		const auto& light = m_scene->point_lights[i];
-		unif::v4(shader, indexed_uniform("point_light", ".position", i), zcm::vec4{light.position, light.radius});
-		unif::v4(shader, indexed_uniform("point_light", ".color",    i), zcm::vec4{light.diffuse, light.luminous_intensity});
+		unif::v4(shader, indexed_uniform("point_light", ".position", i), zcm::vec4{light.data.position, light.data.radius});
+		unif::v4(shader, indexed_uniform("point_light", ".color",    i), zcm::vec4{light.data.color, light.data.intensity});
 	}
 
 	for(unsigned i = 0; i < m_scene->spot_lights.size() && i < MaxLights;++i) {
 		const auto& light = m_scene->spot_lights[i];
-		unif::v4(shader, indexed_uniform("spot_light", ".direction", i),   zcm::vec4{light.direction(), light.angle_scale()});
-		unif::v4(shader, indexed_uniform("spot_light", ".position",  i),   zcm::vec4{light.position, light.radius});
-		unif::v4(shader, indexed_uniform("spot_light", ".color",     i),   zcm::vec4{light.diffuse, light.luminous_intensity});
-		unif::f1(shader, indexed_uniform("spot_light", ".angle_offset",i), light.angle_offset());
+		unif::v4(shader, indexed_uniform("spot_light", ".direction", i),   zcm::vec4{light.data.direction, light.data.angle_scale});
+		unif::v4(shader, indexed_uniform("spot_light", ".position",  i),   zcm::vec4{light.data.position, light.data.radius});
+		unif::v4(shader, indexed_uniform("spot_light", ".color",     i),   zcm::vec4{light.data.color, light.data.intensity});
+		unif::v4(shader, indexed_uniform("spot_light", ".angle_offset",i), zcm::vec4(light.angle_offset()));
 	}
+	m_scene->cubemap_diffuse_irradiance.bind_to_unit(34);
+	m_scene->cubemap_specular_environment.bind_to_unit(33);
+	glBindTextureUnit(35, *m_brdf_lut_to);
 }
 
 zcm::mat4 Renderer::set_shadow_uniforms()
@@ -315,12 +315,12 @@ static int process_point_lights(const std::vector<PointLight>& point_lights,
 		const auto& light = point_lights[i];
 		if(!(light.state & PointLight::Enabled))
 			continue;
-		if(frustum.sphere_culled(light.position, light.radius))
+		if(frustum.sphere_culled(light.position(), light.radius()))
 			continue;
 
 		// TODO: implement per-light AABB cutoff to prevent light leaking
-		if(bbox3::intersects_sphere(submesh_bbox, light.position, light.radius) != Intersection::Outside) {
-			auto dist = zcm::length(light.position - submesh_bbox.closest_point(light.position));
+		if(bbox3::intersects_sphere(submesh_bbox, light.position(), light.radius()) != Intersection::Outside) {
+			auto dist = zcm::length(light.position() - submesh_bbox.closest_point(light.position()));
 			if(light.distance_attenuation(dist) > 0.0f) {
 				unif::i1(shader, indexed_uniform("point_light_indices", "", point_light_count++), i);
 			}
@@ -341,15 +341,15 @@ static int process_spot_lights(const std::vector<SpotLight>& spot_lights,
 		if(!(light.state & SpotLight::Enabled))
 			continue;
 
-		if(frustum.sphere_culled(light.position, light.radius))
+		if(frustum.sphere_culled(light.position(), light.radius()))
 			continue;
 
 		if(bbox3::intersects_cone(submesh_bbox,
-		                          light.position,
+		                          light.position(),
 		                          -light.direction(),
 		                          light.angle_outer(),
-		                          light.radius) != Intersection::Outside) {
-			auto dist = zcm::length(light.position - submesh_bbox.closest_point(light.position));
+		                          light.radius()) != Intersection::Outside) {
+			auto dist = zcm::length(light.position() - submesh_bbox.closest_point(light.position()));
 			if(light.distance_attenuation(dist) > 0.0f) {
 				unif::i1(shader, indexed_uniform("spot_light_indices", "", spot_light_count++), i);
 			}
@@ -393,7 +393,7 @@ static void render_generic(const model::Mesh& submesh,
                            const Material& material,
                            uint32_t shader)
 {
-	if(material.double_sided) {
+	if(material.double_sided()) {
 		glDisable(GL_CULL_FACE);
 	} else {
 		glEnable(GL_CULL_FACE);
@@ -425,11 +425,11 @@ void Renderer::draw_shadow()
 	for(unsigned model_idx = 0; model_idx < m_scene->models.size(); ++model_idx) {
 		const Model& model = m_scene->models[model_idx];
 
-		unif::m4(*m_shadow_shader, "model", model.transform);
+		unif::m4(*m_shadow_shader, "model", model.transform.mat);
 
 		// TODO: culling
-		for(unsigned submesh_idx = 0; submesh_idx < model.submesh_count; ++submesh_idx) {
-			const model::Mesh& submesh = m_scene->submeshes[model.submeshes[submesh_idx]];
+		for(unsigned submesh_idx = 0; submesh_idx < model.mesh_count; ++submesh_idx) {
+			const model::Mesh& submesh = m_scene->submeshes[m_scene->shaded_meshes[model.shaded_meshes[submesh_idx]].mesh];
 			submit_draw_call(submesh);
 		}
 	}
@@ -482,23 +482,27 @@ void Renderer::draw()
 	for(unsigned model_idx = 0; model_idx < m_scene->models.size(); ++model_idx) {
 		const Model& model = m_scene->models[model_idx];
 
-		unif::m4(*m_shader, "model", model.transform);
-		unif::m3(*m_shader, "normal_matrix", zcm::mat3{zcm::transpose(model.inv_transform)});
+		for(unsigned model_mesh_idx = 0; model_mesh_idx < model.mesh_count; ++model_mesh_idx) {
+			const auto& shaded_mesh = m_scene->shaded_meshes[model.shaded_meshes[model_mesh_idx]];
+			auto submesh_global_idx = shaded_mesh.mesh;
+			const model::Mesh& submesh = m_scene->submeshes[submesh_global_idx];
+			const Material& material   = m_scene->materials[shaded_mesh.material];
 
-		for(unsigned submesh_idx = 0; submesh_idx < model.submesh_count; ++submesh_idx) {
-			const model::Mesh& submesh = m_scene->submeshes[model.submeshes[submesh_idx]];
-			const Material& material   = m_scene->materials[model.materials[submesh_idx]];
+			auto final_transform =  shaded_mesh.transform.mat * model.transform.mat;
 
-			if(material.alpha_mode == Texture::AlphaMode::Mask) {
-				m_masked_meshes.push_back(ModelMeshIdx{model_idx, submesh_idx});
+			unif::m4(*m_shader, "model", final_transform);
+			unif::m3(*m_shader, "normal_matrix", zcm::mat3{zcm::transpose(model.transform.inv_mat * shaded_mesh.transform.inv_mat)});
+
+			if(material.alpha_mode() == Texture::AlphaMode::Mask) {
+				m_masked_meshes.push_back(ModelMeshIdx{model_idx, model.shaded_meshes[model_mesh_idx]});
 				continue;
 			}
-			if(material.alpha_mode == Texture::AlphaMode::Blend) {
-				m_blended_meshes.push_back(ModelMeshIdx{model_idx, submesh_idx});
+			if(material.alpha_mode() == Texture::AlphaMode::Blend) {
+				m_blended_meshes.push_back(ModelMeshIdx{model_idx, model.shaded_meshes[model_mesh_idx]});
 				continue;
 			}
 
-			auto submesh_bbox = bbox3::transformed(submesh.bbox, model.transform);
+			auto submesh_bbox = bbox3::transformed(submesh.bbox, final_transform);
 			if(m_scene->main_camera.frustum.bbox_culled(submesh_bbox))
 				continue;
 
@@ -520,15 +524,19 @@ void Renderer::draw()
 
 	for(const auto& idx : m_masked_meshes) {
 		const Model& model = m_scene->models[idx.model_idx];
-		const model::Mesh& submesh = m_scene->submeshes[model.submeshes[idx.submesh_idx]];
-		const Material& material   = m_scene->materials[model.materials[idx.submesh_idx]];
+		const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
 
-		auto submesh_bbox = bbox3::transformed(submesh.bbox, model.transform);
+		const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
+		const Material& material   = m_scene->materials[shaded_mesh.material];
+
+		auto final_transform = shaded_mesh.transform.mat * model.transform.mat;
+
+		auto submesh_bbox = bbox3::transformed(submesh.bbox, final_transform);
 		if(m_scene->main_camera.frustum.bbox_culled(submesh_bbox))
 			continue;
 
-		unif::m4(*m_shader, "model", model.transform);
-		unif::m3(*m_shader, "normal_matrix", zcm::mat3{zcm::transpose(model.inv_transform)});
+		unif::m4(*m_shader, "model", final_transform);
+		unif::m3(*m_shader, "normal_matrix", zcm::mat3{zcm::transpose(model.transform.inv_mat * shaded_mesh.transform.inv_mat)});
 
 		process_point_lights(m_scene->point_lights, m_scene->main_camera.frustum, submesh_bbox, *m_shader);
 		process_spot_lights(m_scene->spot_lights, m_scene->main_camera.frustum, submesh_bbox, *m_shader);
@@ -547,24 +555,24 @@ void Renderer::draw()
 		if(!(light.state & PointLight::ShowWireframe))
 			continue;
 
-		if(m_scene->main_camera.frustum.sphere_culled(light.position, light.radius))
+		if(m_scene->main_camera.frustum.sphere_culled(light.position(), light.radius()))
 			continue;
 
-		dd::sphere(light.position, light.diffuse, 0.01f * light.radius, 0, false);
-		dd::sphere(light.position, light.diffuse, light.radius);
+		dd::sphere(light.position(), light.color(), 0.01f * light.radius(), 0, false);
+		dd::sphere(light.position(), light.color(), light.radius());
 	}
 
 	for(auto&& light : m_scene->spot_lights) {
 		if(!(light.state & SpotLight::ShowWireframe))
 			continue;
 
-		if(m_scene->main_camera.frustum.sphere_culled(light.position, light.radius))
+		if(m_scene->main_camera.frustum.sphere_culled(light.position(), light.radius()))
 			continue;
 
-		dd::cone(light.position,
-		         zcm::normalize(-light.direction()) * light.radius,
-		         light.diffuse,
-		         light.angle_outer() * light.radius, 0.0f);
+		dd::cone(light.position(),
+		         zcm::normalize(-light.direction()) * light.radius(),
+		         light.color(),
+		         light.angle_outer() * light.radius(), 0.0f);
 	}
 
 	const auto& frustum = m_scene->main_camera.frustum;
@@ -609,7 +617,7 @@ void Renderer::draw_gui()
 	ImGui::Begin("BRDF LUT");
 	const auto uv0 = ImVec2(0.0f, 1.0f);
 	const auto uv1 = ImVec2(1.0f, 0.0f);
-	ImGui::Image((ImTextureID)(uintptr_t)(*m_brdf_lut_to), ImVec2(512, 512), uv0, uv1);
+	ImGui::Image((ImTextureID)(uintptr_t)(*m_brdf_lut_to), ImVec2(256, 256), uv0, uv1);
 	ImGui::End();
 #endif
 
@@ -666,7 +674,9 @@ void Renderer::draw_skybox()
 	glDepthFunc(GL_GEQUAL);
 	auto view = make_view(m_scene->main_camera.state);
 	auto projection = make_projection(m_scene->main_camera.state);
-	m_scene->cubemap.draw(*m_cubemap_shader, view, projection);
+	m_scene->cubemap.draw(view, projection);
 	glDepthFunc(GL_GREATER);
 }
+
+
 

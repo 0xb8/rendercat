@@ -8,7 +8,7 @@
 
 namespace rc {
 
-class Scene;
+struct Scene;
 
 class Renderer
 {
@@ -17,7 +17,6 @@ class Renderer
 	Scene*  m_scene;
 
 	uint32_t* m_shader = nullptr;
-	uint32_t* m_cubemap_shader = nullptr;
 	uint32_t* m_hdr_shader = nullptr;
 	uint32_t* m_shadow_shader = nullptr;
 	uint32_t* m_brdf_shader = nullptr;
@@ -66,10 +65,10 @@ public:
 	int msaa_level = 0;
 	int MSAASampleCount = 1;
 	int MSAASampleCountMax = 4;
-	int desired_msaa_level = 0;
+	int desired_msaa_level = 2;
 	float desired_render_scale = 1.0f;
 	bool draw_mesh_bboxes = false;
-	bool do_shadow_mapping = true;
+	bool do_shadow_mapping = false;
 	bool window_shown = true;
 
 	static constexpr int MaxLights = 16;

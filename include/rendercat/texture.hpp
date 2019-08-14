@@ -18,7 +18,6 @@ namespace Texture {
 		None      = 0,
 		BaseColor = RC_SHADER_TEXTURE_KIND_BASE_COLOR,
 		Normal    = RC_SHADER_TEXTURE_KIND_NORMAL,
-		SpecularGlossiness  = RC_SHADER_TEXTURE_KIND_SPECULAR_GLOSSINESS,
 		RoughnessMetallic = RC_SHADER_TEXTURE_KIND_ROUGNESS_METALLIC,
 		Occlusion = RC_SHADER_TEXTURE_KIND_OCCLUSION,
 		OcclusionRoughnessMetallic = Occlusion | RoughnessMetallic,

@@ -22,10 +22,8 @@ namespace rc {
 
 struct DirectionalLight
 {
+	zcm::vec4 color_intensity;
 	zcm::vec3 direction;
-	zcm::vec3 ambient;
-	zcm::vec3 diffuse;
-	zcm::vec3 specular;
 };
 
 struct ExponentialDirectionalFog
@@ -53,29 +51,52 @@ struct ExponentialDirectionalFog
 	uint8_t state = State::Enabled;
 };
 
-struct Model
-{
-	std::string name;
-	std::unique_ptr<uint32_t[]> materials;
-	std::unique_ptr<uint32_t[]> submeshes;
-	uint32_t submesh_count;
+struct RigidTransform {
 
 	zcm::vec3 position;
 	zcm::vec3 scale = 1.0f;
 	zcm::quat rotation;
 
-	zcm::mat4 transform;
-	zcm::mat4 inv_transform;
+	zcm::mat4 mat;
+	zcm::mat4 inv_mat;
 
-	void update_transform()
+	void update()
 	{
 		rotation = zcm::normalize(rotation);
-		transform = zcm::translate(zcm::scale(zcm::mat4{1.0f}, scale), position);
-		transform *= zcm::mat4_cast(rotation);
 
-		inv_transform = zcm::inverse(transform);
+		// TODO: optimize
+		auto scale_mat = zcm::scale(zcm::mat4{1}, scale);
+		auto rotate_mat = zcm::mat4_cast(rotation);
+		auto translate_mat = zcm::translate(zcm::mat4{1}, position);
+		mat = translate_mat * rotate_mat * scale_mat;
+
+		// calculate separate inverse matrices (faster and more precice than inverse())
+		auto scale_mat_inv = zcm::scale(zcm::mat4{1}, 1.0f / scale);
+		auto rotate_mat_inv = zcm::mat4_cast(zcm::conjugate(rotation));
+		auto translate_mat_inv = zcm::translate(zcm::mat4{1}, -position);
+		// (AB)^-1 = B^-1 * A^-1
+		inv_mat = scale_mat_inv * rotate_mat_inv * translate_mat_inv;
 	}
+
 };
+
+
+struct ShadedMesh
+{
+	uint32_t mesh;
+	uint32_t material;
+	RigidTransform transform;
+};
+
+
+struct Model
+{
+	std::string name;
+	std::unique_ptr<uint32_t[]> shaded_meshes;
+	uint32_t mesh_count;
+	RigidTransform transform;
+};
+
 
 struct Scene
 {
@@ -83,11 +104,13 @@ struct Scene
 
 	static constexpr size_t missing_material_idx = 0u;
 
-	std::vector<rc::Material>    materials;
-	std::vector<model::Mesh> submeshes;
-	std::vector<Model>       models;
-	std::vector<PointLight>  point_lights;
-	std::vector<SpotLight>   spot_lights;
+	std::vector<rc::Material> materials;
+	std::vector<model::Mesh>  submeshes;
+	std::vector<ShadedMesh>   shaded_meshes;
+	std::vector<Model>        models;
+
+	std::vector<PointLight>   point_lights;
+	std::vector<SpotLight>    spot_lights;
 
 	bool  window_shown = true;
 
@@ -100,10 +123,8 @@ struct Scene
 
 	DirectionalLight directional_light
 	{
-		zcm::vec3(0.217f, 0.468f, 0.857f), // dir
-		zcm::vec3(0.029f, 0.034f, 0.081f), // amb
-		zcm::vec3(0.596f, 0.364f, 0.187f), // diff
-		zcm::vec3(0.554f, 0.332f, 0.106f)  // spec
+		zcm::vec4(1.00f, 0.94f, 0.8f, 1.0f), // intensity
+		zcm::vec3(-0.705f, 0.703f, 0.094f), // dir
 	};
 
 	ExponentialDirectionalFog fog
@@ -113,6 +134,8 @@ struct Scene
 	};
 
 	Cubemap cubemap;
+	Cubemap cubemap_diffuse_irradiance;
+	Cubemap cubemap_specular_environment;
 };
 
 }

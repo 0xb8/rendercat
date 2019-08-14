@@ -44,7 +44,10 @@ namespace model {
 	{
 		std::vector<Material>  materials;
 		std::vector<Mesh>      primitives;
-		std::vector<int>       primitive_material;
+		std::vector<uint32_t>  primitive_material;
+		std::vector<zcm::quat> rotation;
+		std::vector<zcm::vec3> scale;
+		std::vector<zcm::vec3> translate;
 	};
 
 	bool load_gltf_file(data& res,

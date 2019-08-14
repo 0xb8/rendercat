@@ -17,56 +17,60 @@ void Scene::init()
 		materials.emplace_back(Material::create_default_material());
 	}
 
-	cubemap.load_textures("assets/materials/cubemaps/field_day");
+	//cubemap.load_cube("assets/materials/cubemaps/field_day");
+	cubemap.load_equirectangular("assets/materials/cubemaps/pink_sunrise.hdr");
+	cubemap_diffuse_irradiance = cubemap.integrate_diffuse_irradiance();
+	cubemap_specular_environment = cubemap.convolve_specular();
 
-	main_camera.state.position = {0.0f, 1.5f, 0.4f};
+	main_camera.state.position = {0.2f, 1.4f, 0.5f};
+	main_camera.state.orientation = {0, 0, 1, 0};
 	directional_light.direction = zcm::normalize(directional_light.direction);
+
 	PointLight pl;
-	pl.position = {4.0f, 1.0f, 1.0f};
-	pl.diffuse = {1.0f, 0.2f, 0.1f};
-	pl.radius = 3.5f;
+	pl.set_position({4.0f, 1.0f, 1.0f});
+	pl.set_color({1.0f, 0.2f, 0.1f});
+	pl.set_radius(3.5f);
 	pl.set_flux(75.0f);
 
 	point_lights.push_back(pl);
 
-	pl.position = {4.0f, 1.0f, -1.5f};
+	pl.set_position({4.0f, 1.0f, -1.5f});
 	point_lights.push_back(pl);
 
-	pl.position = {-5.0f, 1.0f, -1.5f};
+	pl.set_position({-5.0f, 1.0f, -1.5f});
 	point_lights.push_back(pl);
 
-	pl.position = {-5.0f, 1.0f, 1.0f};
+	pl.set_position({-5.0f, 1.0f, 1.0f});
 	point_lights.push_back(pl);
 
-	pl.position ={1.0f, 1.0f, 1.0f};
+	pl.set_position({1.0f, 1.0f, 1.0f});
 	point_lights.push_back(pl);
 
-	pl.position = {1.0f, 1.5f, -1.0f};
-	pl.diffuse = {0.1, 0.2, 1.0};
+	pl.set_position({1.0f, 1.5f, -1.0f});
+	pl.set_color({0.1f, 0.2f, 1.0f});
 	point_lights.push_back(pl);
 
 	SpotLight sp;
-	sp.diffuse = {0.9f, 0.86f, 0.88f};
+	sp.set_color({0.9f, 0.86f, 0.88f});
 	sp.set_direction({0.0f, 1.0f, 0.0f});
-	sp.radius = 4.0f;
+	sp.set_radius(4.0f);
 	sp.set_flux(60.0f);
 
-	sp.position = {-10.0f, 3.3f, -3.8f};
+	sp.set_position({-10.0f, 3.3f, -3.8f});
 	spot_lights.push_back(sp);
 
-	sp.position = {-10.0f, 3.3f, 3.4f};
+	sp.set_position({-10.0f, 3.3f, 3.4f});
 	spot_lights.push_back(sp);
 
-	sp.position = {9.3f, 3.3f, -3.8f};
+	sp.set_position({9.3f, 3.3f, -3.8f});
 	spot_lights.push_back(sp);
 
-	sp.position = {9.3f, 3.3f, 3.4f};
+	sp.set_position({9.3f, 3.3f, 3.4f});
 	spot_lights.push_back(sp);
 
-	//load_model("sponza_scaled.obj", "sponza_crytek/");
-	//load_model("yorha_2b.obj",      "yorha_2b/");
-	load_model_gltf("2b.gltf", "yorha_2b_gltf/");
-	load_model_gltf("sponza.gltf", "sponzagltf/");
+	load_model_gltf("2b.gltf", "2b_v3/");
+	load_model_gltf("sponza.gltf", "sponza/");
+	//load_model_gltf("DamagedHelmet.gltf", "helmet/");
 
 	Texture::Cache::clear();
 }
@@ -76,29 +80,40 @@ Model* Scene::load_model_gltf(const std::string_view name, const std::string_vie
 {
 	model::data data;
 	if(model::load_gltf_file(data, name, basedir)) {
-		auto base_material = materials.size();
+		auto base_material_offset = materials.size();
 
 		for(size_t i = 0; i < data.materials.size(); ++i) {
 			materials.emplace_back(std::move(data.materials[i]));
 		}
 
-		Model model;
+		auto& model = models.emplace_back(Model{});
 		model.name = name.substr(0, name.find_last_of('.'));
-		model.submesh_count = data.primitives.size();
-		model.materials = std::unique_ptr<uint32_t[]>(new uint32_t[model.submesh_count]);
-		model.submeshes = std::unique_ptr<uint32_t[]>(new uint32_t[model.submesh_count]);
+		model.mesh_count = static_cast<uint32_t>(data.primitives.size());
+
+		model.shaded_meshes = std::unique_ptr<uint32_t[]>(new uint32_t[model.mesh_count]);
 
 		for(size_t i = 0; i < data.primitives.size(); ++i) {
-			if(data.primitive_material[i] >= 0 && (unsigned)data.primitive_material[i] < data.materials.size())	{
-				model.materials[i] =  data.primitive_material[i] + base_material;
+
+			model.shaded_meshes[i] = shaded_meshes.size();
+			auto& shaded_mesh = shaded_meshes.emplace_back(ShadedMesh{});
+			shaded_mesh.transform.position = data.translate[i];
+			shaded_mesh.transform.scale = data.scale[i];
+			shaded_mesh.transform.rotation = data.rotation[i];
+			shaded_mesh.transform.update();
+
+			if(data.primitive_material[i] < data.materials.size())	{
+				shaded_mesh.material = static_cast<uint32_t>(data.primitive_material[i] + base_material_offset);
+
 			} else {
-				model.materials[i] = missing_material_idx;
+				shaded_mesh.material = missing_material_idx;
 			}
+
+			shaded_mesh.mesh = submeshes.size();
 			submeshes.emplace_back(std::move(data.primitives[i]));
-			model.submeshes[i] = submeshes.size() - 1;
+
 		}
-		models.emplace_back(std::move(model));
-		return &models.back();
+
+		return &model;
 	}
 	return nullptr;
 }
@@ -120,23 +135,94 @@ static void show_flux_help()
 	show_help_tooltip("Luminous Power in Lumens");
 }
 
+static bool edit_transform(RigidTransform& transform)
+{
+	bool changed = false;
+	ImGui::PushID(&transform);
+	ImGui::TextUnformatted("Position");
+	ImGui::SameLine();
+	if (ImGui::Button("Reset##position")) {
+		transform.position = zcm::vec3{};
+		changed = true;
+	}
+
+	changed |= ImGui::DragFloat3("##position",
+	                  zcm::value_ptr(transform.position),
+	                  0.01f);
+
+	ImGui::Spacing();
+	ImGui::TextUnformatted("Rotation");
+	ImGui::SameLine();
+	if (ImGui::Button("Reset##resetrotation")) {
+		transform.rotation = zcm::quat{};
+		changed = true;
+	}
+	ImGui::SameLine();
+
+	const char* items[] = { "Euler", "Quaternion"};
+	static const char* item_current = items[0];           // Here our selection is a single pointer stored outside the object.
+	if (ImGui::BeginCombo("##rotationtype", item_current, ImGuiComboFlags_HeightSmall)) // The second parameter is the label previewed before opening the combo.
+	{
+		for (size_t n = 0; n < std::size(items); ++n)
+		{
+			bool is_selected = (item_current == items[n]);
+			if (ImGui::Selectable(items[n], is_selected))
+				item_current = items[n];
+			if (is_selected)
+				ImGui::SetItemDefaultFocus();   // Set the initial focus when opening the combo (scrolling + for keyboard navigation support in the upcoming navigation branch)
+		}
+		ImGui::EndCombo();
+	}
+
+	if (item_current == items[0]) {
+
+		zcm::vec3 euler = zcm::eulerAngles(transform.rotation);
+		auto ch = ImGui::SliderFloat3("##eulerangles",
+		                               zcm::value_ptr(euler),
+		                               -zcm::pi(), zcm::pi());
+		if (ch) {
+			transform.rotation = zcm::quat{euler};
+			changed = true;
+		}
+	}
+
+	if (item_current == items[1]) {
+		changed |= ImGui::SliderFloat4("##rotation",
+		                    zcm::value_ptr(transform.rotation),
+		                    -1.0f, 1.0f, "%.3f");
+	}
+
+	ImGui::Spacing();
+	ImGui::TextUnformatted("Scale");
+	ImGui::SameLine();
+	if (ImGui::Button("Reset##resetscale")) {
+		transform.scale = zcm::vec3{1};
+		changed = true;
+	}
+	changed |= ImGui::DragFloat3("##scale", zcm::value_ptr(transform.scale), 0.01f);
+
+	ImGui::PopID();
+
+	if (changed) transform.update();
+	return changed;
+}
+
 template<typename T>
-static bool edit_light(T& pl) noexcept
+static bool edit_light(T& light) noexcept
 {
 	constexpr bool is_spot = std::is_same_v<T, SpotLight>;
-	auto pos = pl.position;
-	auto diff = pl.diffuse;
-	float radius = pl.radius;
-	float color_temp = pl.color_temperature;
+	auto pos = light.position();
+	auto diff = light.color();
+	float radius = light.radius();
 
 	zcm::vec3 dir;
 	float power;
 	float angle_o;
 	float angle_i;
 
-	bool light_enabled = pl.state & T::Enabled;
-	bool light_follow  = pl.state & T::FollowCamera;
-	bool light_wireframe = pl.state & T::ShowWireframe;
+	bool light_enabled = light.state & T::Enabled;
+	bool light_follow  = light.state & T::FollowCamera;
+	bool light_wireframe = light.state & T::ShowWireframe;
 	ImGui::Checkbox("Enabled", &light_enabled);
 	ImGui::SameLine();
 	ImGui::Checkbox("Wireframe", &light_wireframe);
@@ -150,7 +236,7 @@ static bool edit_light(T& pl) noexcept
 	ImGui::PushItemWidth(-1.0f);
 
 	if constexpr(is_spot) {
-		auto spot = static_cast<SpotLight&>(pl);
+		auto spot = static_cast<SpotLight&>(light);
 		power = spot.flux();
 		dir = spot.direction();
 		angle_o = spot.angle_outer();
@@ -158,7 +244,7 @@ static bool edit_light(T& pl) noexcept
 		ImGui::TextUnformatted("Direction");
 		ImGui::DragFloat3("##lightdirection", zcm::value_ptr(dir), 0.01f);
 	} else {
-		power = pl.flux();
+		power = light.flux();
 	}
 
 	ImGui::TextUnformatted("Position");
@@ -172,8 +258,8 @@ static bool edit_light(T& pl) noexcept
 	                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 
 	ImGui::TextUnformatted("Diffuse color temperature");
-	if(ImGui::SliderFloat("##diffusetemp", &color_temp, 273.0f, 10000.0f, "%.0f K")) {
-		diff = rc::util::temperature_to_linear_color(color_temp);
+	if(ImGui::SliderFloat("##diffusetemp", &light.data.color_temp, 273.0f, 10000.0f, "%.0f K")) {
+		diff = rc::util::temperature_to_linear_color(light.data.color_temp);
 	}
 
 	ImGui::PopItemWidth();
@@ -189,24 +275,22 @@ static bool edit_light(T& pl) noexcept
 		ImGui::SliderAngle("Angle Inner",  &angle_i, 0.0f, 89.0f); // TODO: add slider for softness
 	}
 
-	pl.radius = radius;
-	pl.position = pos;
-	pl.diffuse = diff;
-	pl.color_temperature = color_temp;
+	light.set_radius(radius);
+	light.set_position(pos);
+	light.set_color(diff);
 
-	pl.state = T::NoState;
-	pl.state |= light_follow    ? T::FollowCamera : 0;
-	pl.state |= light_enabled   ? T::Enabled : 0;
-	pl.state |= light_wireframe ? T::ShowWireframe : 0;
+	light.state = T::NoState;
+	light.state |= light_follow    ? T::FollowCamera : 0;
+	light.state |= light_enabled   ? T::Enabled : 0;
+	light.state |= light_wireframe ? T::ShowWireframe : 0;
 
 	if constexpr(is_spot) {
-		pl.set_direction(dir);
-		pl.set_angle_outer(angle_o);
-                pl.set_angle_inner(angle_i);
-                pl.set_flux(power);
-
+		light.set_direction(dir);
+		light.set_angle_outer(angle_o);
+                light.set_angle_inner(angle_i);
+                light.set_flux(power);
 	} else {
-		pl.set_flux(power);
+		light.set_flux(power);
 	}
 
 	bool ret = true;
@@ -226,19 +310,19 @@ static void show_material_ui(rc::Material& material)
 	ImGui::SameLine();
 	ImGui::PushStyleColor(ImGuiCol_Text, col);
 
-	if(material.alpha_mode == Texture::AlphaMode::Opaque) {
+	if(material.alpha_mode() == Texture::AlphaMode::Opaque) {
 		ImGui::TextUnformatted("Opaque "); ImGui::SameLine();
 	}
-	if(material.alpha_mode == Texture::AlphaMode::Mask) {
+	if(material.alpha_mode() == Texture::AlphaMode::Mask) {
 		ImGui::TextUnformatted("Alpha Mask "); ImGui::SameLine();
 	}
-	if(material.alpha_mode == Texture::AlphaMode::Blend) {
+	if(material.alpha_mode() == Texture::AlphaMode::Blend) {
 		ImGui::TextUnformatted("Blend "); ImGui::SameLine();
 	}
 	ImGui::PopStyleColor();
 	ImGui::NewLine();
 	ImGui::PushStyleColor(ImGuiCol_Text, col);
-	if(material.double_sided) {
+	if(material.double_sided()) {
 		ImGui::TextUnformatted("Double-Sided (backface culling off)");
 	} else {
 		ImGui::TextUnformatted("Single-Sided (backface culling on)");
@@ -279,8 +363,11 @@ static void show_material_ui(rc::Material& material)
 		const auto uv0 = ImVec2(0.0f, 1.0f);
 		const auto uv1 = ImVec2(1.0f, 0.0f);
 		const auto width = ImGui::GetContentRegionAvail().x - 5.0f;
-		const auto height = width * ((float)storage.height() / (float)storage.width());
-		ImGui::Image((ImTextureID)(uintptr_t)storage.texture_handle(), ImVec2(width, height), uv0, uv1);
+		const auto storage_width = static_cast<float>(storage.width());
+		const auto storage_height = static_cast<float>(storage.height());
+		const auto height = width * (storage_height / storage_width);
+		const auto handle = static_cast<uintptr_t>(storage.texture_handle());
+		ImGui::Image(reinterpret_cast<ImTextureID>(handle), ImVec2(width, height), uv0, uv1);
 	};
 
 	auto display_map = [&material,&display_map_info](const auto& map, auto kind)
@@ -293,31 +380,53 @@ static void show_material_ui(rc::Material& material)
 		ImGui::PopID();
 	};
 
-	display_map(material.base_color_map,  Texture::Kind::BaseColor);
-	display_map(material.normal_map,   Texture::Kind::Normal);
-	display_map(material.specular_map, Texture::Kind::SpecularGlossiness);
-	display_map(material.occlusion_roughness_metallic_map, Texture::Kind::RoughnessMetallic);
-	display_map(material.occlusion_roughness_metallic_map, Texture::Kind::OcclusionRoughnessMetallic);
-	display_map(material.occlusion_map, Texture::Kind::OcclusionSeparate);
-	display_map(material.emission_map, Texture::Kind::Emission);
+	display_map(material.textures.base_color_map,  Texture::Kind::BaseColor);
+	display_map(material.textures.normal_map,   Texture::Kind::Normal);
+	display_map(material.textures.occlusion_roughness_metallic_map, Texture::Kind::RoughnessMetallic);
+	display_map(material.textures.occlusion_roughness_metallic_map, Texture::Kind::OcclusionRoughnessMetallic);
+	display_map(material.textures.occlusion_map, Texture::Kind::OcclusionSeparate);
+	display_map(material.textures.emission_map, Texture::Kind::Emission);
 	ImGui::Spacing();
 
-	ImGui::TextUnformatted("Diffuse color");
-	ImGui::ColorEdit4("##matdiffcolor", zcm::value_ptr(material.base_color_factor),
-		ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
+	if (material.data) {
 
-	ImGui::TextUnformatted("Emissive color");
-	ImGui::ColorEdit3("##matemissivecolor", zcm::value_ptr(material.emissive_factor),
-		ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
+		if (ImGui::Button("Unmap")) {
+			ImGui::OpenPopup("RemovePopup");
+		}
 
-	if (material.has_texture_kind(Texture::Kind::Normal)) {
-		ImGui::SliderFloat("Normal Scale", &(material.normal_scale), -10.0f, 10.0f);
+		ImGui::TextUnformatted("Diffuse color");
+		bool changed = false;
+		changed |= ImGui::ColorEdit4("##matdiffcolor", zcm::value_ptr(material.data->base_color_factor),
+			ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
+
+		ImGui::TextUnformatted("Emissive color");
+		changed |= ImGui::ColorEdit3("##matemissivecolor", zcm::value_ptr(material.data->emissive_factor),
+			ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
+
+		if (material.has_texture_kind(Texture::Kind::Normal)) {
+			changed |= ImGui::SliderFloat("Normal Scale", &(material.data->normal_scale), -10.0f, 10.0f);
+		}
+		changed |= ImGui::SliderFloat("Roughness", &(material.data->roughness_factor), 0.0f, 1.0f);
+		changed |= ImGui::SliderFloat("Metallic",  &(material.data->metallic_factor),  0.0f, 1.0f);
+		if (material.has_texture_kind(Texture::Kind::Occlusion)) {
+			changed |= ImGui::SliderFloat("Occlusion Strength", &(material.data->occlusion_strength), 0.0f, 1.0f);
+		}
+		if (changed)
+			material.flush();
+	} else {
+		if (ImGui::Button("Map")) {
+			material.map();
+		}
 	}
-	ImGui::SliderFloat("Roughness", &(material.roughness_factor), 0.0f, 1.0f);
-	ImGui::SliderFloat("Metallic",  &(material.metallic_factor),  0.0f, 1.0f);
-	if (material.has_texture_kind(Texture::Kind::Occlusion)) {
-		ImGui::SliderFloat("Occlusion Strength", &(material.occlusion_strength), 0.0f, 1.0f);
+
+	if (ImGui::BeginPopup("RemovePopup")) {
+		if(ImGui::Button("Confirm")) {
+			material.unmap();
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
 	}
+
 }
 
 static void show_mesh_ui(rc::model::Mesh& submesh, rc::Material& material)
@@ -355,13 +464,13 @@ void Scene::update()
 {
 	for(auto& pl : point_lights) {
 		if(pl.state & PointLight::FollowCamera) {
-			pl.position = main_camera.state.position;
+			pl.set_position(main_camera.state.position);
 		}
 	}
 	for(auto& sl : spot_lights) {
 		if(sl.state & PointLight::FollowCamera) {
 			sl.set_direction(-main_camera.state.get_forward());
-			sl.position = main_camera.state.position;
+			sl.set_position(main_camera.state.position);
 		}
 	}
 
@@ -473,7 +582,7 @@ void Scene::update()
 			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 
 			if(ImGui::Button("Use Sun Diffuse")) {
-				fog.dir_inscattering_color = zcm::vec4(directional_light.diffuse, fog.dir_inscattering_color.w);
+				fog.dir_inscattering_color = zcm::vec4(directional_light.color_intensity.rgb, fog.dir_inscattering_color.w);
 			}
 			ImGui::Spacing();
 			ImGui::Spacing();
@@ -500,15 +609,21 @@ void Scene::update()
 			directional_light.direction = zcm::normalize(directional_light.direction);
 			ImGui::Spacing();
 			ImGui::Spacing();
-			ImGui::TextUnformatted("Ambient");
-			ImGui::ColorEdit3("##ambientcolor",   zcm::value_ptr(directional_light.ambient),
-			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
-			ImGui::TextUnformatted("Diffuse");
-			ImGui::ColorEdit3("##diffusecolor",   zcm::value_ptr(directional_light.diffuse),
-			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
-			ImGui::TextUnformatted("Specular");
-			ImGui::ColorEdit3("##specularcolor",  zcm::value_ptr(directional_light.specular),
-			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
+			ImGui::TextUnformatted("Color");
+
+			zcm::vec3 color = directional_light.color_intensity.rgb;
+			float intensity = directional_light.color_intensity.a;
+
+			if (ImGui::ColorEdit3("##directional_color",   zcm::value_ptr(color),
+			                      ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel))
+			{
+				directional_light.color_intensity = zcm::vec4{color, intensity};
+			}
+
+			if (ImGui::SliderFloat("Intensity", &intensity, 0.0f, 1e3f))
+			{
+				directional_light.color_intensity = zcm::vec4{color, intensity};
+			}
 
 			ImGui::PopItemWidth();
 			ImGui::TreePop();
@@ -518,7 +633,7 @@ void Scene::update()
 			if(ImGui::Button("Add light")) {
 				SpotLight sp;
 				sp.set_direction(-main_camera.state.get_forward());
-				sp.position = main_camera.state.position;
+				sp.set_position(main_camera.state.position);
 				spot_lights.push_back(sp);
 			}
 			for(unsigned i = 0; i < spot_lights.size(); ++i) {
@@ -537,7 +652,7 @@ void Scene::update()
 		if(ImGui::TreeNode("Point Lights")) {
 			if(ImGui::Button("Add light")) {
 				PointLight pl;
-				pl.position = main_camera.state.position;
+				pl.set_position(main_camera.state.position);
 				point_lights.push_back(pl);
 			}
 			for(unsigned i = 0; i < point_lights.size(); ++i) {
@@ -574,21 +689,22 @@ void Scene::update()
 			ImGui::PushID(i);
 			if(ImGui::TreeNode("Model", "%s", model.name.data())) {
 				ImGui::PushItemWidth(-1.0f);
-				ImGui::TextUnformatted("Scale (XYZ)");
-				ImGui::DragFloat3("##modelscal", zcm::value_ptr(model.scale), 0.01f);
-				ImGui::TextUnformatted("Position (XYZ)");
-				ImGui::DragFloat3("##modelpos", zcm::value_ptr(model.position), 0.01f);
-				ImGui::TextUnformatted("Rotation Quat");
-				ImGui::SliderFloat4("##modelrot", zcm::value_ptr(model.rotation), -1.0f, 1.0f, "%.3f");
-				model.update_transform();
 
-				if(ImGui::TreeNodeEx("##submeshes", ImGuiTreeNodeFlags_CollapsingHeader, "Submeshes: %u", model.submesh_count)) {
-					for(unsigned j = 0; j < model.submesh_count; ++j) {
-						auto& submesh = submeshes[model.submeshes[j]];
+				edit_transform(model.transform);
+
+				if(ImGui::TreeNodeEx("##submeshes", ImGuiTreeNodeFlags_CollapsingHeader, "Submeshes: %u", model.mesh_count)) {
+					for(unsigned j = 0; j < model.mesh_count; ++j) {
+						auto& shaded_mesh = shaded_meshes[model.shaded_meshes[j]];
+
+						auto submesh_idx = shaded_mesh.mesh;
+						auto material_idx = shaded_mesh.material;
+
+						auto& submesh = submeshes[submesh_idx];
 
 						ImGui::PushID(submesh.name.begin().operator->(), submesh.name.end().operator->());
 						if (ImGui::TreeNode("##submesh", "%s", submesh.name.data())) {
-							show_mesh_ui(submesh, materials[model.materials[j]]);
+							edit_transform(shaded_mesh.transform);
+							show_mesh_ui(submesh, materials[material_idx]);
 							ImGui::TreePop();
 						}
 						ImGui::PopID();
@@ -603,4 +719,5 @@ void Scene::update()
 	}
 	ImGui::End();
 }
+
 

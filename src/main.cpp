@@ -25,13 +25,18 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 
+#define DOCTEST_CONFIG_IMPLEMENT
+#define DOCTEST_CONFIG_WINDOWS_SEH
+#define DOCTEST_CONFIG_COLORS_NONE
+#include <doctest/doctest.h>
+
 using namespace gl45core;
 
 namespace consts {
 	static const char* window_title = "rendercat";
-	static bool        window_maximized = true;
+	static bool        window_maximized = false;
 	static bool        window_fullscreen = false;
-	static int         window_monitor_id = 1;
+	static int         window_monitor_id = 0;
 }
 
 namespace globals {
@@ -316,13 +321,25 @@ static void process_screenshot()
 	}
 }
 
-//------------------------------------------------------------------------------
-int main() try
+void run_tests(int argc, char *argv[])
 {
+#ifndef DOCTEST_CONFIG_DISABLE
+	doctest::Context context;
+	context.applyCommandLine(argc, argv);
+	int res = context.run();
+	if (context.shouldExit())
+		std::exit(res);
+#endif
+}
+
+//------------------------------------------------------------------------------
+int main(int argc, char *argv[]) try
+{
+	run_tests(argc, argv);
 	std::ios_base::sync_with_stdio(false);
 	glfwInit();
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
 #ifndef NDEBUG
@@ -337,12 +354,12 @@ int main() try
 	                               nullptr,
 	                               nullptr);
 
+	if (window == nullptr) {
+		throw std::runtime_error("Failed to create GLFW window. Perhaps requested OpenGL version is not supported?");
+	}
+
 	if (glfwRawMouseMotionSupported())
 		glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
-
-	if (window == nullptr) {
-		throw std::runtime_error("Failed to create GLFW window.");
-	}
 
 	glfwMakeContextCurrent(window);
 

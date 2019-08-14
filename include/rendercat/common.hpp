@@ -37,12 +37,37 @@
 namespace rc {
 namespace math {
 	template<typename T>
-	inline T percent(T value, T max, T min = T{})
+	constexpr T percent(T value, T max, T min = T{})
 	{
-		//static_assert(std::is_fundamental_v<T>, "T must be fundamental type");
 		if(value == T{} || max == T{} || max == min) return T{};
 		return static_cast<double>(value-min) * 100.0 / max - min;
 	}
+
+	template<typename T>
+	constexpr bool is_power_of_two(T value)
+	{
+		return value != 0 && (value & (value - 1)) == 0;
+	}
+
+	constexpr unsigned prev_power_of_two(unsigned x) {
+		x = x | (x >> 1);
+		x = x | (x >> 2);
+		x = x | (x >> 4);
+		x = x | (x >> 8);
+		x = x | (x >> 16);
+		return x - (x >> 1);
+	}
+
+	template<typename T>
+	constexpr T num_mipmap_levels(T width, T height)
+	{
+		T levels = 1;
+		while((width|height) >> levels) {
+			++levels;
+		}
+		return levels;
+	}
+
 } // namespace math
 
 namespace path {
