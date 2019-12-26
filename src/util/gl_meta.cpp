@@ -1,4 +1,5 @@
 #include <atomic>
+#include <cassert>
 #include <glbinding-aux/ContextInfo.h>
 #include <glbinding-aux/Meta.h>
 #include <rendercat/util/gl_meta.hpp>

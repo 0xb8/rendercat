@@ -5,6 +5,7 @@
 #include <stb_image.h>
 #include <string>
 #include <utility>
+#include <cassert>
 #include <fmt/core.h>
 
 #include <zcm/mat4.hpp>

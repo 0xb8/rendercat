@@ -493,7 +493,7 @@ void model::Mesh::upload_data(attr_description_t index, std::vector<attr_descrip
 	glCreateVertexArrays(1, vao.get());
 	if (!index.data.empty()) {
 		glCreateBuffers(1, ebo.get());
-		glNamedBufferStorage(*ebo, index.data.size(), index.data.data(), GL_NONE_BIT);
+		glNamedBufferStorage(*ebo, index.data.size(), index.data.data(), gl::GL_NONE_BIT);
 		index_type = index.comp_type;
 		numverts = index.elem_count;
 
@@ -528,7 +528,7 @@ void model::Mesh::upload_data(attr_description_t index, std::vector<attr_descrip
 	}
 
 	glCreateBuffers(1, vbo.get());
-	glNamedBufferStorage(*vbo, storage.size(), storage.data(), GL_NONE_BIT);
+	glNamedBufferStorage(*vbo, storage.size(), storage.data(), gl::GL_NONE_BIT);
 
 	int binding_index = 0;
 	for (auto& attr : attrs) {

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.16)
 project(rendercat VERSION 0.1)
 cmake_policy(SET CMP0077 NEW)
 
@@ -43,7 +43,10 @@ if (MINGW AND CMAKE_CXX_COMPILER_ID MATCHES Clang)
 endif()
 
 find_package(OpenGL REQUIRED)
-find_package(glbinding REQUIRED)
+option(USE_SYSTEM_GLBINDING "Use installed glbinding instead of subproject" ON)
+if (USE_SYSTEM_GLBINDING)
+	find_package(glbinding REQUIRED)
+endif()
 
 add_subdirectory(third_party)
 
@@ -96,6 +99,9 @@ target_link_libraries(${PROJECT_NAME}
 		fx-gltf::fx-gltf
 		doctest::doctest
 )
+
+target_precompile_headers(rendercat PRIVATE $<BUILD_INTERFACE:rendercat_pch.h>)
+target_sources(${PROJECT_NAME} PRIVATE $<BUILD_INTERFACE:include/rendercat_pch.h>)
 
 if(BUILD_TESTING)
 	enable_testing()

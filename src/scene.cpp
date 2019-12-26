@@ -17,12 +17,11 @@ void Scene::init()
 		materials.emplace_back(Material::create_default_material());
 	}
 
-	//cubemap.load_cube("assets/materials/cubemaps/field_day");
 	cubemap.load_equirectangular("assets/materials/cubemaps/pink_sunrise.hdr");
 	cubemap_diffuse_irradiance = cubemap.integrate_diffuse_irradiance();
 	cubemap_specular_environment = cubemap.convolve_specular();
 
-	main_camera.state.position = {0.2f, 1.4f, 0.5f};
+	main_camera.state.position = {0.2f, 1.4f, -1};
 	main_camera.state.orientation = {0, 0, 1, 0};
 	directional_light.direction = zcm::normalize(directional_light.direction);
 
@@ -68,9 +67,8 @@ void Scene::init()
 	sp.set_position({9.3f, 3.3f, 3.4f});
 	spot_lights.push_back(sp);
 
-	load_model_gltf("2b.gltf", "2b_v3/");
+	load_model_gltf("2b.gltf", "2b_v4/");
 	load_model_gltf("sponza.gltf", "sponza/");
-	//load_model_gltf("DamagedHelmet.gltf", "helmet/");
 
 	Texture::Cache::clear();
 }

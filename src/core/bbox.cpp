@@ -116,7 +116,7 @@ zcm::vec2 bbox2::center() const noexcept
 		zcm::vec2 d = diagonal();
 		return mMin + (d * float(0.5));
 	} else {
-		return zcm::vec2(0.0);
+		return zcm::vec2(0.0f);
 	}
 }
 
@@ -126,7 +126,7 @@ zcm::vec3 bbox3::center() const noexcept
 		zcm::vec3 d = diagonal();
 		return mMin + (d * float(0.5));
 	} else {
-		return zcm::vec3(0.0);
+		return zcm::vec3(0.0f);
 	}
 }
 
@@ -454,11 +454,11 @@ TEST_CASE("BBox construction") {
 	}
 
 	SUBCASE("Default constructed bbox's center and diagnonal are zero-vectors") {
-		REQUIRE(bbox2.center() == zcm::vec2(0.0));
-		REQUIRE(bbox3.center() == zcm::vec3(0.0));
+		REQUIRE(bbox2.center() == zcm::vec2(0.0f));
+		REQUIRE(bbox3.center() == zcm::vec3(0.0f));
 
-		REQUIRE(bbox2.diagonal() == zcm::vec2(0.0));
-		REQUIRE(bbox3.diagonal() == zcm::vec3(0.0));
+		REQUIRE(bbox2.diagonal() == zcm::vec2(0.0f));
+		REQUIRE(bbox3.diagonal() == zcm::vec3(0.0f));
 	}
 
 	SUBCASE("Default constructed bbox does not intersect with anything, even itself") {
@@ -519,8 +519,8 @@ TEST_CASE("BBox include") {
 		}
 
 		SUBCASE("Bbox with a single point has zero diagonal") {
-			REQUIRE(bbox2.diagonal() == zcm::vec2(0.0));
-			REQUIRE(bbox3.diagonal() == zcm::vec3(0.0));
+			REQUIRE(bbox2.diagonal() == zcm::vec2(0.0f));
+			REQUIRE(bbox3.diagonal() == zcm::vec3(0.0f));
 		}
 
 		SUBCASE("Bbox with a single point has center in that point") {

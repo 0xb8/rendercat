@@ -5,6 +5,7 @@
 #include <fmt/core.h>
 #include <stb_image.h>
 #include <zcm/vec2.hpp>
+#include <cassert>
 
 #include <glbinding/gl45core/boolean.h>
 #include <glbinding/gl45core/bitfield.h>
