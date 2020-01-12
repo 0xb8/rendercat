@@ -8,8 +8,8 @@ layout(binding=3) uniform sampler2D material_roughness_metallic;
 layout(binding=4) uniform sampler2D material_occlusion;
 layout(binding=5) uniform sampler2D material_emission;
 layout(binding=32) uniform sampler2DShadow shadow_map;
-layout(binding=33) uniform samplerCube uReflection;
-layout(binding=34) uniform samplerCube uIrradiance;
+layout(binding=33) uniform samplerCubeArray uReflection;
+layout(binding=34) uniform samplerCubeArray uIrradiance;
 layout(binding=35) uniform sampler2D uBRDFLut;
 
 
@@ -200,8 +200,18 @@ float calcDirectionalShadow(vec4 fragPosLightSpace, float NdotL)
 	float currentDepth = (projCoords.z);
 	// bias accounting the angle to surface
 	float bias = max(0.005 * (1.0 - NdotL), 0.001);
-	// get shadow value
-	float shadow = texture(shadow_map, vec3(shadowTexCoords, currentDepth - bias)).r;
+	float shadow = 0.0;
+	vec2 texelSize = 1.0 / textureSize(shadow_map, 0);
+
+	for(int x = -1; x <= 1; ++x)
+	{
+	    for(int y = -1; y <= 1; ++y)
+	    {
+	        shadow += texture(shadow_map, vec3(shadowTexCoords + vec2(x, y) * texelSize , currentDepth - bias)).r;
+	    }
+	}
+	shadow /= 9.0;
+
 
 	if(projCoords.z > 1.0)
 		shadow = 0.0;
@@ -417,10 +427,10 @@ vec3 calcIBL(PixelParams pixel)
 	float diffuse_AO = pixel.ao;
 	float specular_AO = computeSpecularAO(pixel.NoV, diffuse_AO, pixel.roughness);
 
-	vec3 diffuse_irradiance = texture(uIrradiance, pixel.n).rgb;
+	vec3 diffuse_irradiance = texture(uIrradiance, vec4(pixel.n, 0)).rgb;
 	vec3 Fd = pixel.diffuseColor * diffuse_irradiance * diffuse_AO;
 
-	vec3 specular_radiance = textureLod(uReflection, r,
+	vec3 specular_radiance = textureLod(uReflection, vec4(r, 0),
 	                                    pixel.perceptualRoughness * textureQueryLevels(uReflection)).rgb;
 	vec3 specularColor = mix(pixel.dfg.xxx, pixel.dfg.yyy, pixel.f0);
 	vec3 Fr = specularColor * specular_radiance;
@@ -431,7 +441,7 @@ vec3 calcIBL(PixelParams pixel)
 	float horizon = min(1.0 + dot(r, pixel.n), 1.0);
 	Fr *= horizon * horizon;
 
-	return Fr + Fd;
+	return applyOcclusion(pixel, Fr + Fd);
 }
 
 void main()
@@ -461,7 +471,6 @@ void main()
 	pixel.energyCompensation = 1.0 + pixel.f0 * (1.0 / pixel.dfg.y - 1.0);
 
 	vec3 lighting = calcIBL(pixel) + calcPBRDirect(pixel) + calcPBRPoint(pixel) + calcPBRSpot(pixel);
-	lighting = applyOcclusion(pixel, lighting);
 	lighting += getMaterialEmission();
 
 	if(directional_fog.enabled) {

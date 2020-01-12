@@ -21,7 +21,7 @@ public:
 	Cubemap integrate_diffuse_irradiance();
 	Cubemap convolve_specular();
 
-	void draw(const zcm::mat4& view, const zcm::mat4& projection) noexcept;
+	void draw(const zcm::mat4& view, const zcm::mat4& projection, int mip_level = 0) noexcept;
 	void bind_to_unit(uint32_t unit);
 
 private:

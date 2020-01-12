@@ -117,6 +117,10 @@ struct Scene
 	void init();
 	void update();
 
+	void load_skybox_equirectangular(std::string_view path);
+	void load_skybox_cubemap(std::string_view path);
+	void skyboxes_list();
+
 	Model* load_model_gltf(const std::string_view name, const std::string_view basedir);
 
 	rc::Camera main_camera;
@@ -133,6 +137,7 @@ struct Scene
 		zcm::vec4(0.109f, 0.071f, 0.042f, 1.0f)  // dir ins
 	};
 
+	std::string current_cubemap;
 	Cubemap cubemap;
 	Cubemap cubemap_diffuse_irradiance;
 	Cubemap cubemap_specular_environment;

@@ -335,25 +335,56 @@ static std::vector<std::pair<model::Mesh, int>> load_gltf_mesh(const fx::gltf::M
 	return res;
 }
 
+struct node_transform {
+
+	zcm::vec3 translate;
+	zcm::vec3 scale{1.0f};
+	zcm::quat rotate;
+
+	node_transform() = default;
+	explicit node_transform(const fx::gltf::Node& node) {
+		scale.x = node.scale[0];
+		scale.y = node.scale[1];
+		scale.z = node.scale[2];
+
+		translate.x = node.translation[0];
+		translate.y = node.translation[1];
+		translate.z = node.translation[2];
+
+		rotate.x = node.rotation[0];
+		rotate.y = node.rotation[1];
+		rotate.z = node.rotation[2];
+		rotate.w = node.rotation[3];
+	}
+
+	node_transform operator*(const node_transform& other) const {
+		node_transform res;
+		res.translate = translate + other.translate;
+		res.scale = scale * other.scale;
+		res.rotate = rotate * other.rotate;
+		return res;
+	}
+
+};
+
+
 static void load_gltf_mesh_with_material(model::data& res,
                                          std::map<int, int>& materials_cache,
                                          std::string_view material_path,
                                          const fx::gltf::Document& doc,
-                                         zcm::vec3 scale, zcm::vec3 translate, zcm::quat rotate,
+                                         const node_transform& transform,
                                          size_t mesh_id) {
 
 
 	const auto& mesh = doc.meshes[mesh_id];
 	auto meshes_materials = load_gltf_mesh(mesh, doc);
 
-
-
 	for (auto&& mm : meshes_materials) {
 
 		res.primitives.push_back(std::move(mm.first));
-		res.scale.push_back(scale);
-		res.translate.push_back(translate);
-		res.rotation.push_back(rotate);
+		res.scale.push_back(transform.scale);
+		res.translate.push_back(transform.translate);
+		res.rotation.push_back(transform.rotate);
 
 		auto matcache_pos = materials_cache.find(mm.second);
 
@@ -364,6 +395,37 @@ static void load_gltf_mesh_with_material(model::data& res,
 			materials_cache.insert(std::make_pair(mm.second, (int)res.materials.size()));
 			res.materials.push_back(load_gltf_material(doc, mm.second, material_path));
 		}
+	}
+}
+
+
+
+static void load_node_recursive(model::data& res,
+                                const fx::gltf::Document& doc,
+                                std::map<int, int>& materials_cache,
+                                std::string_view material_path,
+                                const node_transform& parent_transform,
+                                size_t node_idx)
+{
+	const auto& node = doc.nodes.at(node_idx);
+	auto transform = parent_transform * node_transform{node};
+
+	for (auto ch : node.children)
+		load_node_recursive(res, doc, materials_cache, material_path, transform, ch);
+
+	if (node.mesh >= 0) {
+
+		zcm::vec3 node_scale{zcm::no_init_t{}}, node_translate{zcm::no_init_t{}};
+		zcm::quat node_rotate{zcm::no_init_t{}};
+
+
+
+		load_gltf_mesh_with_material(res,
+		                             materials_cache,
+		                             material_path,
+		                             doc,
+		                             transform,
+		                             node.mesh);
 	}
 }
 
@@ -391,9 +453,7 @@ bool model::load_gltf_file(data& res, const std::string_view name, const std::st
 			                             materials_cache,
 			                             material_path,
 			                             doc,
-			                             zcm::vec3{1.0f},
-			                             zcm::vec3{0.0f},
-			                             zcm::quat{},
+			                             node_transform{},
 			                             i);
 
 		}
@@ -404,36 +464,8 @@ bool model::load_gltf_file(data& res, const std::string_view name, const std::st
 	for (const auto& scene : doc.scenes) {
 
 		for (const auto& node_idx : scene.nodes) {
-			const auto& node = doc.nodes.at(node_idx);
-
-
-			if (node.mesh >= 0) {
-
-				zcm::vec3 node_scale{zcm::no_init_t{}}, node_translate{zcm::no_init_t{}};
-				zcm::quat node_rotate{zcm::no_init_t{}};
-
-				node_scale.x = node.scale[0];
-				node_scale.y = node.scale[1];
-				node_scale.z = node.scale[2];
-
-				node_translate.x = node.translation[0];
-				node_translate.y = node.translation[1];
-				node_translate.z = node.translation[2];
-
-				node_rotate.x = node.rotation[0];
-				node_rotate.y = node.rotation[1];
-				node_rotate.z = node.rotation[2];
-				node_rotate.w = node.rotation[3];
-
-				load_gltf_mesh_with_material(res,
-				                             materials_cache,
-				                             material_path,
-				                             doc,
-				                             node_scale,
-				                             node_translate,
-				                             node_rotate,
-				                             node.mesh);
-			}
+			// FixMe: rewrite non-recursively
+			load_node_recursive(res, doc, materials_cache, material_path, node_transform{}, node_idx);
 		}
 	}
 	return true;

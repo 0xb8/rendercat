@@ -16,7 +16,7 @@ const float InvNumSamples = 1.0 / float(NumSamples);
 // In Vulkan whole mip tail is bound to the descriptor set and appropriate mip level is selected via a push constant.
 // In OpenGL only a single mip level is bound.
 layout(binding=0) uniform samplerCube inputTexture;
-layout(binding=0, rgba16f) restrict writeonly uniform imageCube outputTexture;
+layout(binding=0, rgba16f) restrict writeonly uniform imageCubeArray outputTexture;
 
 // Roughness value to pre-filter for.
 layout(location=0) uniform float roughness;

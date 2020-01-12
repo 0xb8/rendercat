@@ -10,11 +10,11 @@ const float PI = 3.141592;
 const float TwoPI = 2 * PI;
 const float Epsilon = 0.00001;
 
-const uint NumSamples = 64 * 1024;
+const uint NumSamples = 128 * 1024;
 const float InvNumSamples = 1.0 / float(NumSamples);
 
 layout(binding=0) uniform samplerCubeArray inputTexture;
-layout(binding=0, rgba16f) restrict writeonly uniform imageCube outputTexture;
+layout(binding=0, rgba16f) restrict writeonly uniform imageCubeArray outputTexture;
 
 
 // Compute Van der Corput radical inverse
@@ -100,8 +100,7 @@ void main(void)
 		float cosTheta = max(0.0, dot(Li, N));
 
 		// PIs here cancel out because of division by pdf.
-		// FIXME: clamp to 500
-		irradiance += 2.0 * min(vec3(500.0), textureLod(inputTexture, vec4(Li, 0), 0).rgb) * cosTheta;
+		irradiance += 2.0 * textureLod(inputTexture, vec4(Li, 0), 0).rgb * cosTheta;
 	}
 	irradiance /= vec3(NumSamples);
 

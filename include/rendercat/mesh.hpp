@@ -21,7 +21,7 @@ namespace model {
 		vertex_array_handle vao;
 		uint32_t numverts = 0;
 		uint32_t numverts_unique = 0;
-		uint32_t index_min = 0; // always 0 for now
+		uint32_t index_min = 0xFFFFFFFF;
 		uint32_t index_max = 0;
 		uint32_t touched_lights = 0;
 		uint32_t index_type{};

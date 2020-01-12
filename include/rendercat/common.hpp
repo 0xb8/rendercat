@@ -73,9 +73,8 @@ namespace math {
 namespace path {
 	constexpr char shader[] = "shaders/";
 	namespace asset {
-		constexpr char cubemap[] = "assets/materials/cubemaps/";
+		constexpr char cubemap[] = "assets/cubemaps/";
 		constexpr char model[] = "assets/models/";
-		constexpr char model_material[] = "assets/materials/models/";
 	}
 } // namespace path
 

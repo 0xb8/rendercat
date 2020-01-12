@@ -1,3 +1,4 @@
+#include <filesystem>
 #include <rendercat/scene.hpp>
 #include <rendercat/texture_cache.hpp>
 #include <rendercat/util/color_temperature.hpp>
@@ -17,9 +18,8 @@ void Scene::init()
 		materials.emplace_back(Material::create_default_material());
 	}
 
-	cubemap.load_equirectangular("assets/materials/cubemaps/pink_sunrise.hdr");
-	cubemap_diffuse_irradiance = cubemap.integrate_diffuse_irradiance();
-	cubemap_specular_environment = cubemap.convolve_specular();
+	current_cubemap = "assets/cubemaps/courtyard.hdr";
+	load_skybox_equirectangular(current_cubemap);
 
 	main_camera.state.position = {0.2f, 1.4f, -1};
 	main_camera.state.orientation = {0, 0, 1, 0};
@@ -67,8 +67,8 @@ void Scene::init()
 	sp.set_position({9.3f, 3.3f, 3.4f});
 	spot_lights.push_back(sp);
 
-	load_model_gltf("2b.gltf", "2b_v4/");
 	load_model_gltf("sponza.gltf", "sponza/");
+	load_model_gltf("2b_feather.gltf", "2b_v6/");
 
 	Texture::Cache::clear();
 }
@@ -599,6 +599,11 @@ void Scene::update()
 			ImGui::TreePop();
 		}
 
+		if (ImGui::TreeNode("Environment")) {
+			skyboxes_list();
+			ImGui::TreePop();
+		}
+
 		if(ImGui::TreeNode("Directional")) {
 
 			ImGui::PushItemWidth(-1.0f);
@@ -716,6 +721,55 @@ void Scene::update()
 		}
 	}
 	ImGui::End();
+}
+
+void Scene::load_skybox_equirectangular(std::string_view name)
+{
+	cubemap.load_equirectangular(name);
+	cubemap_diffuse_irradiance = cubemap.integrate_diffuse_irradiance();
+	cubemap_specular_environment = cubemap.convolve_specular();
+}
+
+void Scene::load_skybox_cubemap(std::string_view path)
+{
+	cubemap.load_cube(path);
+	cubemap_diffuse_irradiance = cubemap.integrate_diffuse_irradiance();
+	cubemap_specular_environment = cubemap.convolve_specular();
+}
+
+void Scene::skyboxes_list()
+{
+	static std::filesystem::path current = current_cubemap;
+
+	ImGui::PushItemWidth(-1.0f);
+	if (ImGui::BeginCombo("##skyboxeslist", current_cubemap.c_str())) {
+		static std::filesystem::path skyboxes_dir = rc::path::asset::cubemap;
+		for (auto&& entry : std::filesystem::directory_iterator{skyboxes_dir, std::filesystem::directory_options::skip_permission_denied}) {
+			if (entry.is_regular_file() || entry.is_directory())  {
+				auto path = entry.path();
+
+				if (path.extension() == ".hdr" || entry.is_directory()) {
+
+					bool is_selected = (path == current);
+					auto path_str = path.u8string();
+
+					if (ImGui::Selectable(path_str.c_str(), is_selected))
+						current = path;
+					if (is_selected)
+						ImGui::SetItemDefaultFocus();
+				}
+			}
+		}
+		if (current_cubemap != current) {
+			current_cubemap = current.u8string();
+			if (current.has_extension())
+				load_skybox_equirectangular(current_cubemap);
+			else
+				load_skybox_cubemap(current_cubemap);
+		}
+		ImGui::EndCombo();
+	}
+	ImGui::PopItemWidth();
 }
 
 

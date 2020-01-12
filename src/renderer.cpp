@@ -488,10 +488,11 @@ void Renderer::draw()
 			const model::Mesh& submesh = m_scene->submeshes[submesh_global_idx];
 			const Material& material   = m_scene->materials[shaded_mesh.material];
 
-			auto final_transform =  shaded_mesh.transform.mat * model.transform.mat;
+			auto final_transform_mat = model.transform.mat * shaded_mesh.transform.mat;
+			auto inv_final_transform_mat = shaded_mesh.transform.inv_mat * model.transform.inv_mat; // (AB)^-1 = B^-1 * A^-1
 
-			unif::m4(*m_shader, "model", final_transform);
-			unif::m3(*m_shader, "normal_matrix", zcm::mat3{zcm::transpose(model.transform.inv_mat * shaded_mesh.transform.inv_mat)});
+			unif::m4(*m_shader, "model", final_transform_mat);
+			unif::m3(*m_shader, "normal_matrix", zcm::transpose(zcm::mat3{inv_final_transform_mat}));
 
 			if(material.alpha_mode() == Texture::AlphaMode::Mask) {
 				m_masked_meshes.push_back(ModelMeshIdx{model_idx, model.shaded_meshes[model_mesh_idx]});
@@ -502,7 +503,7 @@ void Renderer::draw()
 				continue;
 			}
 
-			auto submesh_bbox = bbox3::transformed(submesh.bbox, final_transform);
+			auto submesh_bbox = bbox3::transformed(submesh.bbox, final_transform_mat);
 			if(m_scene->main_camera.frustum.bbox_culled(submesh_bbox))
 				continue;
 
@@ -659,12 +660,19 @@ void Renderer::draw_gui()
 	}
 	const char* labels[] = {"Disabled", "2x", "4x", "8x", "16x"};
 
-	ImGui::Combo("MSAA", &desired_msaa_level, labels, 5);
+	ImGui::Combo("MSAA", &desired_msaa_level, labels, std::size(labels));
 	//show_help_tooltip("Multi-Sample Antialiasing\n\nValues > 4x may be unsupported on some setups.");
 	ImGui::SliderFloat("Resolution scale", &desired_render_scale, 0.1f, 1.0f, "%.1f");
 	ImGui::Checkbox("Shadows", &do_shadow_mapping);
-	ImGui::Separator();
+	ImGui::SameLine();
 	ImGui::Checkbox("Show submesh bboxes", &draw_mesh_bboxes);
+
+	const char* labels_cube[] = {"Sky", "Diffuse Irradiance", "Specular Reflectance"};
+	ImGui::Combo("Cubemap", &selected_cubemap, labels_cube, std::size(labels_cube));
+	if (selected_cubemap == 2) {
+		ImGui::SliderInt("Roughness level", &cubemap_mip_level, 0, 10);
+	}
+
 	ImGui::End();
 
 }
@@ -674,7 +682,23 @@ void Renderer::draw_skybox()
 	glDepthFunc(GL_GEQUAL);
 	auto view = make_view(m_scene->main_camera.state);
 	auto projection = make_projection(m_scene->main_camera.state);
-	m_scene->cubemap.draw(view, projection);
+
+	int level = selected_cubemap == 2 ? cubemap_mip_level : 0;
+
+	switch (selected_cubemap) {
+	case 0:
+		m_scene->cubemap.draw(view, projection, level);
+		break;
+	case 1:
+		m_scene->cubemap_diffuse_irradiance.draw(view, projection, level);
+		break;
+	case 2:
+		m_scene->cubemap_specular_environment.draw(view, projection, level);
+		break;
+	default:
+		assert(false);
+		unreachable();
+	}
 	glDepthFunc(GL_GREATER);
 }
 

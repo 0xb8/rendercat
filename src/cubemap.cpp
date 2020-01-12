@@ -6,6 +6,7 @@
 #include <string>
 #include <utility>
 #include <cassert>
+#include <filesystem>
 #include <fmt/core.h>
 
 #include <zcm/mat4.hpp>
@@ -26,7 +27,7 @@
 using namespace gl45core;
 using namespace rc;
 
-static const char* const face_names_hdr[6] = {
+static const std::array<std::filesystem::path, 6> face_names_hdr {
 	"right.hdr",
 	"left.hdr",
 	"top.hdr",
@@ -45,6 +46,17 @@ static uint32_t *cubemap_load_shader;
 static uint32_t *compute_diffuse_irradiance_shader;
 static uint32_t *compute_specular_env_map_shader;
 
+static void set_tex_params(uint32_t tex, bool mips=false)
+{
+	glTextureParameteri(tex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTextureParameteri(tex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTextureParameteri(tex, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTextureParameteri(tex, GL_TEXTURE_MIN_FILTER, mips ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
+	glTextureParameteri(tex, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	if (has_seamless_filtering_per_texture)
+		glTextureParameteri(tex, GL_TEXTURE_CUBE_MAP_SEAMLESS, GL_TRUE);
+}
+
 Cubemap::Cubemap()
 {
 	if(!max_texture_size) {
@@ -61,7 +73,6 @@ Cubemap::Cubemap()
 		           "        Global:          {}\n"
 		           "        Per-texture:     {}\n",
 		           max_texture_size,
-
 		           glbinding::aux::Meta::getString(has_seamless_filtering),
 		           glbinding::aux::Meta::getString(has_seamless_filtering_per_texture));
 #endif
@@ -84,42 +95,32 @@ Cubemap::Cubemap()
 	}
 	if (!compute_specular_env_map_shader) {
 		compute_specular_env_map_shader = shader_set.load_program({"cubemap_specular_envmap.comp"});
+		assert(compute_specular_env_map_shader);
 	}
 }
 
 void Cubemap::load_cube(std::string_view basedir)
 {
 	assert(basedir.length() > 0);
-	std::string path;
-	path.reserve(basedir.size() + 20);
-	path.append(basedir);
-	std::replace(path.begin(), path.end(),'\\', '/');
-	if(path.back() != '/') {
-		path.push_back('/');
-	}
-	size_t dirlen = path.length();
+
+	std::filesystem::path path{basedir};
+	if (!std::filesystem::is_directory(path))
+		return;
 
 	rc::texture_handle tex;
 	// BUG: AMD driver cannot upload faces of single cubemap, only cubemap array (size of 1 still works)
 	glCreateTextures(GL_TEXTURE_CUBE_MAP_ARRAY, 1, tex.get());
-	glTextureParameteri(*tex, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTextureParameteri(*tex, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTextureParameteri(*tex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTextureParameteri(*tex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTextureParameteri(*tex, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	if(has_seamless_filtering_per_texture) {
-		glTextureParameteri(*tex, GL_TEXTURE_CUBE_MAP_SEAMLESS, GL_TRUE);
-	}
+	set_tex_params(*tex);
 
 	bool texture_storage_allocated{false};
 	int face{0};
 	int prev_face_width{0}, prev_face_height{0};
 	for(int i = 0; i < 6; ++i) {
-		path.resize(dirlen);
-		path.append(face_names_hdr[i]);
+		auto face_path = path / face_names_hdr[i];
+		auto face_path_u8 = face_path.u8string();
 
 		int face_width, face_height, chan;
-		auto data = stbi_loadf(path.data(), &face_width, &face_height, &chan, 3);
+		auto data = stbi_loadf(face_path_u8.c_str(), &face_width, &face_height, &chan, 3);
 		if(data && chan == 3) {
 			if(!texture_storage_allocated) {
 				glTextureStorage3D(*tex, 1, GL_RGB16F, face_width, face_height, 6);
@@ -130,7 +131,7 @@ void Cubemap::load_cube(std::string_view basedir)
 				if(face_width != prev_face_width || face_height != prev_face_height) {
 					fmt::print(stderr, "[cubemap] bad face '{}': "
 					           "face size does not match (current {}x{}, previous {}x{})\n",
-					           path,
+					           face_path_u8,
 					           face_width,
 					           face_height,
 					           prev_face_width,
@@ -146,7 +147,7 @@ void Cubemap::load_cube(std::string_view basedir)
 
 			stbi_image_free(data);
 		} else {
-			fmt::print(stderr, "[cubemap] could not open cubemap face '{}'\n", path);
+			fmt::print(stderr, "[cubemap] could not open cubemap face '{}'\n", face_path_u8);
 			if(chan != 3) {
 				fmt::print(stderr, "[cubemap] invalid channel count: {}\n", chan);
 			}
@@ -154,34 +155,6 @@ void Cubemap::load_cube(std::string_view basedir)
 		}
 	}
 	m_cubemap = std::move(tex);
-}
-
-void Cubemap::draw(const zcm::mat4 & view, const zcm::mat4 & projection) noexcept
-{
-	// remove translation part from view matrix
-	unif::m4(*cubemap_draw_shader, 0, projection * zcm::mat4{zcm::mat3{view}});
-
-	glUseProgram(*cubemap_draw_shader);
-	glBindVertexArray(cubemap_vao);
-	glBindTextureUnit(0, *m_cubemap);
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 14); // see cubemap.vert
-	glBindVertexArray(0);
-}
-
-void Cubemap::bind_to_unit(uint32_t unit)
-{
-	glBindTextureUnit(unit, *m_cubemap);
-}
-
-static void set_tex_params(uint32_t tex, bool mips=false)
-{
-	glTextureParameteri(tex, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTextureParameteri(tex, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTextureParameteri(tex, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	glTextureParameteri(tex, GL_TEXTURE_MIN_FILTER, mips ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
-	glTextureParameteri(tex, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	if (has_seamless_filtering_per_texture)
-		glTextureParameteri(tex, GL_TEXTURE_CUBE_MAP_SEAMLESS, GL_TRUE);
 }
 
 void Cubemap::load_equirectangular(std::string_view path)
@@ -200,40 +173,57 @@ void Cubemap::load_equirectangular(std::string_view path)
 		return;
 	}
 
-	unsigned cube_size = (flat_height * 3) / 4;
+	const unsigned face_size = (flat_height * 3) / 4;
 
 	rc::texture_handle cubemap_to;
 	glCreateTextures(GL_TEXTURE_CUBE_MAP_ARRAY, 1, cubemap_to.get());
-	glTextureStorage3D(*cubemap_to, 1, GL_RGBA16F, cube_size, cube_size, 6);
+	glTextureStorage3D(*cubemap_to, 1, GL_RGBA16F, face_size, face_size, 6);
 	set_tex_params(*cubemap_to);
 
 	glUseProgram(*cubemap_load_shader);
 	glBindTextureUnit(0, *flat_texture);
 	glBindImageTexture(0, *cubemap_to, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-	glDispatchCompute(cube_size/32, cube_size/32, 6);
+	glDispatchCompute(face_size/32, face_size/32, 6);
 
 	m_cubemap = std::move(cubemap_to);
 }
 
+void Cubemap::draw(const zcm::mat4 & view, const zcm::mat4 & projection, int mip_level) noexcept
+{
+	// remove translation part from view matrix
+	unif::m4(*cubemap_draw_shader, 0, projection * zcm::mat4{zcm::mat3{view}});
+	unif::i1(*cubemap_draw_shader, 1, mip_level);
+
+	glUseProgram(*cubemap_draw_shader);
+	glBindVertexArray(cubemap_vao);
+	glBindTextureUnit(0, *m_cubemap);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 14); // see cubemap.vert
+	glBindVertexArray(0);
+}
+
+void Cubemap::bind_to_unit(uint32_t unit)
+{
+	glBindTextureUnit(unit, *m_cubemap);
+}
+
+
 Cubemap Cubemap::integrate_diffuse_irradiance()
 {
 	Cubemap res;
-	if (!m_cubemap)
-		return res;
+	if (m_cubemap) {
+		const unsigned irradiance_size = 32;
+		rc::texture_handle irradiance_cube_to;
+		glCreateTextures(GL_TEXTURE_CUBE_MAP_ARRAY, 1, irradiance_cube_to.get());
+		glTextureStorage3D(*irradiance_cube_to, 1, GL_RGBA16F, irradiance_size, irradiance_size, 6);
+		set_tex_params(*irradiance_cube_to);
 
-	unsigned irradiance_size = 32;
+		glUseProgram(*compute_diffuse_irradiance_shader);
+		glBindTextureUnit(0, *m_cubemap);
+		glBindImageTexture(0, *irradiance_cube_to, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+		glDispatchCompute(irradiance_size/16, irradiance_size/16, 6);
 
-	rc::texture_handle irradiance_cube_to;
-	glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, irradiance_cube_to.get());
-	glTextureStorage2D(*irradiance_cube_to, 1, GL_RGBA16F, irradiance_size, irradiance_size);
-	set_tex_params(*irradiance_cube_to);
-
-	glUseProgram(*compute_diffuse_irradiance_shader);
-	glBindTextureUnit(0, *m_cubemap);
-	glBindImageTexture(0, *irradiance_cube_to, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA16F);
-	glDispatchCompute(irradiance_size/16, irradiance_size/16, 6);
-
-	res.m_cubemap = std::move(irradiance_cube_to);
+		res.m_cubemap = std::move(irradiance_cube_to);
+	}
 	return res;
 }
 
@@ -273,12 +263,12 @@ Cubemap Cubemap::convolve_specular()
 	}
 
 	rc::texture_handle specular_cube_to;
-	glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, specular_cube_to.get());
-	glTextureStorage2D(*specular_cube_to, dst_numlevels, GL_RGBA16F, dst_size, dst_size);
+	glCreateTextures(GL_TEXTURE_CUBE_MAP_ARRAY, 1, specular_cube_to.get());
+	glTextureStorage3D(*specular_cube_to, dst_numlevels, GL_RGBA16F, dst_size, dst_size, 6);
 
 	// Copy 0th mipmap level into destination environment map.
 	glCopyImageSubData(*cubemap_with_mips_to, GL_TEXTURE_CUBE_MAP, 0, 0, 0, 0,
-	                   *specular_cube_to,     GL_TEXTURE_CUBE_MAP, 0, 0, 0, 0,
+	                   *specular_cube_to,     GL_TEXTURE_CUBE_MAP_ARRAY, 0, 0, 0, 0,
 	                   dst_size, dst_size, 6);
 
 	glUseProgram(*compute_specular_env_map_shader);
