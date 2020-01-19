@@ -2,6 +2,7 @@
 #include <rendercat/renderer.hpp>
 #include <rendercat/scene.hpp>
 #include <rendercat/uniform.hpp>
+#include <rendercat/util/gl_screenshot.hpp>
 #include <fmt/core.h>
 #include <string>
 #include <imgui.hpp>
@@ -182,6 +183,7 @@ void Renderer::resize(uint32_t width, uint32_t height, bool force)
 	rc::texture_handle resolve_to;
 	glCreateTextures(GL_TEXTURE_2D, 1, resolve_to.get());
 	glTextureStorage2D(*resolve_to, 1, GL_RGBA16F, backbuffer_width, backbuffer_height);
+	fmt::print("resolve to: {}", *resolve_to);
 
 	rc::framebuffer_handle resolve_fbo;
 	glCreateFramebuffers(1, resolve_fbo.get());
@@ -662,7 +664,7 @@ void Renderer::draw_gui()
 
 	ImGui::Combo("MSAA", &desired_msaa_level, labels, std::size(labels));
 	//show_help_tooltip("Multi-Sample Antialiasing\n\nValues > 4x may be unsupported on some setups.");
-	ImGui::SliderFloat("Resolution scale", &desired_render_scale, 0.1f, 1.0f, "%.1f");
+	ImGui::SliderFloat("Resolution scale", &desired_render_scale, 0.1f, 2.0f, "%.1f");
 	ImGui::Checkbox("Shadows", &do_shadow_mapping);
 	ImGui::SameLine();
 	ImGui::Checkbox("Show submesh bboxes", &draw_mesh_bboxes);
@@ -672,9 +674,18 @@ void Renderer::draw_gui()
 	if (selected_cubemap == 2) {
 		ImGui::SliderInt("Roughness level", &cubemap_mip_level, 0, 10);
 	}
-
 	ImGui::End();
+}
 
+void Renderer::save_hdr_backbuffer(std::string_view path)
+{
+	glBlitNamedFramebuffer(*m_backbuffer_fbo,
+	                       *m_backbuffer_resolve_fbo,
+	                       0, 0, m_backbuffer_width, m_backbuffer_height,
+	                       0, 0, m_backbuffer_width, m_backbuffer_height,
+	                       GL_COLOR_BUFFER_BIT,
+	                       GL_NEAREST);
+	util::gl_save_hdr_texture(*m_backbuffer_resolve_color_to, path);
 }
 
 void Renderer::draw_skybox()

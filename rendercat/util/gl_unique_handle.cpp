@@ -178,13 +178,6 @@ TEST_CASE("Handle move/swap/assign") {
 	}
 
 	SUBCASE("Handle can be move-assigned from another") {
-		SUBCASE("Handle cannot be move-assigned from itself") {
-			handle_a = std::move(handle_a);
-			REQUIRE(handle_a);
-			REQUIRE(*handle_a == 111);
-			REQUIRE(instance_count == 2);
-		}
-
 		handle_a = std::move(handle_b);
 		REQUIRE(handle_a);
 		REQUIRE(!handle_b);

@@ -68,6 +68,7 @@ public:
 	int desired_msaa_level = 2;
 	int selected_cubemap = 0;
 	int cubemap_mip_level = 0;
+
 	float desired_render_scale = 1.0f;
 	bool draw_mesh_bboxes = false;
 	bool do_shadow_mapping = false;
@@ -82,6 +83,7 @@ public:
 	void clear_screen();
 	void draw();
 	void draw_gui();
+	void save_hdr_backbuffer(std::string_view path);
 };
 
 } // namespace rc

@@ -1,5 +1,6 @@
 #pragma once
 #include <type_traits>
+#include <cassert>
 
 namespace rc {
 
@@ -34,10 +35,9 @@ public:
 	template<typename D2>
 	unique_handle& operator =(unique_handle<T, D2>&& other) noexcept {
 		static_assert(std::is_same_v<Deleter, D2>, "both handles must have same deleter type");
-		if(this != &other) {
-			this->reset(other.m_handle);
-			other.m_handle = 0;
-		}
+		assert(this != &other);
+		this->reset(other.m_handle);
+		other.m_handle = 0;
 		return *this;
 	}
 

@@ -68,8 +68,14 @@ namespace input {
 	static bool shift    = false;
 	static bool alt      = false;
 
-	static bool screenshot_requested = false;
-	static int  screenshot_timeout   = 0;
+	enum class ScreenShot {
+		DoNothing,
+		SaveBackBuffer,
+		SaveScreenshot
+	};
+
+	static ScreenShot screenshot_requested = ScreenShot::DoNothing;
+	int screenshot_counter = 0;
 }
 
 // ---------------------------------- helpers  ---------------------------------
@@ -199,7 +205,10 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 		input::alt = (action != GLFW_RELEASE);
 		break;
 	case GLFW_KEY_F10:
-		input::screenshot_requested = true;
+		input::screenshot_requested = input::ScreenShot::SaveScreenshot;
+		break;
+	case GLFW_KEY_F11:
+		input::screenshot_requested = input::ScreenShot::SaveBackBuffer;
 		break;
 	default:
 		break;
@@ -305,19 +314,37 @@ static void init_glfw_callbacks(GLFWwindow* window)
 	glfwSetFramebufferSizeCallback(window, glfw_framebuffer_resized_callback);
 }
 
-static void process_screenshot()
+static void process_screenshot(rc::Renderer& renderer)
 {
-	if(input::screenshot_requested && input::screenshot_timeout == 0) {
-		fmt::print("taken screenshot\n");
-		input::screenshot_requested = false;
-		input::screenshot_timeout = 200;
-		rc::util::gl_screenshot(globals::glfw_framebuffer_width,
-		              globals::glfw_framebuffer_height,
-		              "screenshot.png");
+	input::screenshot_counter = std::max(0, input::screenshot_counter - 1);
+	if (input::screenshot_counter > 0) {
+		input::screenshot_requested = input::ScreenShot::DoNothing;
+		return;
 	}
-	if(input::screenshot_timeout > 0) {
-		input::screenshot_requested = false;
-		--input::screenshot_timeout;
+
+	if(input::screenshot_requested != input::ScreenShot::DoNothing) {
+		std::string filename;
+		auto time = std::time(nullptr);
+		auto tm = std::localtime(&time);
+		std::stringstream ss;
+
+		if (input::screenshot_requested == input::ScreenShot::SaveBackBuffer) {
+			ss << std::put_time(tm, "backbuffer (%Y-%m-%d %H-%M-%S).hdr");
+			filename = ss.str();
+			renderer.save_hdr_backbuffer(filename);
+		}
+		if (input::screenshot_requested == input::ScreenShot::SaveScreenshot) {
+			ss << std::put_time(tm, "screenshot (%Y-%m-%d %H-%M-%S).png");
+			filename = ss.str();
+			rc::util::gl_screenshot(globals::glfw_framebuffer_width,
+			                        globals::glfw_framebuffer_height,
+			                        filename);
+		}
+
+		input::screenshot_requested = input::ScreenShot::DoNothing;
+		input::screenshot_counter = 50;
+		fmt::print("taken screenshot: {}\n", filename);
+		std::fflush(stdout);
 	}
 }
 
@@ -450,7 +477,7 @@ int main(int argc, char *argv[]) try
 
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-		process_screenshot();
+		process_screenshot(renderer);
 
 		glfwSwapBuffers(window);
 		auto end_time = glfwGetTime();
