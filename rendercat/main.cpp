@@ -329,12 +329,12 @@ static void process_screenshot(rc::Renderer& renderer)
 		std::stringstream ss;
 
 		if (input::screenshot_requested == input::ScreenShot::SaveBackBuffer) {
-			ss << std::put_time(tm, "backbuffer (%Y-%m-%d %H-%M-%S).hdr");
+			ss << std::put_time(tm, "screenshots/backbuffer (%Y-%m-%d %H-%M-%S).hdr");
 			filename = ss.str();
 			renderer.save_hdr_backbuffer(filename);
 		}
 		if (input::screenshot_requested == input::ScreenShot::SaveScreenshot) {
-			ss << std::put_time(tm, "screenshot (%Y-%m-%d %H-%M-%S).png");
+			ss << std::put_time(tm, "screenshots/screenshot (%Y-%m-%d %H-%M-%S).png");
 			filename = ss.str();
 			rc::util::gl_screenshot(globals::glfw_framebuffer_width,
 			                        globals::glfw_framebuffer_height,
