@@ -21,7 +21,7 @@
 #include <rendercat/util/gl_screenshot.hpp>
 #include <rendercat/util/gl_meta.hpp>
 
-#include <imgui.hpp>
+#include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 
@@ -45,6 +45,9 @@ namespace globals {
 	static bool glfw_framebuffer_resized = false;
 	static int  glfw_framebuffer_width = 1280;
 	static int  glfw_framebuffer_height = 720;
+
+	static float glfw_window_scale_x = 1.0f;
+	static float glfw_window_scale_y = 1.0f;
 
 	static float delta_time = 1.0f / glfw_target_fps;
 	static float last_frame_time = 0.0f;
@@ -75,7 +78,7 @@ namespace input {
 	};
 
 	static ScreenShot screenshot_requested = ScreenShot::DoNothing;
-	int screenshot_counter = 0;
+	static int screenshot_counter = 0;
 }
 
 // ---------------------------------- helpers  ---------------------------------
@@ -262,6 +265,16 @@ static void glfw_scroll_callback(GLFWwindow* /*window*/, double /*xoffset*/, dou
 	input::scroll_offset += yoffset;
 }
 
+void glfw_window_content_scale_callback(GLFWwindow* /*window*/, float xscale, float yscale)
+{
+	fmt::print(stderr, "content scaled: {} {}\n", xscale, yscale);
+	globals::glfw_window_scale_x = xscale;
+	globals::glfw_window_scale_y = yscale;
+
+	auto& st = ImGui::GetStyle();
+	st.ScaleAllSizes(globals::glfw_window_scale_x);
+}
+
 static void glfw_framebuffer_resized_callback(GLFWwindow* /*window*/, int width, int height)
 {
 	globals::glfw_framebuffer_resized = true;
@@ -312,7 +325,47 @@ static void init_glfw_callbacks(GLFWwindow* window)
 	rc_set_input_captured(window, input::captured);
 	glfwSetKeyCallback(window, glfw_key_callback); // required because we always need to toggle input capture
 	glfwSetFramebufferSizeCallback(window, glfw_framebuffer_resized_callback);
+	glfwSetWindowContentScaleCallback(window, glfw_window_content_scale_callback);
 }
+
+static void set_glfw_window_params(GLFWwindow* window)
+{
+	if (glfwRawMouseMotionSupported())
+		glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+
+	glfwMakeContextCurrent(window);
+
+	if (consts::window_maximized) {
+		glfwMaximizeWindow(window);
+		glfwGetWindowSize(window, &globals::glfw_framebuffer_width, &globals::glfw_framebuffer_height);
+		fmt::print("maximized window size is {} x {}\n", globals::glfw_framebuffer_width, globals::glfw_framebuffer_height);
+	} else if (consts::window_fullscreen) {
+		int monitor_count = -1;
+		auto monitors = glfwGetMonitors(&monitor_count);
+
+		auto monitor = consts::window_monitor_id < monitor_count ? monitors[consts::window_monitor_id] : glfwGetPrimaryMonitor();
+		if (monitor) {
+			int mode_count = -1;
+			auto modes = glfwGetVideoModes(monitor, &mode_count);
+			if (mode_count > 0) {
+
+				globals::glfw_framebuffer_width = modes[mode_count-1].width;
+				globals::glfw_framebuffer_height = modes[mode_count-1].height;
+				int rate = modes[mode_count-1].refreshRate;
+				globals::glfw_target_fps = rate;
+				glfwSetWindowMonitor(window, monitor, 0, 0,
+				                     globals::glfw_framebuffer_width,
+				                     globals::glfw_framebuffer_height,
+				                     rate);
+			}
+		}
+	} else {
+		// get actual window size (for Hi-DPI).
+		glfwGetWindowSize(window, &globals::glfw_framebuffer_width, &globals::glfw_framebuffer_height);
+		glfwGetWindowContentScale(window, &globals::glfw_window_scale_x, &globals::glfw_window_scale_y);
+	}
+}
+
 
 static void process_screenshot(rc::Renderer& renderer)
 {
@@ -372,6 +425,7 @@ int main(int argc, char *argv[]) try
 #ifndef NDEBUG
 	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 #endif
+	glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
 	glfwWindowHint(GLFW_RESIZABLE,    GLFW_TRUE);
 	glfwWindowHint(GLFW_SRGB_CAPABLE, GLFW_TRUE);
 
@@ -385,36 +439,7 @@ int main(int argc, char *argv[]) try
 		throw std::runtime_error("Failed to create GLFW window. Perhaps requested OpenGL version is not supported?");
 	}
 
-	if (glfwRawMouseMotionSupported())
-		glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
-
-	glfwMakeContextCurrent(window);
-
-	if (consts::window_maximized) {
-		glfwMaximizeWindow(window);
-		glfwGetWindowSize(window, &globals::glfw_framebuffer_width, &globals::glfw_framebuffer_height);
-		fmt::print("maximized window size is {} x {}\n", globals::glfw_framebuffer_width, globals::glfw_framebuffer_height);
-	} else if (consts::window_fullscreen) {
-		int monitor_count = -1;
-		auto monitors = glfwGetMonitors(&monitor_count);
-
-		auto monitor = consts::window_monitor_id < monitor_count ? monitors[consts::window_monitor_id] : glfwGetPrimaryMonitor();
-		if (monitor) {
-			int mode_count = -1;
-			auto modes = glfwGetVideoModes(monitor, &mode_count);
-			if (mode_count > 0) {
-
-				globals::glfw_framebuffer_width = modes[mode_count-1].width;
-				globals::glfw_framebuffer_height = modes[mode_count-1].height;
-				int rate = modes[mode_count-1].refreshRate;
-				globals::glfw_target_fps = rate;
-				glfwSetWindowMonitor(window, monitor, 0, 0,
-				                     globals::glfw_framebuffer_width,
-				                     globals::glfw_framebuffer_height,
-				                     rate);
-			}
-		}
-	}
+	set_glfw_window_params(window);
 
 	glbinding::Binding::initialize(glfwGetProcAddress, false);
 
@@ -442,6 +467,7 @@ int main(int argc, char *argv[]) try
 		st.WindowBorderSize = 0.0f;
 		st.ChildRounding = 0.0f;
 		st.ScrollbarRounding = 0.0f;
+		st.ScaleAllSizes(globals::glfw_window_scale_x);
 	}
 
 	rc::Scene scene;

@@ -131,7 +131,7 @@ void Material::unmap()
 }
 
 
-void Material::bind(uint32_t s) const noexcept
+void Material::bind(uint32_t) const noexcept
 {
 	using namespace Texture;
 	assert(params_ubo);

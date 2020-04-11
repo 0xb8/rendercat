@@ -2,7 +2,7 @@
 #include <rendercat/scene.hpp>
 #include <rendercat/texture_cache.hpp>
 #include <rendercat/util/color_temperature.hpp>
-#include <imgui.hpp>
+#include <imgui.h>
 #include <zcm/geometric.hpp>
 #include <zcm/type_ptr.hpp>
 #include <zcm/quaternion.hpp>

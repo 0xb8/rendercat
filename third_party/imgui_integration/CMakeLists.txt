@@ -36,5 +36,5 @@ target_include_directories(imgui
 	PUBLIC
 		"${PROJECT_SOURCE_DIR}"
 	PRIVATE
-		"${PROJECT_SOURCE_DIR}/imgui/"
+		"${PROJECT_SOURCE_DIR}/imgui"
 		"${PROJECT_SOURCE_DIR}/imgui/examples")

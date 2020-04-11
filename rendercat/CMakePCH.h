@@ -27,4 +27,3 @@
 #include <zcm/type_ptr.hpp>
 #include <zcm/mat4.hpp>
 #include <rendercat/common.hpp>
-#include <imgui.hpp>

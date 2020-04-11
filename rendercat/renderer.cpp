@@ -5,7 +5,7 @@
 #include <rendercat/util/gl_screenshot.hpp>
 #include <fmt/core.h>
 #include <string>
-#include <imgui.hpp>
+#include <imgui.h>
 
 #include <glbinding/gl45core/boolean.h>
 #include <glbinding/gl45core/bitfield.h>
@@ -183,7 +183,6 @@ void Renderer::resize(uint32_t width, uint32_t height, bool force)
 	rc::texture_handle resolve_to;
 	glCreateTextures(GL_TEXTURE_2D, 1, resolve_to.get());
 	glTextureStorage2D(*resolve_to, 1, GL_RGBA16F, backbuffer_width, backbuffer_height);
-	fmt::print("resolve to: {}", *resolve_to);
 
 	rc::framebuffer_handle resolve_fbo;
 	glCreateFramebuffers(1, resolve_fbo.get());
