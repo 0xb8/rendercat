@@ -533,14 +533,15 @@ void Renderer::draw()
 		const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
 		const Material& material   = m_scene->materials[shaded_mesh.material];
 
-		auto final_transform = shaded_mesh.transform.mat * model.transform.mat;
+		auto final_transform_mat = model.transform.mat * shaded_mesh.transform.mat;
+		auto inv_final_transform_mat = shaded_mesh.transform.inv_mat * model.transform.inv_mat; // (AB)^-1 = B^-1 * A^-1
 
-		auto submesh_bbox = bbox3::transformed(submesh.bbox, final_transform);
+		auto submesh_bbox = bbox3::transformed(submesh.bbox, final_transform_mat);
 		if(m_scene->main_camera.frustum.bbox_culled(submesh_bbox))
 			continue;
 
-		unif::m4(*m_shader, "model", final_transform);
-		unif::m3(*m_shader, "normal_matrix", zcm::mat3{zcm::transpose(model.transform.inv_mat * shaded_mesh.transform.inv_mat)});
+		unif::m4(*m_shader, "model", final_transform_mat);
+		unif::m3(*m_shader, "normal_matrix", zcm::transpose(zcm::mat3{inv_final_transform_mat}));
 
 		process_point_lights(m_scene->point_lights, m_scene->main_camera.frustum, submesh_bbox, *m_shader);
 		process_spot_lights(m_scene->spot_lights, m_scene->main_camera.frustum, submesh_bbox, *m_shader);

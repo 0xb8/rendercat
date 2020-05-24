@@ -127,7 +127,7 @@ struct Scene
 
 	DirectionalLight directional_light
 	{
-		zcm::vec4(1.00f, 0.94f, 0.8f, 1.0f), // intensity
+		zcm::vec4(1.00f, 0.94f, 0.8f, 10.0f), // intensity
 		zcm::vec3(-0.705f, 0.703f, 0.094f), // dir
 	};
 

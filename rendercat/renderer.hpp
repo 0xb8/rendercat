@@ -72,7 +72,7 @@ public:
 
 	float desired_render_scale = 1.0f;
 	bool draw_mesh_bboxes = false;
-	bool do_shadow_mapping = false;
+	bool do_shadow_mapping = true;
 	bool window_shown = true;
 
 	static constexpr int MaxLights = 16;
