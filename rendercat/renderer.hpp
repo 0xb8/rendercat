@@ -26,6 +26,7 @@ class Renderer
 	uint32_t m_window_width  = 0;
 	uint32_t m_window_height = 0;
 	float    m_backbuffer_scale  = 1.0f;
+	float    m_device_pixel_ratio = 1.0f;
 
 	rc::texture_handle     m_brdf_lut_to;
 
@@ -79,7 +80,7 @@ public:
 	explicit Renderer(Scene* s);
 	~Renderer() = default;
 
-	void resize(uint32_t width, uint32_t height, bool force = false);
+	void resize(uint32_t width, uint32_t height, float device_pixel_ratio, bool force = false);
 	void clear_screen();
 	void draw();
 	void draw_gui();

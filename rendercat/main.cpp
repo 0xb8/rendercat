@@ -22,8 +22,8 @@
 #include <rendercat/util/gl_meta.hpp>
 
 #include <imgui.h>
-#include <imgui_impl_glfw.h>
-#include <imgui_impl_opengl3.h>
+#include <examples/imgui_impl_glfw.h>
+#include <examples/imgui_impl_opengl3.h>
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #define DOCTEST_CONFIG_WINDOWS_SEH
@@ -37,6 +37,7 @@ namespace consts {
 	static bool        window_maximized = false;
 	static bool        window_fullscreen = false;
 	static int         window_monitor_id = 0;
+	static int         font_size_px = 13;
 }
 
 namespace globals {
@@ -46,8 +47,8 @@ namespace globals {
 	static int  glfw_framebuffer_width = 1280;
 	static int  glfw_framebuffer_height = 720;
 
-	static float glfw_window_scale_x = 1.0f;
-	static float glfw_window_scale_y = 1.0f;
+	static float glfw_device_pixel_ratio = 1.0f;
+	static bool glfw_device_pixel_ratio_changed = false;
 
 	static float delta_time = 1.0f / glfw_target_fps;
 	static float last_frame_time = 0.0f;
@@ -265,14 +266,45 @@ static void glfw_scroll_callback(GLFWwindow* /*window*/, double /*xoffset*/, dou
 	input::scroll_offset += yoffset;
 }
 
+
+static void set_imgui_style() {
+	ImGuiStyle st;
+	ImGui::StyleColorsDark(&st);
+	st.Colors[ImGuiCol_WindowBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.85f);
+	st.GrabRounding = 0.0f;
+	st.WindowRounding = 0.0f;
+	st.WindowBorderSize = 0.0f;
+	st.ChildRounding = 0.0f;
+	st.ScrollbarRounding = 0.0f;
+	st.TabRounding = 3.0f;
+	st.ScaleAllSizes(globals::glfw_device_pixel_ratio);
+	ImGui::GetStyle() = st;
+}
+
+static void set_imgui_font() {
+	auto& io = ImGui::GetIO();
+	io.Fonts->Clear();
+	io.Fonts->AddFontFromFileTTF("assets/fonts/DroidSans.ttf",
+	                             consts::font_size_px * globals::glfw_device_pixel_ratio,
+	                             nullptr,
+	                             io.Fonts->GetGlyphRangesCyrillic());
+	ImGui_ImplOpenGL3_CreateFontsTexture();
+}
+
+static void set_window_scale(float xscale, float yscale) {
+	auto scale = std::max(xscale, yscale);
+	if (scale <= 1.0f) scale = 1.0f;
+	else if (scale <= 2.0f) scale = 2.0f;
+	if (globals::glfw_device_pixel_ratio != scale)
+		globals::glfw_device_pixel_ratio_changed = true;
+	globals::glfw_device_pixel_ratio = scale;
+}
+
 void glfw_window_content_scale_callback(GLFWwindow* /*window*/, float xscale, float yscale)
 {
-	fmt::print(stderr, "content scaled: {} {}\n", xscale, yscale);
-	globals::glfw_window_scale_x = xscale;
-	globals::glfw_window_scale_y = yscale;
-
-	auto& st = ImGui::GetStyle();
-	st.ScaleAllSizes(globals::glfw_window_scale_x);
+	set_window_scale(xscale, yscale);
+	set_imgui_style();
+	fmt::print(stderr, "window content scaled: {} {}, device pixel ratio: {}\n", xscale, yscale, globals::glfw_device_pixel_ratio);
 }
 
 static void glfw_framebuffer_resized_callback(GLFWwindow* /*window*/, int width, int height)
@@ -362,7 +394,9 @@ static void set_glfw_window_params(GLFWwindow* window)
 	} else {
 		// get actual window size (for Hi-DPI).
 		glfwGetWindowSize(window, &globals::glfw_framebuffer_width, &globals::glfw_framebuffer_height);
-		glfwGetWindowContentScale(window, &globals::glfw_window_scale_x, &globals::glfw_window_scale_y);
+		float xscale = 1.0f, yscale = 1.0f;
+		glfwGetWindowContentScale(window, &xscale, &yscale);
+		set_window_scale(xscale, yscale);
 	}
 }
 
@@ -458,22 +492,14 @@ int main(int argc, char *argv[]) try
 		auto& io = ImGui::GetIO();
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 		io.ConfigFlags |= ImGuiConfigFlags_IsSRGB;
-
-		auto& st = ImGui::GetStyle();
-		ImGui::StyleColorsDark(&st);
-		st.Colors[ImGuiCol_WindowBg] = ImVec4(0.00f, 0.00f, 0.00f, 0.75f);
-		st.GrabRounding = 0.0f;
-		st.WindowRounding = 0.0f;
-		st.WindowBorderSize = 0.0f;
-		st.ChildRounding = 0.0f;
-		st.ScrollbarRounding = 0.0f;
-		st.ScaleAllSizes(globals::glfw_window_scale_x);
+		globals::glfw_device_pixel_ratio_changed = true;
 	}
 
 	rc::Scene scene;
 	rc::Renderer renderer(&scene);
 	renderer.resize(globals::glfw_framebuffer_width,
-	                globals::glfw_framebuffer_height);
+	                globals::glfw_framebuffer_height,
+	                globals::glfw_device_pixel_ratio);
 	glfwPollEvents();
 	renderer.clear_screen();
 	glfwSwapBuffers(window);
@@ -491,12 +517,22 @@ int main(int argc, char *argv[]) try
 		if(globals::glfw_framebuffer_resized) {
 			globals::glfw_framebuffer_resized = false;
 			renderer.resize(globals::glfw_framebuffer_width,
-			                globals::glfw_framebuffer_height);
+			                globals::glfw_framebuffer_height,
+			                globals::glfw_device_pixel_ratio);
 		}
+		if (globals::glfw_device_pixel_ratio_changed) {
+			globals::glfw_device_pixel_ratio_changed = false;
+			set_imgui_style();
+			set_imgui_font();
+		}
+
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
+
 		ImGui::NewFrame();
 		scene.update();
+
+		ImGui::ShowDemoWindow();
 
 		renderer.draw();
 		renderer.draw_gui();

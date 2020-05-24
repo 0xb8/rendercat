@@ -332,27 +332,75 @@ static void show_material_ui(rc::Material& material)
 	auto display_map_info = [](const auto& map)
 	{
 		auto& storage = map.storage();
-		ImGui::Text("Dimensions:      %d x %d (%d mips)",
+		ImGui::Columns(2, "material_ui", false);
+
+		ImGui::TextUnformatted("Dimensions:"); ImGui::NextColumn();
+		ImGui::Text("%d x %d (%d mips)",
 			    map.width(),
 			    map.height(),
-			    map.levels());
+			    map.levels()); ImGui::NextColumn();
 
-		ImGui::Text("Color space:     %s", Texture::enum_value_str(storage.color_space()));
-		ImGui::Text("Channels:        %d", storage.channels());
-		ImGui::Text("Internal format: %s", Texture::enum_value_str(storage.format()));
-		ImGui::Text("Min Filter:      %s", Texture::enum_value_str(map.min_filter()));
-		ImGui::Text("Mag Filter:      %s", Texture::enum_value_str(map.mag_filter()));
-		ImGui::Text("Aniso Samples:   %d", map.anisotropy());
-		ImGui::Text("Swizzle Mask:    %s %s %s %s",
-		            Texture::enum_value_str(map.swizzle_mask().red),
-		            Texture::enum_value_str(map.swizzle_mask().green),
-		            Texture::enum_value_str(map.swizzle_mask().blue),
-		            Texture::enum_value_str(map.swizzle_mask().alpha));
-		ImGui::Text("GL Handle:       %d", storage.texture_handle());
+		ImGui::TextUnformatted("Color space:"); ImGui::NextColumn();
+		ImGui::TextUnformatted(Texture::enum_value_str(storage.color_space())); ImGui::NextColumn();
+
+		ImGui::TextUnformatted("Channels:"); ImGui::NextColumn();
+		ImGui::Text("%d", storage.channels()); ImGui::NextColumn();
+
+		ImGui::TextUnformatted("Internal format:"); ImGui::NextColumn();
+		ImGui::Text("%s", Texture::enum_value_str(storage.format())); ImGui::NextColumn();
+
+		ImGui::TextUnformatted("Min Filter:"); ImGui::NextColumn();
+		ImGui::Text("%s", Texture::enum_value_str(map.min_filter())); ImGui::NextColumn();
+
+		ImGui::TextUnformatted("Mag Filter:"); ImGui::NextColumn();
+		ImGui::Text("%s", Texture::enum_value_str(map.mag_filter())); ImGui::NextColumn();
+
+		ImGui::TextUnformatted("Aniso Samples:"); ImGui::NextColumn();
+		ImGui::Text("%d", map.anisotropy()); ImGui::NextColumn();
+
+		ImGui::TextUnformatted("Swizzle Mask:"); ImGui::NextColumn();
+
+		auto print_swizzle_channel = [](auto component) {
+
+			ImVec4 col;
+			switch (component) {
+			case Texture::ChannelValue::Red:
+				col = {1.0f, 0.0f, 0.0f, 1.0f};
+				break;
+			case Texture::ChannelValue::Green:
+				col = {0.0f, 1.0f, 0.0f, 1.0f};
+				break;
+			case Texture::ChannelValue::Blue:
+				col = {0.0f, 0.0f, 1.0f, 1.0f};
+				break;
+			case Texture::ChannelValue::Alpha:
+				col = {1.0f, 0.0f, 1.0f, 1.0f};
+				break;
+			case Texture::ChannelValue::Zero:
+				col = {0.5f, 0.5f, 0.5f, 1.0f};
+				break;
+			case Texture::ChannelValue::One:
+				col = {1.0f, 1.0f, 1.0f, 1.0f};
+				break;
+			};
+
+			ImGui::TextColored(col, "%s", Texture::enum_value_str(component));
+		};
+
+		print_swizzle_channel(map.swizzle_mask().red); ImGui::SameLine();
+		print_swizzle_channel(map.swizzle_mask().green); ImGui::SameLine();
+		print_swizzle_channel(map.swizzle_mask().blue); ImGui::SameLine();
+		print_swizzle_channel(map.swizzle_mask().alpha); ImGui::SameLine();
+		ImGui::NextColumn();
+
+		ImGui::TextUnformatted("GL Handle:"); ImGui::NextColumn();
+		ImGui::Text("%d", storage.texture_handle()); ImGui::NextColumn();
 
 		if(storage.shared()) {
-			ImGui::Text("Shared: %d", storage.ref_count());
+			ImGui::TextUnformatted("Shared:"); ImGui::NextColumn();
+			ImGui::Text("%d", storage.ref_count()); ImGui::NextColumn();
 		}
+		ImGui::Columns(1);
 
 		if(!storage.valid())
 			return;
@@ -429,19 +477,32 @@ static void show_material_ui(rc::Material& material)
 
 static void show_mesh_ui(rc::model::Mesh& submesh, rc::Material& material)
 {
-	ImGui::Text("Vertices / unique:  %u / %u (%u%%)",
+
+	ImGui::Columns(2, "mesh_ui", false);
+
+	ImGui::TextUnformatted("Vertices / unique:"); ImGui::NextColumn();
+	ImGui::Text("%u / %u (%u%%)",
 	            submesh.numverts,
 	            submesh.numverts_unique,
-	            rc::math::percent(submesh.numverts_unique, submesh.numverts));
-	ImGui::Text("Touched lights:     %u", submesh.touched_lights);
-	ImGui::Text("Index Range:        %u - %u", submesh.index_min, submesh.index_max);
+	            rc::math::percent(submesh.numverts_unique, submesh.numverts)); ImGui::NextColumn();
+
+	ImGui::TextUnformatted("Touched lights:"); ImGui::NextColumn();
+	ImGui::Text("%u", submesh.touched_lights); ImGui::NextColumn();
+
+	ImGui::TextUnformatted("Index Range:"); ImGui::NextColumn();
+	ImGui::Text("%u - %u", submesh.index_min, submesh.index_max); ImGui::NextColumn();
 
 	auto index_type = glbinding::aux::Meta::getString(static_cast<gl::GLenum>(submesh.index_type));
-	ImGui::Text("Index Type:         %s", index_type.data());
+	ImGui::TextUnformatted("Index Type:"); ImGui::NextColumn();
+	ImGui::Text("%s", index_type.data()); ImGui::NextColumn();
 
 	auto draw_mode = glbinding::aux::Meta::getString(static_cast<gl::GLenum>(submesh.draw_mode));
-	ImGui::Text("Draw Mode:          %s", draw_mode.data());
-	ImGui::Text("Tangents:           %s", (submesh.has_tangents ? "Baked" : "Shader"));
+	ImGui::TextUnformatted("Draw Mode:"); ImGui::NextColumn();
+	ImGui::Text("%s", draw_mode.data()); ImGui::NextColumn();
+
+	ImGui::TextUnformatted("Tangents:"); ImGui::NextColumn();
+	ImGui::Text("%s", (submesh.has_tangents ? "Baked" : "Shader")); ImGui::NextColumn();
+	ImGui::Columns(1);
 
 	auto bbox_min = submesh.bbox.min();
 	auto bbox_max = submesh.bbox.max();

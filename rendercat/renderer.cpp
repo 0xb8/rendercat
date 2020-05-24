@@ -125,13 +125,15 @@ void Renderer::init_brdf()
 	glTextureParameteri(*m_brdf_lut_to, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 }
 
-void Renderer::resize(uint32_t width, uint32_t height, bool force)
+void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio, bool force)
 {
 	if(!force && (width == m_window_width && height == m_window_height))
 		return;
 
 	if(width < 2 || height < 2)
 		return;
+
+	m_device_pixel_ratio = device_pixel_ratio;
 
 	if(unlikely(width > (GLuint)max_framebuffer_width || height > (GLuint)max_framebuffer_height))
 		throw std::runtime_error("framebuffer resize failed: specified size too big");
@@ -446,7 +448,7 @@ void Renderer::draw()
 	m_shader_set.check_updates();
 
 	if(unlikely(desired_render_scale != m_backbuffer_scale || desired_msaa_level != msaa_level))
-		resize(m_window_width, m_window_height, true);
+		resize(m_window_width, m_window_height, m_device_pixel_ratio, true);
 
 	// clear masked and blended queue
 	m_masked_meshes.clear();
@@ -624,7 +626,7 @@ void Renderer::draw_gui()
 #endif
 
 	ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiCond_Always);
-	ImGui::SetNextWindowSize(ImVec2(375, 40));
+	ImGui::SetNextWindowSize(ImVec2(375 * m_device_pixel_ratio, 40 * m_device_pixel_ratio));
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.1f));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,ImVec2(0,0));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
@@ -647,7 +649,7 @@ void Renderer::draw_gui()
 	         1000.0f / std::max(m_perfquery.time_avg, 0.01f), m_perfquery.time_last, m_perfquery.query_num);
 
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.00f, 0.00f, 0.00f, 0.50f));
-	ImGui::PlotLines("", m_perfquery.times, std::size(m_perfquery.times), 0, avgbuf, 0.0f, 20.0f, ImVec2(0,40));
+	ImGui::PlotLines("", m_perfquery.times, std::size(m_perfquery.times), 0, avgbuf, 0.0f, 20.0f, ImVec2(0,40 * m_device_pixel_ratio));
 	ImGui::PopStyleColor();
 
 	ImGui::PopItemWidth();
