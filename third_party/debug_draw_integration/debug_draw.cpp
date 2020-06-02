@@ -11,7 +11,7 @@
 // ================================================================================================
 
 
-#include <debug_draw.hpp>
+#include <debug_draw_interface.hpp>
 #include <cassert>
 
 #include <glbinding/gl45core/enum.h>

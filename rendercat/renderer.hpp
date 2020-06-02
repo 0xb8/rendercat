@@ -3,7 +3,7 @@
 #include <rendercat/shader_set.hpp>
 #include <rendercat/util/gl_perfquery.hpp>
 #include <rendercat/util/gl_unique_handle.hpp>
-#include <debug_draw.hpp>
+#include <debug_draw_interface.hpp>
 #include <vector>
 
 namespace rc {
