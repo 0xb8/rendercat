@@ -3,6 +3,7 @@
 #include <rendercat/texture_cache.hpp>
 #include <rendercat/util/color_temperature.hpp>
 #include <imgui.h>
+#include <ImGuizmo.h>
 #include <zcm/geometric.hpp>
 #include <zcm/type_ptr.hpp>
 #include <zcm/quaternion.hpp>
@@ -28,8 +29,8 @@ void Scene::init()
 	PointLight pl;
 	pl.set_position({4.0f, 1.0f, 1.0f});
 	pl.set_color({1.0f, 0.2f, 0.1f});
-	pl.set_radius(3.5f);
-	pl.set_flux(75.0f);
+	pl.set_radius(4.5f);
+	pl.set_flux(175.0f);
 
 	point_lights.push_back(pl);
 
@@ -52,8 +53,8 @@ void Scene::init()
 	SpotLight sp;
 	sp.set_color({0.9f, 0.86f, 0.88f});
 	sp.set_direction({0.0f, 1.0f, 0.0f});
-	sp.set_radius(4.0f);
-	sp.set_flux(60.0f);
+	sp.set_radius(6.0f);
+	sp.set_flux(160.0f);
 
 	sp.set_position({-10.0f, 3.3f, -3.8f});
 	spot_lights.push_back(sp);
@@ -133,10 +134,39 @@ static void show_flux_help()
 	show_help_tooltip("Luminous Power in Lumens");
 }
 
-static bool edit_transform(RigidTransform& transform)
+static bool edit_transform(RigidTransform& transform, int id, const CameraState& camera_state)
 {
-	bool changed = false;
+	ImGuiIO& io = ImGui::GetIO();
+	ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
+
 	ImGui::PushID(&transform);
+	ImGuizmo::SetID(id);
+
+	const auto view = make_view(camera_state);
+	const auto proj = make_projection_non_reversed_z(camera_state);
+	auto transform_mat = transform.mat;
+	bool changed = false;
+
+	static int gizmo_operation = ImGuizmo::OPERATION::TRANSLATE;
+	ImGui::RadioButton("Translate (g)", &gizmo_operation, ImGuizmo::OPERATION::TRANSLATE); ImGui::SameLine();
+	ImGui::RadioButton("Rotate (r)", &gizmo_operation, ImGuizmo::OPERATION::ROTATE); ImGui::SameLine();
+	ImGui::RadioButton("Scale (s)", &gizmo_operation, ImGuizmo::OPERATION::SCALE);
+
+	static bool gizmo_space = false;
+	ImGui::Checkbox("World Space", &gizmo_space);
+
+	if(ImGui::IsKeyPressed(71)) { // g
+		gizmo_operation = ImGuizmo::OPERATION::TRANSLATE;
+	}
+
+	if(ImGui::IsKeyPressed(82)) { // r
+		gizmo_operation = ImGuizmo::OPERATION::ROTATE;
+	}
+
+	if(ImGui::IsKeyPressed(83)) { // s
+		gizmo_operation = ImGuizmo::OPERATION::SCALE;
+	}
+
 	ImGui::TextUnformatted("Position");
 	ImGui::SameLine();
 	if (ImGui::Button("Reset##position")) {
@@ -155,40 +185,16 @@ static bool edit_transform(RigidTransform& transform)
 		transform.rotation = zcm::quat{};
 		changed = true;
 	}
-	ImGui::SameLine();
 
-	const char* items[] = { "Euler", "Quaternion"};
-	static const char* item_current = items[0];           // Here our selection is a single pointer stored outside the object.
-	if (ImGui::BeginCombo("##rotationtype", item_current, ImGuiComboFlags_HeightSmall)) // The second parameter is the label previewed before opening the combo.
 	{
-		for (size_t n = 0; n < std::size(items); ++n)
-		{
-			bool is_selected = (item_current == items[n]);
-			if (ImGui::Selectable(items[n], is_selected))
-				item_current = items[n];
-			if (is_selected)
-				ImGui::SetItemDefaultFocus();   // Set the initial focus when opening the combo (scrolling + for keyboard navigation support in the upcoming navigation branch)
-		}
-		ImGui::EndCombo();
+		auto euler = zcm::eulerAngles(transform.rotation);
+		auto quat = transform.rotation;
+		ImGui::InputFloat3("Euler (pitch-yaw-roll)", zcm::value_ptr(euler), "%.3f",
+		                   ImGuiInputTextFlags_ReadOnly);
+		ImGui::InputFloat3("Quat (xyzw)", zcm::value_ptr(quat), "%.3f",
+		                   ImGuiInputTextFlags_ReadOnly);
 	}
 
-	if (item_current == items[0]) {
-
-		zcm::vec3 euler = zcm::eulerAngles(transform.rotation);
-		auto ch = ImGui::SliderFloat3("##eulerangles",
-		                               zcm::value_ptr(euler),
-		                               -zcm::pi(), zcm::pi());
-		if (ch) {
-			transform.rotation = zcm::quat{euler};
-			changed = true;
-		}
-	}
-
-	if (item_current == items[1]) {
-		changed |= ImGui::SliderFloat4("##rotation",
-		                    zcm::value_ptr(transform.rotation),
-		                    -1.0f, 1.0f, "%.3f");
-	}
 
 	ImGui::Spacing();
 	ImGui::TextUnformatted("Scale");
@@ -199,6 +205,33 @@ static bool edit_transform(RigidTransform& transform)
 	}
 	changed |= ImGui::DragFloat3("##scale", zcm::value_ptr(transform.scale), 0.01f);
 
+	ImGuizmo::Manipulate(zcm::value_ptr(view),
+	                     zcm::value_ptr(proj),
+	                     static_cast<ImGuizmo::OPERATION>(gizmo_operation),
+	                     gizmo_space ? ImGuizmo::MODE::WORLD : ImGuizmo::MODE::LOCAL,
+	                     zcm::value_ptr(transform_mat));
+
+
+	if (ImGuizmo::IsUsing()) {
+
+		switch (gizmo_operation) {
+		case ImGuizmo::OPERATION::TRANSLATE:
+			transform.position.x = transform_mat[3].x;
+			transform.position.y = transform_mat[3].y;
+			transform.position.z = transform_mat[3].z;
+			break;
+		case ImGuizmo::OPERATION::ROTATE:
+			transform.rotation = zcm::quat_cast(transform_mat);
+			break;
+		case ImGuizmo::OPERATION::SCALE:
+			transform.scale.x = transform_mat[0][0];
+			transform.scale.y = transform_mat[1][1];
+			transform.scale.z = transform_mat[2][2];
+			break;
+		}
+		changed = true;
+	}
+
 	ImGui::PopID();
 
 	if (changed) transform.update();
@@ -206,8 +239,15 @@ static bool edit_transform(RigidTransform& transform)
 }
 
 template<typename T>
-static bool edit_light(T& light) noexcept
+static bool edit_light(T& light, int id, const CameraState& camera_state) noexcept
 {
+	ImGuiIO& io = ImGui::GetIO();
+	ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
+	ImGuizmo::SetID(id | (1 << 29));
+
+	auto view = make_view(camera_state);
+	auto proj = make_projection_non_reversed_z(camera_state);
+
 	constexpr bool is_spot = std::is_same_v<T, SpotLight>;
 	auto pos = light.position();
 	auto diff = light.color();
@@ -248,6 +288,20 @@ static bool edit_light(T& light) noexcept
 	ImGui::TextUnformatted("Position");
 	ImGui::DragFloat3("##lightposition", zcm::value_ptr(pos), 0.01f);
 
+	zcm::mat4 translate_mat = zcm::translate(zcm::mat4{1}, pos);
+
+	ImGuizmo::Manipulate(zcm::value_ptr(view),
+			     zcm::value_ptr(proj),
+			     ImGuizmo::OPERATION::TRANSLATE,
+			     ImGuizmo::MODE::WORLD,
+			     zcm::value_ptr(translate_mat));
+
+	if (ImGuizmo::IsUsing()) {
+		pos.x = translate_mat[3].x;
+		pos.y = translate_mat[3].y;
+		pos.z = translate_mat[3].z;
+	}
+
 	ImGui::Spacing();
 	ImGui::Spacing();
 
@@ -285,8 +339,8 @@ static bool edit_light(T& light) noexcept
 	if constexpr(is_spot) {
 		light.set_direction(dir);
 		light.set_angle_outer(angle_o);
-                light.set_angle_inner(angle_i);
-                light.set_flux(power);
+		light.set_angle_inner(angle_i);
+		light.set_flux(power);
 	} else {
 		light.set_flux(power);
 	}
@@ -703,7 +757,7 @@ void Scene::update()
 			for(unsigned i = 0; i < spot_lights.size(); ++i) {
 				ImGui::PushID(i);
 				if(ImGui::TreeNode("SpotLight", "Spot light #%d", i)) {
-					if(!edit_light<SpotLight>(spot_lights[i])) {
+					if(!edit_light<SpotLight>(spot_lights[i], i, main_camera.state)) {
 						spot_lights.erase(std::next(spot_lights.begin(), i));
 					}
 					ImGui::TreePop();
@@ -723,7 +777,7 @@ void Scene::update()
 				ImGui::PushID(i);
 				if(ImGui::TreeNode("PointLight", "Point light #%d", i)) {
 					auto& light = point_lights[i];
-					if(!edit_light<PointLight>(light)) {
+					if(!edit_light<PointLight>(light, i, main_camera.state)) {
 						point_lights.erase(std::next(point_lights.begin(), i));
 					}
 					ImGui::TreePop();
@@ -752,9 +806,8 @@ void Scene::update()
 			Model& model = models[i];
 			ImGui::PushID(i);
 			if(ImGui::TreeNode("Model", "%s", model.name.data())) {
-				ImGui::PushItemWidth(-1.0f);
 
-				edit_transform(model.transform);
+				edit_transform(model.transform, i, main_camera.state);
 
 				if(ImGui::TreeNodeEx("##submeshes", ImGuiTreeNodeFlags_CollapsingHeader, "Submeshes: %u", model.mesh_count)) {
 					for(unsigned j = 0; j < model.mesh_count; ++j) {
@@ -767,7 +820,7 @@ void Scene::update()
 
 						ImGui::PushID(submesh.name.begin().operator->(), submesh.name.end().operator->());
 						if (ImGui::TreeNode("##submesh", "%s", submesh.name.data())) {
-							edit_transform(shaded_mesh.transform);
+							edit_transform(shaded_mesh.transform, i * model.mesh_count + j, main_camera.state);
 							show_mesh_ui(submesh, materials[material_idx]);
 							ImGui::TreePop();
 						}
@@ -775,7 +828,6 @@ void Scene::update()
 					}
 				}
 
-				ImGui::PopItemWidth();
 				ImGui::TreePop();
 			}
 			ImGui::PopID();

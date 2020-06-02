@@ -9,6 +9,7 @@
 
 namespace rc {
 
+zcm::mat4 make_projection_non_reversed_z(const CameraState& state) noexcept;
 zcm::mat4 make_projection(const CameraState& state) noexcept;
 zcm::mat4 make_view(const CameraState& state) noexcept;
 

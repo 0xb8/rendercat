@@ -22,6 +22,7 @@
 #include <rendercat/util/gl_meta.hpp>
 
 #include <imgui.h>
+#include <ImGuizmo.h>
 #include <examples/imgui_impl_glfw.h>
 #include <examples/imgui_impl_opengl3.h>
 
@@ -530,6 +531,8 @@ int main(int argc, char *argv[]) try
 		ImGui_ImplGlfw_NewFrame();
 
 		ImGui::NewFrame();
+		ImGuizmo::BeginFrame();
+
 		scene.update();
 
 		ImGui::ShowDemoWindow();

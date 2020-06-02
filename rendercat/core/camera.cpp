@@ -30,6 +30,11 @@ static zcm::vec3 calc_turntable_pos(float distance, zcm::vec3 target, const zcm:
 	return target + shift_vec;
 }
 
+zcm::mat4 rc::make_projection_non_reversed_z(const rc::CameraState & state) noexcept
+{
+	return zcm::perspectiveRH_ZO(state.fov, state.aspect, state.znear, state.zfar);
+}
+
 zcm::mat4 rc::make_projection(const CameraState& state) noexcept
 {
 	return make_reversed_z_projection(state.fov, state.aspect, state.znear);

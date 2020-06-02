@@ -9,6 +9,8 @@ add_library(imgui STATIC
 	imgui/examples/imgui_impl_glfw.cpp
 	imgui/examples/imgui_impl_opengl3.cpp
 	imgui/imgui.h
+	imguizmo/ImGuizmo.h
+	imguizmo/ImGuizmo.cpp
 )
 
 add_library(imgui::imgui ALIAS imgui)
@@ -37,5 +39,6 @@ target_compile_definitions(imgui
 target_include_directories(imgui
 	PUBLIC
 		"${PROJECT_SOURCE_DIR}/imgui"
+		"${PROJECT_SOURCE_DIR}/imguizmo"
 	PRIVATE
 		"${PROJECT_SOURCE_DIR}/imgui/examples")
