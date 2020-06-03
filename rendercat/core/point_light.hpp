@@ -2,6 +2,8 @@
 #include <rendercat/common.hpp>
 #include <zcm/vec4.hpp>
 #include <zcm/vec3.hpp>
+#include <zcm/mat3.hpp>
+#include <zcm/quat.hpp>
 #include <zcm/angle_and_trigonometry.hpp>
 #include <zcm/common.hpp>
 #include <zcm/geometric.hpp>
@@ -13,17 +15,15 @@ namespace rc {
 
 struct alignas(zcm::vec4) PunctualLightData
 {
-	zcm::vec3 position;
-	float radius = 5.0f;
-	zcm::vec3 color {1.0f, 1.0f, 1.0f};
-	float intensity {11.9366f};
-	zcm::vec3 direction {0.0f, 1.0f, 0.0f};
-	float angle_scale {0.0f};
-
-	float angle_offset {0.0f};
-	float color_temp {6500.0f};
-	float m_angle_inn = zcm::radians(20.0f); // pad to 16 bytes
-	float m_angle_out = zcm::radians(30.0f);
+	zcm::vec3 position     = {0.0f, 0.0f, 0.0f};
+	float     radius       = 5.0f;
+	zcm::vec3 color        = {1.0f, 1.0f, 1.0f};
+	float     intensity    = 11.9366f;
+	zcm::quat orientation  = {0.0f, 0.0f, 1.0f, 0.0f};
+	float     angle_scale  = 0.0f;
+	float     angle_offset = 0.0f;
+	float     m_angle_inn  = zcm::radians(20.0f); // pad to 16 bytes
+	float     m_angle_out  = zcm::radians(30.0f);
 };
 
 static_assert(sizeof(PunctualLightData) % 16 == 0);
@@ -114,14 +114,18 @@ public:
 		update_angle_scale_offset();
 	}
 
-	void set_direction(zcm::vec3 dir) noexcept
+	void set_orientation(zcm::quat dir) noexcept
 	{
-		data.direction = zcm::normalize(dir);
+		data.orientation = dir;
 	}
 
-	zcm::vec3 direction() const noexcept
+	zcm::quat orientation() const noexcept
 	{
-		return data.direction;
+		return data.orientation;
+	}
+
+	zcm::vec3 direction_vec() const noexcept {
+		return data.orientation * zcm::vec3{0.0f, 0.0f, 1.0f};
 	}
 
 	float flux() const noexcept
@@ -171,7 +175,7 @@ public:
 	float direction_attenuation(zcm::vec3 pos) const noexcept
 	{
 		auto dir = zcm::normalize(data.position - pos);
-		float att = zcm::clamp(zcm::dot(data.direction, dir) * data.angle_scale + data.angle_offset, 0.0f, 1.0f);
+		float att = zcm::clamp(zcm::dot(direction_vec(), dir) * data.angle_scale + data.angle_offset, 0.0f, 1.0f);
 		return att * att;
 	}
 };

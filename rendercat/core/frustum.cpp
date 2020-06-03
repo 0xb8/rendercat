@@ -48,7 +48,7 @@ void Frustum::update(const CameraState& cam_state) noexcept
 {
 	if(state & Locked) return;
 
-	auto forward = cam_state.get_forward();
+	auto forward = -cam_state.get_backward();
 	auto up      = cam_state.get_up();
 	auto right   = cam_state.get_right();
 
@@ -115,6 +115,8 @@ void Frustum::draw_debug() const noexcept
 	dd::line(points[NEAR_BOTTOM_RIGHT], points[FAR_BOTTOM_RIGHT], color);
 	dd::line(points[NEAR_BOTTOM_LEFT],  points[FAR_BOTTOM_LEFT],  color);
 
+	dd::sphere(near_center, normcolor, 0.01f);
+	dd::sphere(far_center, normcolor, 0.01f);
 	dd::line(near_center, far_center, normcolor);
 }
 

@@ -254,7 +254,7 @@ void Renderer::set_uniforms(GLuint shader)
 
 	unif::m4(shader, "proj_view", view_projection);
 	unif::f1(shader, "znear", m_scene->main_camera.state.znear);
-	unif::v3(shader, "camera_forward", m_scene->main_camera.state.get_forward());
+	unif::v3(shader, "camera_forward", -m_scene->main_camera.state.get_backward());
 	unif::v3(shader, "viewPos",   m_scene->main_camera.state.position);
 
 	unif::v4(shader, "directional_light.color_intensity",   m_scene->directional_light.color_intensity);
@@ -280,7 +280,7 @@ void Renderer::set_uniforms(GLuint shader)
 
 	for(unsigned i = 0; i < m_scene->spot_lights.size() && i < MaxLights;++i) {
 		const auto& light = m_scene->spot_lights[i];
-		unif::v4(shader, indexed_uniform("spot_light", ".direction", i),   zcm::vec4{light.data.direction, light.data.angle_scale});
+		unif::v4(shader, indexed_uniform("spot_light", ".direction", i),   zcm::vec4{light.direction_vec(), light.data.angle_scale});
 		unif::v4(shader, indexed_uniform("spot_light", ".position",  i),   zcm::vec4{light.data.position, light.data.radius});
 		unif::v4(shader, indexed_uniform("spot_light", ".color",     i),   zcm::vec4{light.data.color, light.data.intensity});
 		unif::v4(shader, indexed_uniform("spot_light", ".angle_offset",i), zcm::vec4(light.angle_offset()));
@@ -349,7 +349,7 @@ static int process_spot_lights(const std::vector<SpotLight>& spot_lights,
 
 		if(bbox3::intersects_cone(submesh_bbox,
 		                          light.position(),
-		                          -light.direction(),
+		                          -light.direction_vec(),
 		                          light.angle_outer(),
 		                          light.radius()) != Intersection::Outside) {
 			auto dist = zcm::length(light.position() - submesh_bbox.closest_point(light.position()));
@@ -575,7 +575,7 @@ void Renderer::draw()
 			continue;
 
 		dd::cone(light.position(),
-		         zcm::normalize(-light.direction()) * light.radius(),
+		         zcm::normalize(-light.direction_vec()) * light.radius(),
 		         light.color(),
 		         light.angle_outer() * light.radius(), 0.0f);
 	}

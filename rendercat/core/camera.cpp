@@ -43,6 +43,8 @@ zcm::mat4 rc::make_projection(const CameraState& state) noexcept
 zcm::mat4 rc::make_view(const CameraState & state) noexcept
 {
 	return zcm::translate(zcm::mat4_cast(state.orientation), -state.position);
+	// same as above
+	// return zcm::lookAtRH(state.position, state.position + (-state.get_backward()), state.get_up());
 }
 
 void rc::TurntableCameraBehavior::update(rc::CameraState& state) noexcept
@@ -113,7 +115,7 @@ void rc::TurntableCameraBehavior::on_mouse_move(rc::CameraState & state, float x
 
 void rc::TurntableCameraBehavior::move_forward(rc::CameraState & state, float movement) noexcept
 {
-	auto delta = state.get_forward() * movement;
+	auto delta = -state.get_backward() * movement;
 	state.position += delta;
 	target += delta;
 }
@@ -188,39 +190,45 @@ void rc::CameraState::normalize() noexcept
 	orientation = zcm::normalize(orientation);
 }
 
-zcm::vec3 rc::CameraState::get_forward() const noexcept
+zcm::vec3 rc::CameraState::get_backward() const noexcept
 {
+	// orthogonal matrix inverse == transpose
+	// return zcm::transpose(zcm::mat3_cast(orientation))[2];
+
 	// unit quat inverse == conjugate
-	return zcm::conjugate(orientation) * zcm::vec3(0.0f, 0.0f, -1.0f);
+	// return zcm::mat3_cast(zcm::conjugate(orientation))[2];
+
+	// same as above
+	return zcm::conjugate(orientation) * zcm::vec3(0.0f, 0.0f, 1.0f);
 }
 
 zcm::vec3 rc::CameraState::get_right() const noexcept
 {
-	// unit quat inverse == conjugate
-	//return zcm::conjugate(orientation) * zcm::vec3(1.0, 0.0f, 0.0f);
-	auto qyy = orientation.y * orientation.y;
-	auto qzz = orientation.z * orientation.z;
-	auto qxz = orientation.x * orientation.z;
-	auto qxy = orientation.x * orientation.y;
-	auto qwy = orientation.w * orientation.y;
-	auto qwz = orientation.w * orientation.z;
+	// orthogonal matrix inverse == transpose
+	// return zcm::transpose(zcm::mat3_cast(orientation))[0];
 
-	zcm::vec3 res;
-	res.x = 1.0f - 2.0f * (qyy + qzz);
-	res.y = 2.0f * (qxy - qwz);
-	res.z = 2.0f * (qxz + qwy);
-	return res;
+	// unit quat inverse == conjugate
+	// return zcm::mat3_cast(zcm::conjugate(orientation))[0];
+
+	// same as above
+	return zcm::conjugate(orientation) * zcm::vec3(1.0, 0.0f, 0.0f);
 }
 
 zcm::vec3 rc::CameraState::get_up() const noexcept
 {
+	// orthogonal matrix inverse == transpose
+	// return zcm::transpose(zcm::mat3_cast(orientation))[1];
+
 	// unit quat inverse == conjugate
+	// return zcm::mat3_cast(zcm::conjugate(orientation))[1];
+
+	// same as above
 	return zcm::conjugate(orientation) * zcm::vec3(0.0f, 1.0f, 0.0f);
 }
 
 zcm::vec3 rc::CameraState::get_global_forward() const noexcept
 {
-	return zcm::normalize(zcm::cross(get_global_up(), zcm::cross(get_forward(), get_global_up())));
+	return zcm::normalize(zcm::cross(get_global_up(), zcm::cross(get_backward(), get_global_up())));
 }
 
 zcm::vec3 rc::CameraState::get_global_up() const noexcept
@@ -230,7 +238,7 @@ zcm::vec3 rc::CameraState::get_global_up() const noexcept
 
 zcm::vec3 rc::CameraState::get_global_right() const noexcept
 {
-	return zcm::normalize(zcm::cross(get_forward(), get_global_up()));
+	return zcm::normalize(zcm::cross(get_global_up(), get_backward()));
 }
 
 void rc::ZoomCameraBehavior::zoom(rc::CameraState & state, float offset) noexcept
@@ -240,7 +248,7 @@ void rc::ZoomCameraBehavior::zoom(rc::CameraState & state, float offset) noexcep
 
 void rc::FPSCameraBehavior::move_forward(rc::CameraState & state, float movement) noexcept
 {
-	state.position += state.get_forward() * movement;
+	state.position -= state.get_backward() * movement;
 }
 
 void rc::FPSCameraBehavior::move_right(rc::CameraState & state, float movement) noexcept
@@ -250,7 +258,7 @@ void rc::FPSCameraBehavior::move_right(rc::CameraState & state, float movement) 
 
 void rc::FPSCameraBehavior::move_up(rc::CameraState & state, float movement) noexcept
 {
-	state.position += state.get_global_up() * movement;
+	state.position += state.get_up() * movement;
 }
 
 void rc::Camera::update() noexcept

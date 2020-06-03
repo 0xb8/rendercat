@@ -22,8 +22,8 @@ void Scene::init()
 	current_cubemap = "assets/cubemaps/courtyard.hdr";
 	load_skybox_equirectangular(current_cubemap);
 
-	main_camera.state.position = {0.2f, 1.4f, -1};
-	main_camera.state.orientation = {0, 0, 1, 0};
+	main_camera.state.position = {0.0f, 1.4f, 1};
+	//main_camera.state.orientation = {0, 0, 1, 0};
 	directional_light.direction = zcm::normalize(directional_light.direction);
 
 	PointLight pl;
@@ -52,7 +52,7 @@ void Scene::init()
 
 	SpotLight sp;
 	sp.set_color({0.9f, 0.86f, 0.88f});
-	sp.set_direction({0.0f, 1.0f, 0.0f});
+	sp.set_orientation({0.0f, 0.0f, 0.714f, 0.7f});
 	sp.set_radius(6.0f);
 	sp.set_flux(160.0f);
 
@@ -214,22 +214,22 @@ static bool edit_transform(RigidTransform& transform, int id, const CameraState&
 
 	if (ImGuizmo::IsUsing()) {
 
+		zcm::vec3 translate, scale;
+		zcm::quat rotate;
+		zcm::decompose_orthogonal(transform_mat, scale, rotate, translate);
+
 		switch (gizmo_operation) {
 		case ImGuizmo::OPERATION::TRANSLATE:
-			transform.position.x = transform_mat[3].x;
-			transform.position.y = transform_mat[3].y;
-			transform.position.z = transform_mat[3].z;
+			transform.position = translate;
 			break;
 		case ImGuizmo::OPERATION::ROTATE:
-			transform.rotation = zcm::quat_cast(transform_mat);
+			transform.rotation = rotate;
 			break;
 		case ImGuizmo::OPERATION::SCALE:
-			transform.scale.x = transform_mat[0][0];
-			transform.scale.y = transform_mat[1][1];
-			transform.scale.z = transform_mat[2][2];
-			break;
+			transform.scale = scale;
 		}
 		changed = true;
+
 	}
 
 	ImGui::PopID();
@@ -253,7 +253,7 @@ static bool edit_light(T& light, int id, const CameraState& camera_state) noexce
 	auto diff = light.color();
 	float radius = light.radius();
 
-	zcm::vec3 dir;
+	zcm::quat dir;
 	float power;
 	float angle_o;
 	float angle_i;
@@ -273,14 +273,29 @@ static bool edit_light(T& light, int id, const CameraState& camera_state) noexce
 	ImGui::Spacing();
 	ImGui::PushItemWidth(-1.0f);
 
+	zcm::mat4 rotate_mat{1.0f};
+	static int gizmo_operation = ImGuizmo::OPERATION::TRANSLATE;
 	if constexpr(is_spot) {
 		auto spot = static_cast<SpotLight&>(light);
 		power = spot.flux();
-		dir = spot.direction();
+		dir = spot.orientation();
 		angle_o = spot.angle_outer();
 		angle_i = spot.angle_inner();
+
+		ImGui::RadioButton("Translate (g)", &gizmo_operation, ImGuizmo::OPERATION::TRANSLATE); ImGui::SameLine();
+		ImGui::RadioButton("Rotate (r)", &gizmo_operation, ImGuizmo::OPERATION::ROTATE);
+
+		if(ImGui::IsKeyPressed(71)) { // g
+			gizmo_operation = ImGuizmo::OPERATION::TRANSLATE;
+		}
+
+		if(ImGui::IsKeyPressed(82)) { // r
+			gizmo_operation = ImGuizmo::OPERATION::ROTATE;
+		}
+
 		ImGui::TextUnformatted("Direction");
-		ImGui::DragFloat3("##lightdirection", zcm::value_ptr(dir), 0.01f);
+		ImGui::DragFloat4("##lightdirection", zcm::value_ptr(dir), 0.01f);
+		rotate_mat = zcm::mat4_cast(dir);
 	} else {
 		power = light.flux();
 	}
@@ -288,18 +303,26 @@ static bool edit_light(T& light, int id, const CameraState& camera_state) noexce
 	ImGui::TextUnformatted("Position");
 	ImGui::DragFloat3("##lightposition", zcm::value_ptr(pos), 0.01f);
 
-	zcm::mat4 translate_mat = zcm::translate(zcm::mat4{1}, pos);
+	zcm::mat4 transform = zcm::translate(zcm::mat4{1}, pos) * rotate_mat;
 
 	ImGuizmo::Manipulate(zcm::value_ptr(view),
 			     zcm::value_ptr(proj),
-			     ImGuizmo::OPERATION::TRANSLATE,
-			     ImGuizmo::MODE::WORLD,
-			     zcm::value_ptr(translate_mat));
+			     static_cast<ImGuizmo::OPERATION>(gizmo_operation),
+			     ImGuizmo::MODE::LOCAL,
+			     zcm::value_ptr(transform));
 
 	if (ImGuizmo::IsUsing()) {
-		pos.x = translate_mat[3].x;
-		pos.y = translate_mat[3].y;
-		pos.z = translate_mat[3].z;
+		switch (gizmo_operation) {
+		case ImGuizmo::OPERATION::TRANSLATE:
+			pos.x = transform[3].x;
+			pos.y = transform[3].y;
+			pos.z = transform[3].z;
+			break;
+		case ImGuizmo::OPERATION::ROTATE:
+			dir = zcm::quat_cast(transform);
+			break;
+		}
+
 	}
 
 	ImGui::Spacing();
@@ -310,8 +333,9 @@ static bool edit_light(T& light, int id, const CameraState& camera_state) noexce
 	                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 
 	ImGui::TextUnformatted("Diffuse color temperature");
-	if(ImGui::SliderFloat("##diffusetemp", &light.data.color_temp, 273.0f, 10000.0f, "%.0f K")) {
-		diff = rc::util::temperature_to_linear_color(light.data.color_temp);
+	static float color_temp = 6500.0f;
+	if(ImGui::SliderFloat("##diffusetemp", &color_temp, 273.0f, 10000.0f, "%.0f K")) {
+		diff = rc::util::temperature_to_linear_color(color_temp);
 	}
 
 	ImGui::PopItemWidth();
@@ -337,7 +361,7 @@ static bool edit_light(T& light, int id, const CameraState& camera_state) noexce
 	light.state |= light_wireframe ? T::ShowWireframe : 0;
 
 	if constexpr(is_spot) {
-		light.set_direction(dir);
+		light.set_orientation(dir);
 		light.set_angle_outer(angle_o);
 		light.set_angle_inner(angle_i);
 		light.set_flux(power);
@@ -582,7 +606,7 @@ void Scene::update()
 	}
 	for(auto& sl : spot_lights) {
 		if(sl.state & PointLight::FollowCamera) {
-			sl.set_direction(-main_camera.state.get_forward());
+			sl.set_orientation(zcm::conjugate(main_camera.state.orientation));
 			sl.set_position(main_camera.state.position);
 		}
 	}
@@ -598,7 +622,7 @@ void Scene::update()
 		ImGui::SliderFloat4("Orientation", zcm::value_ptr(main_camera.state.orientation), -1.f, 1.f);
 
 		if (ImGui::TreeNode("Alternate Orientation")) {
-			auto forward = main_camera.state.get_forward();
+			auto forward = -main_camera.state.get_backward();
 			auto up = main_camera.state.get_up();
 			auto right = main_camera.state.get_right();
 			ImGui::Spacing();
@@ -750,7 +774,7 @@ void Scene::update()
 		if(ImGui::TreeNode("Spot Lights")) {
 			if(ImGui::Button("Add light")) {
 				SpotLight sp;
-				sp.set_direction(-main_camera.state.get_forward());
+				sp.set_orientation(zcm::conjugate(main_camera.state.orientation));
 				sp.set_position(main_camera.state.position);
 				spot_lights.push_back(sp);
 			}

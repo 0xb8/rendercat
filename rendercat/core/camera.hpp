@@ -30,8 +30,15 @@ struct CameraState
 	/// Must be done at least once per frame and after any orientation change.
 	void normalize() noexcept;
 
-	/// Returns normalized forward vector.
-	zcm::vec3 get_forward() const noexcept;
+	// Right-handed coordinate system.
+	//    ^ +Y (up)
+	//    |
+	//    o---> +X (right)
+	//   /
+	//  v -Z (backward, i.e. pointing out of the screen)
+
+	/// Returns normalized backward vector.
+	zcm::vec3 get_backward() const noexcept;
 
 	/// Returns normalized right vector.
 	zcm::vec3 get_right() const noexcept;

@@ -23,6 +23,8 @@ add_executable(${PROJECT_NAME}
 	core/bbox.hpp
 	core/camera.cpp
 	core/camera.hpp
+	core/point_light.hpp
+	common.hpp
 	core/frustum.cpp
 	core/frustum.hpp
 	util/color_temperature.cpp

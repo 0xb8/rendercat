@@ -70,6 +70,7 @@ namespace input {
 	static bool left     = false;
 	static bool right    = false;
 	static bool key_z    = false;
+	static bool key_q    = false;
 	static bool shift    = false;
 	static bool alt      = false;
 
@@ -203,6 +204,9 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 	case GLFW_KEY_Z:
 		input::key_z = (action != GLFW_RELEASE);
 		break;
+	case GLFW_KEY_Q:
+		input::key_q = (action != GLFW_RELEASE);
+		break;
 	case GLFW_KEY_LEFT_SHIFT:
 		input::shift = (action != GLFW_RELEASE);
 		break;
@@ -240,6 +244,8 @@ static void glfw_process_input(rc::Scene* s, float dt)
 
 	if(input::key_z) {
 		s->main_camera.behavior.roll(s->main_camera.state, zcm::radians(input::xoffset));
+	} else if (input::key_q) {
+		s->main_camera.behavior.move_up(s->main_camera.state, input::yoffset * 0.1f);
 	} else {
 		s->main_camera.behavior.on_mouse_move(s->main_camera.state, input::xoffset, input::yoffset);
 	}
