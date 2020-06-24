@@ -11,12 +11,17 @@ add_library(imgui STATIC
 	imgui/imgui.h
 	imguizmo/ImGuizmo.h
 	imguizmo/ImGuizmo.cpp
+	implot/implot.h
+	implot/implot.cpp
+	implot/implot_demo.cpp
 )
 
 add_library(imgui::imgui ALIAS imgui)
 
 
 target_link_libraries(imgui
+	PUBLIC
+		zcm::zcm
 	PRIVATE
 		glbinding::glbinding
 		glfw
@@ -24,13 +29,10 @@ target_link_libraries(imgui
 
 set_target_properties(imgui PROPERTIES
 	CXX_STANDARD 14
-	CXX_STANDARD_REQUIRED ON)
+	CXX_STANDARD_REQUIRED ON
+	CXX_EXTENSIONS OFF)
 
 target_compile_definitions(imgui
-	PUBLIC
-		IMGUI_DISABLE_WIN32_DEFAULT_CLIPBOARD_FUNCS
-		IMGUI_DISABLE_WIN32_DEFAULT_IME_FUNCS
-		IMGUI_DISABLE_OBSOLETE_FUNCTIONS
 	PRIVATE
 		IMGUI_IMPL_OPENGL_LOADER_GLBINDING3
 		GL_VERSION_3_2
@@ -38,7 +40,7 @@ target_compile_definitions(imgui
 
 target_include_directories(imgui
 	PUBLIC
-		"${PROJECT_SOURCE_DIR}/imgui"
-		"${PROJECT_SOURCE_DIR}/imguizmo"
+		"${PROJECT_SOURCE_DIR}"
 	PRIVATE
+		"${PROJECT_SOURCE_DIR}/imgui"
 		"${PROJECT_SOURCE_DIR}/imgui/examples")

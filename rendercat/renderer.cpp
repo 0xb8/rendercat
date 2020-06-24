@@ -626,8 +626,9 @@ void Renderer::draw_gui()
 	ImGui::End();
 #endif
 
-	ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiCond_Always);
-	ImGui::SetNextWindowSize(ImVec2(375 * m_device_pixel_ratio, 40 * m_device_pixel_ratio));
+	ImGui::SetNextWindowPos(ImGui::GetMainViewport()->Pos + zcm::vec2(5, 5), ImGuiCond_Always);
+
+	ImGui::SetNextWindowSize(ImVec2(30 * ImGui::GetFontSize(), 0));
 	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.1f));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,ImVec2(0,0));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
@@ -650,7 +651,7 @@ void Renderer::draw_gui()
 	         1000.0f / std::max(m_perfquery.time_avg, 0.01f), m_perfquery.time_last, m_perfquery.query_num);
 
 	ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.00f, 0.00f, 0.00f, 0.50f));
-	ImGui::PlotLines("", m_perfquery.times, std::size(m_perfquery.times), 0, avgbuf, 0.0f, 20.0f, ImVec2(0,40 * m_device_pixel_ratio));
+	ImGui::PlotLines("", m_perfquery.times, std::size(m_perfquery.times), 0, avgbuf, 0.0f, 20.0f, ImVec2(0, 3 * ImGui::GetFontSize()));
 	ImGui::PopStyleColor();
 
 	ImGui::PopItemWidth();

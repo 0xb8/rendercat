@@ -3,7 +3,7 @@
 #include <rendercat/texture_cache.hpp>
 #include <rendercat/util/color_temperature.hpp>
 #include <imgui.h>
-#include <ImGuizmo.h>
+#include <imguizmo/ImGuizmo.h>
 #include <zcm/geometric.hpp>
 #include <zcm/type_ptr.hpp>
 #include <zcm/quaternion.hpp>
@@ -68,7 +68,7 @@ void Scene::init()
 	sp.set_position({9.3f, 3.3f, 3.4f});
 	spot_lights.push_back(sp);
 
-	load_model_gltf("sponza.gltf", "sponza/");
+	load_model_gltf("sponzahr.gltf", "sponza/");
 	load_model_gltf("2b_feather.gltf", "2b_v6/");
 
 	Texture::Cache::clear();
@@ -136,8 +136,9 @@ static void show_flux_help()
 
 static bool edit_transform(RigidTransform& transform, int id, const CameraState& camera_state)
 {
-	ImGuiIO& io = ImGui::GetIO();
-	ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
+	const auto& main_viewport = ImGui::GetPlatformIO().MainViewport;
+	ImGuizmo::SetRect(main_viewport->Pos.x, main_viewport->Pos.y,
+	                  main_viewport->Size.x, main_viewport->Size.y);
 
 	ImGui::PushID(&transform);
 	ImGuizmo::SetID(id);
@@ -241,8 +242,9 @@ static bool edit_transform(RigidTransform& transform, int id, const CameraState&
 template<typename T>
 static bool edit_light(T& light, int id, const CameraState& camera_state) noexcept
 {
-	ImGuiIO& io = ImGui::GetIO();
-	ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
+	const auto& main_viewport = ImGui::GetPlatformIO().MainViewport;
+	ImGuizmo::SetRect(main_viewport->Pos.x, main_viewport->Pos.y,
+	                  main_viewport->Size.x, main_viewport->Size.y);
 	ImGuizmo::SetID(id | (1 << 29));
 
 	auto view = make_view(camera_state);

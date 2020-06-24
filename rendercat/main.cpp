@@ -22,9 +22,10 @@
 #include <rendercat/util/gl_meta.hpp>
 
 #include <imgui.h>
-#include <ImGuizmo.h>
-#include <examples/imgui_impl_glfw.h>
-#include <examples/imgui_impl_opengl3.h>
+#include <imguizmo/ImGuizmo.h>
+#include <implot/implot.h>
+#include <imgui/examples/imgui_impl_glfw.h>
+#include <imgui/examples/imgui_impl_opengl3.h>
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #define DOCTEST_CONFIG_WINDOWS_SEH
@@ -157,6 +158,7 @@ static void glfw_framebuffer_resized_callback(GLFWwindow* window, int width, int
 static void rc_set_input_captured(GLFWwindow* window, bool value)
 {
 	input::captured = value;
+	auto& io = ImGui::GetIO();
 	if(input::captured) {
 		input::mouse_just_captured = true;
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -164,12 +166,16 @@ static void rc_set_input_captured(GLFWwindow* window, bool value)
 		glfwSetCharCallback(window, nullptr);
 		glfwSetMouseButtonCallback(window, nullptr);
 		glfwSetScrollCallback(window, glfw_scroll_callback);
+		io.ConfigFlags |= ImGuiConfigFlags_NoMouse;
+		io.ConfigFlags |= ImGuiConfigFlags_NavNoCaptureKeyboard;
 	} else {
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 		glfwSetCharCallback(window, ImGui_ImplGlfw_CharCallback);
 		glfwSetCursorDeltaCallback(window, nullptr);
 		glfwSetMouseButtonCallback(window, ImGui_ImplGlfw_MouseButtonCallback);
 		glfwSetScrollCallback(window, ImGui_ImplGlfw_ScrollCallback);
+		io.ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
+		io.ConfigFlags &= ~ImGuiConfigFlags_NavNoCaptureKeyboard;
 	}
 }
 
@@ -492,14 +498,18 @@ int main(int argc, char *argv[]) try
 	enable_gl_clip_control();
 
 	{
+		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
-		ImGui_ImplGlfw_InitForOpenGL(window, false);
-		ImGui_ImplOpenGL3_Init("#version 430 core");
 
 		auto& io = ImGui::GetIO();
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 		io.ConfigFlags |= ImGuiConfigFlags_IsSRGB;
+		io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;           // Enable Docking
+		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;         // Enable Multi-Viewport / Platform Windows
 		globals::glfw_device_pixel_ratio_changed = true;
+
+		ImGui_ImplGlfw_InitForOpenGL(window, false);
+		ImGui_ImplOpenGL3_Init("#version 430 core");
 	}
 
 	rc::Scene scene;
@@ -541,13 +551,22 @@ int main(int argc, char *argv[]) try
 
 		scene.update();
 
-		ImGui::ShowDemoWindow();
-
 		renderer.draw();
 		renderer.draw_gui();
 
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+		// Update and Render additional Platform Windows
+	        // (Platform functions may change the current OpenGL context, so we save/restore it to make it easier to paste this code elsewhere.
+	        //  For this specific demo app we could also call glfwMakeContextCurrent(window) directly)
+	        if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+	        {
+	            GLFWwindow* backup_current_context = glfwGetCurrentContext();
+	            ImGui::UpdatePlatformWindows();
+	            ImGui::RenderPlatformWindowsDefault();
+	            glfwMakeContextCurrent(backup_current_context);
+	        }
+
 		process_screenshot(renderer);
 
 		glfwSwapBuffers(window);
