@@ -14,6 +14,7 @@ add_library(imgui STATIC
 	implot/implot.h
 	implot/implot.cpp
 	implot/implot_demo.cpp
+	implot/implot_items.cpp
 )
 
 add_library(imgui::imgui ALIAS imgui)
@@ -43,4 +44,5 @@ target_include_directories(imgui
 		"${PROJECT_SOURCE_DIR}"
 	PRIVATE
 		"${PROJECT_SOURCE_DIR}/imgui"
+		"${PROJECT_SOURCE_DIR}/implot"
 		"${PROJECT_SOURCE_DIR}/imgui/examples")

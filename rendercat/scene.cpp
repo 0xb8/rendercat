@@ -729,9 +729,9 @@ void Scene::update()
 			ImGui::TextUnformatted("Directional Exponent");
 			ImGui::SliderFloat("##directionalexponent", &fog.dir_exponent, 1.0f, 64.0f);
 			ImGui::TextUnformatted("Inscattering density");
-			ImGui::SliderFloat("##inscatteringdensity", &fog.inscattering_density, 0.0f, 1.0f, "%.3f", 2.0f);
+			ImGui::SliderFloat("##inscatteringdensity", &fog.inscattering_density, 0.0f, 1.0f);
 			ImGui::TextUnformatted("Extinction density");
-			ImGui::SliderFloat("##extinctiondensity", &fog.extinction_density, 0.0f, 1.0f, "%.3f", 2.0f);
+			ImGui::SliderFloat("##extinctiondensity", &fog.extinction_density, 0.0f, 1.0f);
 
 			fog.state = ExponentialDirectionalFog::NoState;
 			fog.state |= enabled ? ExponentialDirectionalFog::Enabled : 0;
