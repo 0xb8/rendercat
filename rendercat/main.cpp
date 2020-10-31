@@ -24,8 +24,8 @@
 #include <imgui.h>
 #include <imguizmo/ImGuizmo.h>
 #include <implot/implot.h>
-#include <imgui/examples/imgui_impl_glfw.h>
-#include <imgui/examples/imgui_impl_opengl3.h>
+#include <imgui/backends/imgui_impl_glfw.h>
+#include <imgui/backends/imgui_impl_opengl3.h>
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #define DOCTEST_CONFIG_WINDOWS_SEH
