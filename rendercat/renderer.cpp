@@ -240,57 +240,63 @@ static const char* indexed_uniform(std::string_view array, std::string_view name
 	return &buf[0];
 }
 
-void Renderer::set_uniforms(GLuint shader)
+void Renderer::set_uniforms()
 {
 	m_scene->main_camera.update();
 
-
 	auto view = make_view(m_scene->main_camera.state);
 	auto projection = make_projection(m_scene->main_camera.state);
-	auto view_projection = projection * view;
+	auto proj_view = projection * view;
+	debug_draw_ctx.mvpMatrix = proj_view;
 
+	m_per_frame.next();
+	auto per_frame = m_per_frame.data();
+	assert(per_frame);
+	m_per_frame.bind(1);
 
-	debug_draw_ctx.mvpMatrix = view_projection;
+	per_frame->proj_view = proj_view;
+	per_frame->light_proj_view = m_shadow_matrix;
+	per_frame->znear           = m_scene->main_camera.state.znear;
+	per_frame->camera_forward  = -m_scene->main_camera.state.get_backward();
+	per_frame->viewPos         = m_scene->main_camera.state.position;
 
-	unif::m4(shader, "proj_view", view_projection);
-	unif::f1(shader, "znear", m_scene->main_camera.state.znear);
-	unif::v3(shader, "camera_forward", -m_scene->main_camera.state.get_backward());
-	unif::v3(shader, "viewPos",   m_scene->main_camera.state.position);
+	per_frame->dir_light[0].color_intensity = m_scene->directional_light.color_intensity;
+	per_frame->dir_light[0].direction       = m_scene->directional_light.direction;
 
-	unif::v4(shader, "directional_light.color_intensity",   m_scene->directional_light.color_intensity);
-	unif::v3(shader, "directional_light.direction", m_scene->directional_light.direction);
-
-	unif::v4(shader, "directional_fog.inscattering_color",     m_scene->fog.inscattering_color);
-	unif::v4(shader, "directional_fog.dir_inscattering_color", m_scene->fog.dir_inscattering_color);
-
-	auto fog_dir_unif = zcm::vec4{-m_scene->directional_light.direction, m_scene->fog.dir_exponent};
-	unif::v4(shader, "directional_fog.direction", fog_dir_unif);
-	unif::f1(shader, "directional_fog.inscattering_density",   m_scene->fog.inscattering_density);
-	unif::f1(shader, "directional_fog.extinction_density",     m_scene->fog.extinction_density);
-	unif::b1(shader, "directional_fog.enabled",               (m_scene->fog.state & ExponentialDirectionalFog::Enabled));
-
-	unif::i1(shader, "num_msaa_samples", MSAASampleCount);
-	unif::b1(shader, "shadows_enabled", do_shadow_mapping);
+	per_frame->dir_fog.inscattering_color     = m_scene->fog.inscattering_color;
+	per_frame->dir_fog.dir_inscattering_color = m_scene->fog.dir_inscattering_color;
+	per_frame->dir_fog.direction_exponent     = zcm::vec4{-m_scene->directional_light.direction, m_scene->fog.dir_exponent};
+	per_frame->dir_fog.inscattering_density   = m_scene->fog.inscattering_density;
+	per_frame->dir_fog.extinction_density     = m_scene->fog.extinction_density;
+	per_frame->dir_fog.enabled                = (m_scene->fog.state & ExponentialDirectionalFog::Enabled);
 
 	for(unsigned i = 0; i < m_scene->point_lights.size() && i < MaxLights;++i) {
 		const auto& light = m_scene->point_lights[i];
-		unif::v4(shader, indexed_uniform("point_light", ".position", i), zcm::vec4{light.data.position, light.data.radius});
-		unif::v4(shader, indexed_uniform("point_light", ".color",    i), zcm::vec4{light.data.color, light.data.intensity});
+		per_frame->point_lights[i].position_radius = zcm::vec4{light.data.position, light.data.radius};
+		per_frame->point_lights[i].color_intensity = zcm::vec4{light.data.color, light.data.intensity};
 	}
 
 	for(unsigned i = 0; i < m_scene->spot_lights.size() && i < MaxLights;++i) {
 		const auto& light = m_scene->spot_lights[i];
-		unif::v4(shader, indexed_uniform("spot_light", ".direction", i),   zcm::vec4{light.direction_vec(), light.data.angle_scale});
-		unif::v4(shader, indexed_uniform("spot_light", ".position",  i),   zcm::vec4{light.data.position, light.data.radius});
-		unif::v4(shader, indexed_uniform("spot_light", ".color",     i),   zcm::vec4{light.data.color, light.data.intensity});
-		unif::v4(shader, indexed_uniform("spot_light", ".angle_offset",i), zcm::vec4(light.angle_offset()));
+		per_frame->spot_lights[i].position_radius = zcm::vec4{light.data.position, light.data.radius};
+		per_frame->spot_lights[i].color_intensity = zcm::vec4{light.data.color, light.data.intensity};
+		per_frame->spot_lights[i].direction_angle_scale = zcm::vec4{light.direction_vec(), light.data.angle_scale};
+		per_frame->spot_lights[i].angle_offset = zcm::vec4{light.angle_offset()};
 	}
+
+	per_frame->num_msaa_samples = MSAASampleCount;
+	per_frame->shadows_enabled = do_shadow_mapping;
+
+	m_per_frame.flush();
+
+	// ------
+
 	m_scene->cubemap_diffuse_irradiance.bind_to_unit(34);
 	m_scene->cubemap_specular_environment.bind_to_unit(33);
 	glBindTextureUnit(35, *m_brdf_lut_to);
 }
 
-zcm::mat4 Renderer::set_shadow_uniforms()
+void Renderer::set_shadow_uniforms()
 {
 	// TODO: determine frustum size dynamically
 	static float near_plane = -25.0f, far_plane = 25.0f;
@@ -305,7 +311,7 @@ zcm::mat4 Renderer::set_shadow_uniforms()
 	auto proj_view = lightProjection * lightView;
 
 	unif::m4(*m_shadow_shader, "proj_view", proj_view);
-	return proj_view;
+	m_shadow_matrix = proj_view;
 }
 
 static int process_point_lights(const std::vector<PointLight>& point_lights,
@@ -420,10 +426,9 @@ void Renderer::draw_shadow()
 	glViewport(0,0, ShadowMapWidth, ShadowMapHeight);
 	glClear(GL_DEPTH_BUFFER_BIT);
 
+	set_shadow_uniforms();
+
 	glUseProgram(*m_shadow_shader);
-	auto shadow_proj_view = set_shadow_uniforms();
-	// set projection*view for main shader too
-	unif::m4(*m_shader, "light_proj_view", shadow_proj_view);
 
 	for(unsigned model_idx = 0; model_idx < m_scene->models.size(); ++model_idx) {
 		const Model& model = m_scene->models[model_idx];
@@ -472,9 +477,9 @@ void Renderer::draw()
 	glViewport(0, 0, m_backbuffer_width, m_backbuffer_height);
 	glClear(GL_DEPTH_BUFFER_BIT); // NOTE: no need to clear color attachment bacause skybox will be drawn over it anyway
 
+	set_uniforms();
 
 	glUseProgram(*m_shader);
-	set_uniforms(*m_shader);
 
 	if (do_shadow_mapping) {
 		// bind shadow map texture
@@ -517,6 +522,11 @@ void Renderer::draw()
 
 			if(draw_mesh_bboxes)
 				dd::aabb(submesh_bbox.min(), submesh_bbox.max(), dd::colors::White);
+		}
+
+		if (draw_model_bboxes) {
+			auto mesh_bbox = bbox3::transformed(model.bbox, model.transform.mat);
+			dd::aabb(mesh_bbox.min(), mesh_bbox.max(), dd::colors::Purple);
 		}
 	}
 
@@ -671,6 +681,8 @@ void Renderer::draw_gui()
 	ImGui::Checkbox("Shadows", &do_shadow_mapping);
 	ImGui::SameLine();
 	ImGui::Checkbox("Show submesh bboxes", &draw_mesh_bboxes);
+	ImGui::SameLine();
+	ImGui::Checkbox("Show model bboxes", &draw_model_bboxes);
 
 	const char* labels_cube[] = {"Sky", "Diffuse Irradiance", "Specular Reflectance"};
 	ImGui::Combo("Cubemap", &selected_cubemap, labels_cube, std::size(labels_cube));

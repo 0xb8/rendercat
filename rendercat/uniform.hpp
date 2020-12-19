@@ -1,5 +1,6 @@
 #pragma once
 #include <rendercat/common.hpp>
+#include <rendercat/util/gl_unique_handle.hpp>
 #include <glbinding/gl45core/types.h>
 #include <glbinding/gl45core/boolean.h>
 #include <glbinding/gl45core/functions.h>
@@ -105,6 +106,98 @@ inline void m4(gl45core::GLuint shader, const std::string_view name, const zcm::
 {
 	m4(shader, gl45core::glGetUniformLocation(shader, name.data()), mat);
 }
+
+template<typename T, gl45core::GLenum BindBufferType, unsigned N=1>
+struct buf {
+
+	static constexpr auto map_flags = gl45core::GL_MAP_WRITE_BIT | gl45core::GL_MAP_READ_BIT | gl45core::GL_MAP_PERSISTENT_BIT;
+	static constexpr auto _internal_size = sizeof (T) * N;
+
+	buf() {
+		gl45core::glCreateBuffers(1, _buffer.get());
+		gl45core::glNamedBufferStorage(*_buffer, _internal_size, nullptr,
+		                               map_flags | gl45core::GL_DYNAMIC_STORAGE_BIT);
+		map(true);
+	}
+
+	~buf() {
+		unmap();
+	}
+
+	RC_DISABLE_COPY(buf);
+
+	buf(buf&& other) noexcept :
+		_buffer{std::exchange(other._buffer, rc::buffer_handle{})},
+		_data{std::exchange(other._data, nullptr)}
+	{
+
+	}
+
+	buf& operator=(buf&& other) noexcept {
+		unmap();
+		_buffer = std::exchange(other._buffer, rc::buffer_handle{});
+		_data = std::exchange(other._data, nullptr);
+		return *this;
+	}
+
+	T* map(bool init)
+	{
+		if (_data) return data(); // already mapped
+
+		if (_buffer) {
+			auto map = glMapNamedBufferRange(*_buffer, 0, _internal_size, map_flags | gl45core::GL_MAP_FLUSH_EXPLICIT_BIT);
+			assert(map);
+			if (init)
+				_data = new(map) T[N]{};
+			else
+				_data = reinterpret_cast<T*>(map);
+		} else {
+			_data = nullptr;
+		}
+		return data();
+	}
+
+	T* data() const noexcept {
+		return _data + _index;
+	}
+
+	void bind(uint32_t index) const {
+		if constexpr(N == 1) {
+			gl45core::glBindBufferBase(BindBufferType, index, *_buffer);
+		} else {
+			gl45core::glBindBufferRange(BindBufferType, index, *_buffer, _index * sizeof (T), sizeof (T));
+		}
+	}
+
+	void unmap()
+	{
+		if (_buffer && _data) {
+			gl45core::glUnmapNamedBuffer(*_buffer);
+		}
+		_data = nullptr;
+	}
+
+	void flush()
+	{
+		if (_data)
+			gl45core::glFlushMappedNamedBufferRange(*_buffer, _index * sizeof (T), sizeof (T));
+	}
+
+	void next() {
+		static_assert (N > 1, "Only allowed for N-buffering.");
+
+		_index = (_index+1) % N;
+	}
+
+	explicit operator bool() const noexcept {
+		return static_cast<bool>(_buffer);
+	}
+
+private:
+	rc::buffer_handle _buffer;
+	T* _data = nullptr;
+	size_t _index = 0;
+};
 
 } // namespace unif
 } // namespace rc

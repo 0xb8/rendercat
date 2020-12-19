@@ -36,14 +36,9 @@ static inline constexpr bool test(uint32_t flags, Texture::Kind kind)
 
 
 static ImageTexture2D  _default_diffuse;
-static const auto map_flags_persistent = GL_MAP_WRITE_BIT | GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT;
 
 
 Material::Material(const std::string_view name_) : name(name_) {
-
-	glCreateBuffers(1, params_ubo.get());
-	glNamedBufferStorage(*params_ubo, sizeof (UniformData), nullptr,
-	                     map_flags_persistent | GL_DYNAMIC_STORAGE_BIT);
 	map(true);
 }
 
@@ -56,10 +51,10 @@ Material::~Material()
 #define IMPLEMENT_MATERIAL_MOVE(x, ret) x {                                    \
 	name = std::move(o.name);                                              \
 	textures = std::move(o.textures);                                      \
-	params_ubo = std::move(o.params_ubo);                                  \
+	m_unif_data = std::move(o.m_unif_data);                                \
 	data = std::exchange(o.data, nullptr);                                 \
-	m_double_sided = o.m_double_sided;                                         \
-	m_alpha_mode = o.m_alpha_mode;                                             \
+	m_double_sided = o.m_double_sided;                                     \
+	m_alpha_mode = o.m_alpha_mode;                                         \
 	m_flags = o.m_flags;                                                   \
 	ret;                                                                   \
 }
@@ -103,30 +98,17 @@ bool Material::valid() const
 
 void Material::flush()
 {
-	if (data)
-		glFlushMappedNamedBufferRange(*params_ubo, 0, sizeof (UniformData));
+	m_unif_data.flush();
 }
 
 void Material::map(bool init)
 {
-	if (data) return;
-	if (params_ubo) {
-		auto map = glMapNamedBufferRange(*params_ubo, 0, sizeof(UniformData), map_flags_persistent | GL_MAP_FLUSH_EXPLICIT_BIT);
-		assert(map);
-		if (init)
-			data = new(map) UniformData{};
-		else
-			data = reinterpret_cast<UniformData*>(map);
-	} else {
-		data = nullptr;
-	}
+	data = m_unif_data.map(init);
 }
 
 void Material::unmap()
 {
-	if (params_ubo && data) {
-		glUnmapNamedBuffer(*params_ubo);
-	}
+	m_unif_data.unmap();
 	data = nullptr;
 }
 
@@ -134,8 +116,8 @@ void Material::unmap()
 void Material::bind(uint32_t) const noexcept
 {
 	using namespace Texture;
-	assert(params_ubo);
-	glBindBufferBase(GL_UNIFORM_BUFFER, 0, *params_ubo);
+	assert(m_unif_data);
+	m_unif_data.bind(0);
 
 	if(has_texture_kind(Kind::BaseColor)) {
 		if(!textures.base_color_map.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_DIFFUSE)) {

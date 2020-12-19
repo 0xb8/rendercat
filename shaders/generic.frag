@@ -1,4 +1,4 @@
-#version 440 core
+#version 450 core
 
 //layout(early_fragment_tests) in;
 layout(binding=0) uniform sampler2D material_diffuse;
@@ -55,12 +55,37 @@ struct ExponentialDirectionalFog {
 	bool enabled;
 };
 
-struct LightData {
+
+struct PointLightData {
+    vec4 position;  // .xyz - pos,   .w - radius
+    vec4 color;     // .rgb - color, .a - luminous intensity (candela)
+};
+
+struct SpotLightData {
 	vec4 position;  // .xyz - pos,   .w - radius
 	vec4 color;     // .rgb - color, .a - luminous intensity (candela)
 	vec4 direction; // .xyz - dir,   .w - angle scale
 	vec4 angle_offset;
 };
+
+layout(std140, binding=1) uniform PerFrame_frag {
+    mat4 proj_view;
+    mat4 light_proj_view;
+    vec3  camera_forward;
+    float znear;
+    vec3  viewPos;
+    float _pading1;
+
+    DirectionalLight directional_light;
+    ExponentialDirectionalFog directional_fog;
+
+    PointLightData point_light[MAX_DYNAMIC_LIGHTS];
+    SpotLightData  spot_light[MAX_DYNAMIC_LIGHTS];
+
+    int num_msaa_samples;
+    bool shadows_enabled;
+};
+
 
 struct Light {
     vec4 colorIntensity;  // rgb, pre-exposed intensity
@@ -93,24 +118,12 @@ in INTERFACE {
 
 out	vec4 FragColor;
 
-uniform vec3 viewPos;
-uniform vec3 camera_forward;
-uniform float znear;
-
-uniform DirectionalLight directional_light;
-uniform ExponentialDirectionalFog directional_fog;
-
-uniform LightData point_light[MAX_DYNAMIC_LIGHTS];
-uniform LightData  spot_light[MAX_DYNAMIC_LIGHTS];
 
 uniform int point_light_indices[MAX_DYNAMIC_LIGHTS];
 uniform int spot_light_indices[MAX_DYNAMIC_LIGHTS];
 
 uniform int num_point_lights;
 uniform int num_spot_lights;
-uniform int num_msaa_samples;
-
-uniform bool shadows_enabled;
 uniform bool has_tangents;
 
 
@@ -378,7 +391,7 @@ vec3 calcPBRPoint(const PixelParams pixel) {
 	vec3 color = vec3(0);
 	for (int i = 0; i < num_point_lights; ++i) {
 
-		LightData pl = point_light[point_light_indices[i]];
+		PointLightData pl = point_light[point_light_indices[i]];
 
 		Light point;
 		point.colorIntensity = pl.color;
@@ -399,7 +412,7 @@ vec3 calcPBRSpot(const PixelParams pixel) {
 	vec3 color = vec3(0);
 	for (int i = 0; i < num_spot_lights; ++i) {
 
-		LightData sl = spot_light[spot_light_indices[i]];
+		SpotLightData sl = spot_light[spot_light_indices[i]];
 
 		Light spot;
 		spot.colorIntensity = sl.color;

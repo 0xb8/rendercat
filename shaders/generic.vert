@@ -1,4 +1,4 @@
-#version 330 core
+#version 450 core
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec3 aNormal;
 layout (location = 2) in vec4 aTangent; // xyz - tangent, w - bitangent sign
@@ -13,9 +13,14 @@ out INTERFACE {
 	flat float BitangentSign;
 } vs_out;
 
+
+layout(std140, binding=1) uniform PerFrame_vert {
+    mat4 proj_view;
+    mat4 light_proj_view;
+};
+
+
 uniform mat4 model;
-uniform mat4 proj_view;
-uniform mat4 light_proj_view;
 uniform mat3 normal_matrix;
 uniform bool has_tangents;
 

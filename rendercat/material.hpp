@@ -1,6 +1,7 @@
 #pragma once
 #include <rendercat/common.hpp>
 #include <rendercat/texture2d.hpp>
+#include <rendercat/uniform.hpp>
 #include <zcm/vec4.hpp>
 #include <zcm/vec3.hpp>
 #include <string>
@@ -47,18 +48,6 @@ struct Material
 	Texture::AlphaMode alpha_mode() const noexcept;
 	bool double_sided() const noexcept;
 
-
-private:
-	friend struct Scene;
-	void cleanup(uint32_t prev_flags, uint32_t new_flags) noexcept;
-	void set_shader_flags();
-
-	buffer_handle      params_ubo;
-	uint32_t           m_flags = 0;
-	Texture::AlphaMode m_alpha_mode = Texture::AlphaMode::Opaque;
-	bool               m_double_sided = true;
-
-public:
 	struct UniformData {
 		zcm::vec4          base_color_factor  = 1.0f;
 		zcm::vec3          emissive_factor    = 0.0f;
@@ -69,7 +58,6 @@ public:
 		float              alpha_cutoff = 0.5f;
 		int                type = 0;
 	};
-	UniformData *data = nullptr; // pointer to mapped params UBO
 
 	struct Textures {
 		ImageTexture2D     base_color_map;
@@ -80,6 +68,23 @@ public:
 	};
 	Textures           textures;
 	std::string        name;
+
+
+private:
+	friend struct Scene;
+	void cleanup(uint32_t prev_flags, uint32_t new_flags) noexcept;
+	void set_shader_flags();
+
+	unif::buf<UniformData, gl::GL_UNIFORM_BUFFER> m_unif_data;
+	uint32_t           m_flags = 0;
+	Texture::AlphaMode m_alpha_mode = Texture::AlphaMode::Opaque;
+	bool               m_double_sided = true;
+
+public:
+
+	UniformData *data = nullptr; // pointer to mapped params UBO
+
+
 
 
 };

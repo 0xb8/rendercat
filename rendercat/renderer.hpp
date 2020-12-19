@@ -3,7 +3,10 @@
 #include <rendercat/shader_set.hpp>
 #include <rendercat/util/gl_perfquery.hpp>
 #include <rendercat/util/gl_unique_handle.hpp>
+#include <rendercat/uniform.hpp>
 #include <debug_draw_interface.hpp>
+#include <zcm/mat3.hpp>
+#include <zcm/mat4.hpp>
 #include <vector>
 
 namespace rc {
@@ -40,8 +43,9 @@ class Renderer
 	rc::framebuffer_handle m_backbuffer_resolve_fbo;
 	rc::texture_handle     m_backbuffer_resolve_color_to;
 
-	void set_uniforms(uint32_t shader);
-	zcm::mat4 set_shadow_uniforms();
+	void set_uniforms();
+	void set_shadow_uniforms();
+
 	void draw_shadow();
 	void draw_skybox();
 	void init_shadow();
@@ -56,6 +60,55 @@ class Renderer
 	};
 	std::vector<ModelMeshIdx> m_masked_meshes;
 	std::vector<ModelMeshIdx> m_blended_meshes;
+
+	static constexpr size_t RC_MAX_LIGHTS = 16;
+
+	struct alignas(256) PerFrameData {
+		zcm::mat4 proj_view;
+		zcm::mat4 light_proj_view;
+		zcm::vec3 camera_forward;
+		float     znear;
+		zcm::vec3 viewPos;
+		float     _pading1;
+
+		struct DirectionalLight {
+			zcm::vec4 color_intensity;
+			zcm::vec3 direction;
+			float _padding1;
+		};
+		DirectionalLight dir_light[1];
+
+		struct DirectionalFog {
+			zcm::vec4 inscattering_color;
+			zcm::vec4 dir_inscattering_color;
+			zcm::vec4 direction_exponent;
+			float inscattering_density;
+			float extinction_density;
+			bool enabled;
+			uint32_t _padding1;
+		};
+		DirectionalFog dir_fog;
+
+
+		struct PointLight {
+			zcm::vec4 position_radius; // .xyz - pos,   .w - radius
+			zcm::vec4 color_intensity; // .rgb - color, .a - luminous intensity (candela)
+		};
+		PointLight point_lights[RC_MAX_LIGHTS];
+
+		struct SpotLight : public PointLight {
+			zcm::vec4 direction_angle_scale; // .xyz - dir,   .w - angle scale
+			zcm::vec4 angle_offset;
+		};
+		SpotLight spot_lights[RC_MAX_LIGHTS];
+
+		int32_t num_msaa_samples;
+		bool shadows_enabled;
+	};
+
+	unif::buf<PerFrameData, gl::GL_UNIFORM_BUFFER, 2> m_per_frame;
+
+	zcm::mat4 m_shadow_matrix;
 
 public:
 	static const unsigned int ShadowMapWidth = 2048;
@@ -72,10 +125,11 @@ public:
 
 	float desired_render_scale = 1.0f;
 	bool draw_mesh_bboxes = false;
+	bool draw_model_bboxes = false;
 	bool do_shadow_mapping = true;
 	bool window_shown = true;
 
-	static constexpr int MaxLights = 16;
+	static constexpr int MaxLights = RC_MAX_LIGHTS;
 
 	explicit Renderer(Scene* s);
 	~Renderer() = default;
