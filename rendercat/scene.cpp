@@ -108,7 +108,8 @@ Model* Scene::load_model_gltf(const std::string_view name, const std::string_vie
 			}
 
 			shaded_mesh.mesh = submeshes.size();
-			submeshes.emplace_back(std::move(data.primitives[i]));
+			auto& submesh = submeshes.emplace_back(std::move(data.primitives[i]));
+			model.bbox.include(submesh.bbox);
 
 		}
 
@@ -143,9 +144,6 @@ static bool edit_transform(RigidTransform& transform, int id, const CameraState&
 	ImGui::PushID(&transform);
 	ImGuizmo::SetID(id);
 
-	const auto view = make_view(camera_state);
-	const auto proj = make_projection_non_reversed_z(camera_state);
-	auto transform_mat = transform.mat;
 	bool changed = false;
 
 	static int gizmo_operation = ImGuizmo::OPERATION::TRANSLATE;
@@ -206,14 +204,21 @@ static bool edit_transform(RigidTransform& transform, int id, const CameraState&
 	}
 	changed |= ImGui::DragFloat3("##scale", zcm::value_ptr(transform.scale), 0.01f);
 
-	ImGuizmo::Manipulate(zcm::value_ptr(view),
-	                     zcm::value_ptr(proj),
-	                     static_cast<ImGuizmo::OPERATION>(gizmo_operation),
-	                     gizmo_space ? ImGuizmo::MODE::WORLD : ImGuizmo::MODE::LOCAL,
-	                     zcm::value_ptr(transform_mat));
+	// copy the transform and offset by negative camera position to avoid floating point precision loss.
+	auto transform_copy = transform;
+	transform_copy.position -= camera_state.position;
+	auto transform_mat = transform_copy.get_mat();
 
+	// view matrix without camera translation (already accounted for in the above)
+	const auto view = zcm::mat4_cast(camera_state.orientation);
+	// usual projection, without reversed-z for simplicity
+	const auto proj = make_projection_non_reversed_z(camera_state);
 
-	if (ImGuizmo::IsUsing()) {
+	if (ImGuizmo::Manipulate(zcm::value_ptr(view),
+	                         zcm::value_ptr(proj),
+	                         static_cast<ImGuizmo::OPERATION>(gizmo_operation),
+	                         gizmo_space ? ImGuizmo::MODE::WORLD : ImGuizmo::MODE::LOCAL,
+	                         zcm::value_ptr(transform_mat))) {
 
 		zcm::vec3 translate, scale;
 		zcm::quat rotate;
@@ -221,7 +226,7 @@ static bool edit_transform(RigidTransform& transform, int id, const CameraState&
 
 		switch (gizmo_operation) {
 		case ImGuizmo::OPERATION::TRANSLATE:
-			transform.position = translate;
+			transform.position = translate + camera_state.position;
 			break;
 		case ImGuizmo::OPERATION::ROTATE:
 			transform.rotation = rotate;
@@ -230,7 +235,6 @@ static bool edit_transform(RigidTransform& transform, int id, const CameraState&
 			transform.scale = scale;
 		}
 		changed = true;
-
 	}
 
 	ImGui::PopID();

@@ -60,22 +60,30 @@ struct RigidTransform {
 	zcm::mat4 mat;
 	zcm::mat4 inv_mat;
 
-	void update()
+	zcm::mat4 get_mat() const
 	{
-		rotation = zcm::normalize(rotation);
-
 		// TODO: optimize
 		auto scale_mat = zcm::scale(zcm::mat4{1}, scale);
 		auto rotate_mat = zcm::mat4_cast(rotation);
 		auto translate_mat = zcm::translate(zcm::mat4{1}, position);
-		mat = translate_mat * rotate_mat * scale_mat;
+		return translate_mat * rotate_mat * scale_mat;
+	}
 
+	zcm::mat4 get_inv_mat() const
+	{
 		// calculate separate inverse matrices (faster and more precice than inverse())
 		auto scale_mat_inv = zcm::scale(zcm::mat4{1}, 1.0f / scale);
 		auto rotate_mat_inv = zcm::mat4_cast(zcm::conjugate(rotation));
 		auto translate_mat_inv = zcm::translate(zcm::mat4{1}, -position);
 		// (AB)^-1 = B^-1 * A^-1
-		inv_mat = scale_mat_inv * rotate_mat_inv * translate_mat_inv;
+		return scale_mat_inv * rotate_mat_inv * translate_mat_inv;
+	}
+
+	void update()
+	{
+		rotation = zcm::normalize(rotation);
+		mat = get_mat();
+		inv_mat = get_inv_mat();
 	}
 
 };
@@ -95,6 +103,7 @@ struct Model
 	std::unique_ptr<uint32_t[]> shaded_meshes;
 	uint32_t mesh_count;
 	RigidTransform transform;
+	rc::bbox3 bbox;
 };
 
 
