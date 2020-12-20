@@ -28,7 +28,7 @@ public:
 	explicit ShaderSet(std::string_view directory = path::shader);
 	~ShaderSet();
 
-	bool check_updates();
+	void check_updates();
 
 	using macros_t = std::vector<ShaderMacro>;
 
@@ -39,9 +39,11 @@ public:
 
 private:
 	class Program;
-	std::string	m_directory;
-	Program*	m_programs[max_programs];
-	unsigned	m_program_count = 0;
+	std::string m_directory;
+	Program*    m_programs[max_programs];
+	unsigned    m_program_count = 0;
+	unsigned    m_next_reload_index = 0;
+	bool        m_dirty = true;
 
 };
 

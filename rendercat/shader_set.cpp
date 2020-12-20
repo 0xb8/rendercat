@@ -52,22 +52,15 @@ std::string make_definition(std::string_view name, std::string_view val) {
 	return fmt::format("#define {} {}\n", name, val);
 }
 
-std::string make_definition(std::string_view def) {
-	return fmt::format("#define {}\n", def);
-}
-
 std::string make_line(unsigned file, unsigned line) {
 	return fmt::format("#line {} {}\n", line, file);
 }
-
-
-std::string preprocess_shader_source(const std::filesystem::path& root_dir, std::ifstream& ifs, int depth, ShaderSet::macros_t definitions);
 
 std::string load_and_process_shader(
 	const std::filesystem::path& root_dir,
 	const std::filesystem::path& filepath,
 	int depth,
-	const ShaderSet::macros_t& defines = ShaderSet::macros_t{})
+	const ShaderSet::macros_t& definitions = ShaderSet::macros_t{})
 {
 
 	std::ifstream filestream;
@@ -79,19 +72,8 @@ std::string load_and_process_shader(
 		                                     filepath.string()));
 	}
 
-	return preprocess_shader_source(root_dir, filestream, depth, defines);
-}
-
-std::string preprocess_shader_source(
-	const std::filesystem::path& root_dir,
-	std::ifstream& ifs,
-	int depth,
-	ShaderSet::macros_t definitions)
-{
 	std::string result;
-
 	size_t current_line = 0;
-
 	bool version_found = false;
 
 	auto append_line = [&result](std::string_view line) {
@@ -100,7 +82,7 @@ std::string preprocess_shader_source(
 	};
 
 	std::string line;
-	while(std::getline(ifs, line)) {
+	while(std::getline(filestream, line)) {
 		++current_line;
 
 		if (!version_found) {
@@ -135,6 +117,7 @@ std::string preprocess_shader_source(
 	return result;
 }
 
+
 GLenum shader_type_from_filename(const std::string_view filename)
 {
 	auto ext_pos = filename.find_last_of('.');
@@ -148,9 +131,7 @@ GLenum shader_type_from_filename(const std::string_view filename)
 		}
 	}
 
-	fmt::print(stderr, "[shader]  could not determine type of file: [{}]\n", filename);
-
-	return GL_INVALID_ENUM;
+	throw std::runtime_error("could not determine type of shader file");
 }
 
 struct Shader
@@ -188,18 +169,7 @@ struct Shader
 			return false;
 
 		auto shader_type = shader_type_from_filename(filepath.string());
-
-		std::string shader_source;
-
-		try {
-			shader_source = load_and_process_shader(root_path / "include", filepath, 0, definitions);
-
-		} catch (const std::exception& e) {
-			fmt::print(stderr, "[shader]  reload failed  [{}]: {}\n", filepath.string(), e.what());
-			std::fflush(stderr);
-			return false;
-		}
-
+		const auto shader_source = load_and_process_shader(root_path / "include", filepath, 0, definitions);
 		const auto shader_source_ptr = shader_source.data();
 
 		rc::shader_handle new_handle(glCreateShader(shader_type));
@@ -216,7 +186,7 @@ struct Shader
 		return false;
 
 	} catch(const std::exception& e) {
-		fmt::print(stderr, "[shader]  exception, what(): {}\n", e.what());
+		fmt::print(stderr, "[shader]  reload failed  [{}]: {}\n", filepath.string(), e.what());
 		std::fflush(stderr);
 		return false;
 	}
@@ -307,14 +277,24 @@ ShaderSet::~ShaderSet()
 	}
 }
 
-bool ShaderSet::check_updates()
+void ShaderSet::check_updates()
 {
-	bool ret = false;
-	for(unsigned i = 0; i < m_program_count; ++i) {
-		if (m_programs[i])
-			ret |= (m_programs[i])->reload();
+	if (m_dirty) {
+		for(unsigned i = 0; i < m_program_count; ++i) {
+			auto prog = m_programs[i];
+			if (prog)
+				prog->reload();
+		}
+		m_dirty = false;
 	}
-	return ret;
+
+	if (m_program_count > 0) {
+		auto prog = m_programs[m_next_reload_index];
+		if (prog)
+			prog->reload();
+
+		m_next_reload_index = (m_next_reload_index + 1) % m_program_count;
+	}
 }
 
 gl::GLuint * ShaderSet::load_program(std::vector<std::string>&& names, macros_t&& defines)
@@ -338,6 +318,7 @@ gl::GLuint * ShaderSet::load_program(std::vector<std::string>&& names, macros_t&
 
 	if(program.valid()) {
 		m_programs[m_program_count] = new Program{std::move(program)};
+		m_dirty = true;
 		return m_programs[m_program_count++]->handle.get();
 	}
 
