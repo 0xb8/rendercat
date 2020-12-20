@@ -310,7 +310,7 @@ void Renderer::set_shadow_uniforms()
 
 	auto proj_view = lightProjection * lightView;
 
-	unif::m4(*m_shadow_shader, "proj_view", proj_view);
+	unif::m4(*m_shadow_shader, 0, proj_view);
 	m_shadow_matrix = proj_view;
 }
 
@@ -433,7 +433,7 @@ void Renderer::draw_shadow()
 	for(unsigned model_idx = 0; model_idx < m_scene->models.size(); ++model_idx) {
 		const Model& model = m_scene->models[model_idx];
 
-		unif::m4(*m_shadow_shader, "model", model.transform.mat);
+		unif::m4(*m_shadow_shader, 1, model.transform.mat);
 
 		// TODO: culling
 		for(unsigned submesh_idx = 0; submesh_idx < model.mesh_count; ++submesh_idx) {

@@ -1,6 +1,6 @@
-#version 330 core
+#version 450 core
 
-out vec2 TexCoords;
+layout(location=0) out vec2 TexCoords;
 
 const vec2 data[4] = vec2[]
 (

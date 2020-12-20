@@ -20,6 +20,10 @@ set(COMPUTE_SHADER_SOURCES
 	cubemap_diffuse_irradiance.comp
 	cubemap_specular_envmap.comp)
 
+file(GLOB_RECURSE GLSL_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "*.glsl")
+source_group("GLSL files" FILES ${GLSL_FILES})
+add_custom_target(shaders-includes SOURCES ${GLSL_FILES})
+
 source_group("Vertex Shaders" FILES ${VERTEX_SHADER_SOURCES})
 source_group("Fragment Shaders" FILES ${FRAGMENT_SHADER_SOURCES})
 source_group("Compute Shaders" FILES ${COMPUTE_SHADER_SOURCES})
@@ -29,16 +33,15 @@ set(SHADER_ALL_SOURCES
 	${FRAGMENT_SHADER_SOURCES}
 	${COMPUTE_SHADER_SOURCES})
 
-find_program(GLSLANG_EXECUTABLE glslangValidator)
-if(NOT GLSLANG_EXECUTABLE)
-	message(STATUS "Could not find glslangValidator program. Please install 'glslang' package.")
-	add_custom_target(shaders
-		SOURCES ${SHADER_ALL_SOURCES}
-	)
+find_program(GLSLC_EXECUTABLE glslc HINTS "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/shaderc/glslc")
+if(NOT GLSLC_EXECUTABLE)
+	message(STATUS "Could not find glslc. Please install 'shaderc' package.")
+	add_custom_target(shaders SOURCES ${SHADER_ALL_SOURCES})
+
 else()
 	add_custom_target(shaders
 		SOURCES ${SHADER_ALL_SOURCES}
-		COMMAND ${GLSLANG_EXECUTABLE} ${SHADER_ALL_SOURCES}
+		COMMAND ${GLSLC_EXECUTABLE} -Iinclude -c --target-env=opengl ${SHADER_ALL_SOURCES}
 		COMMENT "Validating shader sources"
 		WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
 	)

@@ -124,7 +124,7 @@ struct buf {
 		unmap();
 	}
 
-	RC_DISABLE_COPY(buf);
+	RC_DISABLE_COPY(buf)
 
 	buf(buf&& other) noexcept :
 		_buffer{std::exchange(other._buffer, rc::buffer_handle{})},

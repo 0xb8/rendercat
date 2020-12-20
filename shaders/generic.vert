@@ -4,7 +4,7 @@ layout (location = 1) in vec3 aNormal;
 layout (location = 2) in vec4 aTangent; // xyz - tangent, w - bitangent sign
 layout (location = 3) in vec2 aTexCoords;
 
-out INTERFACE {
+layout(location=0) out INTERFACE {
 	vec4 FragPosLightSpace;
 	vec3 FragPos;
 	vec3 Normal;
@@ -20,9 +20,9 @@ layout(std140, binding=1) uniform PerFrame_vert {
 };
 
 
-uniform mat4 model;
-uniform mat3 normal_matrix;
-uniform bool has_tangents;
+layout(location=5) uniform mat4 model;
+layout(location=6) uniform mat3 normal_matrix;
+layout(location=7) uniform bool has_tangents;
 
 void main()
 {

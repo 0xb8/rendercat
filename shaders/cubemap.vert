@@ -1,6 +1,6 @@
 #version 440 core
 
-out vec3 FragPos;
+layout(location=0) out vec3 FragPos;
 
 layout(location=0) uniform mat4 view_projection;
 

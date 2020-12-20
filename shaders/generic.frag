@@ -107,7 +107,7 @@ struct PixelParams {
 	float ao;
 };
 
-in INTERFACE {
+layout(location = 0) in INTERFACE {
 	vec4 FragPosLightSpace;
 	vec3 FragPos;
 	vec3 Normal;
@@ -116,17 +116,14 @@ in INTERFACE {
 	flat float BitangentSign;
 } fs_in;
 
-out	vec4 FragColor;
+layout(location = 0) out	vec4 FragColor;
 
 
-uniform int point_light_indices[MAX_DYNAMIC_LIGHTS];
-uniform int spot_light_indices[MAX_DYNAMIC_LIGHTS];
-
-uniform int num_point_lights;
-uniform int num_spot_lights;
-uniform bool has_tangents;
-
-
+layout(location = 7) uniform bool has_tangents;
+layout(location = 8) uniform int num_point_lights;
+layout(location = 9) uniform int num_spot_lights;
+layout(location = 10) uniform int point_light_indices[MAX_DYNAMIC_LIGHTS];
+layout(location = 10 + MAX_DYNAMIC_LIGHTS) uniform int spot_light_indices[MAX_DYNAMIC_LIGHTS];
 
 // ------- PBR stuff -----------------------------------------------------------
 // mostly from https://github.com/google/filament

@@ -1,6 +1,5 @@
 add_subdirectory(fmt EXCLUDE_FROM_ALL)
 add_subdirectory(mikktspace EXCLUDE_FROM_ALL)
-add_subdirectory(tinyheaders_integration EXCLUDE_FROM_ALL)
 add_subdirectory(stb_integration EXCLUDE_FROM_ALL)
 
 add_subdirectory(doctest EXCLUDE_FROM_ALL)
@@ -33,7 +32,6 @@ endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES Clang|GNU)
 	target_compile_options(stb_image      PRIVATE  $<$<CONFIG:DEBUG>:-O3>)
-	target_compile_options(tinyfiles      PRIVATE  $<$<CONFIG:DEBUG>:-O3>)
 	target_compile_options(mikktspace     PRIVATE  $<$<CONFIG:DEBUG>:-O3>)
 	target_compile_options(imgui          PRIVATE  $<$<CONFIG:DEBUG>:-O3>)
 	target_compile_options(zcm            PRIVATE  $<$<CONFIG:DEBUG>:-O3>)

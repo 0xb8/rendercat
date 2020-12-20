@@ -3,4 +3,5 @@ assets/
 logs/
 screenshots/
 *.user
+*.spv
 imgui.ini

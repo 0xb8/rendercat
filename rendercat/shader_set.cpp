@@ -1,9 +1,9 @@
 #include <rendercat/shader_set.hpp>
 #include <rendercat/util/gl_unique_handle.hpp>
-#include <tinyheaders/cute_files.h>
 #include <fmt/core.h>
 #include <sstream>
 #include <fstream>
+#include <filesystem>
 #include <vector>
 #include <memory>
 
@@ -32,6 +32,109 @@ constexpr shader_ext_type types[] {
 	{".tesc", GL_TESS_CONTROL_SHADER}
 };
 
+
+std::string_view get_include(std::string_view s) {
+	auto pos = s.find("#include");
+	if (pos != s.npos) {
+		pos = s.find_first_of("\"<", pos);
+		if (pos != s.npos) {
+			auto end = s.find_first_of("\">", pos+1);
+			if (end != s.npos) {
+				auto res = s.substr(pos + 1, end-pos-1);
+				return res;
+			}
+		}
+	}
+	return std::string_view{};
+}
+
+std::string make_definition(std::string_view name, std::string_view val) {
+	return fmt::format("#define {} {}\n", name, val);
+}
+
+std::string make_definition(std::string_view def) {
+	return fmt::format("#define {}\n", def);
+}
+
+std::string make_line(unsigned file, unsigned line) {
+	return fmt::format("#line {} {}\n", line, file);
+}
+
+
+std::string preprocess_shader_source(const std::filesystem::path& root_dir, std::ifstream& ifs, int depth, ShaderSet::macros_t definitions);
+
+std::string load_and_process_shader(
+	const std::filesystem::path& root_dir,
+	const std::filesystem::path& filepath,
+	int depth,
+	const ShaderSet::macros_t& defines = ShaderSet::macros_t{})
+{
+
+	std::ifstream filestream;
+	filestream.open(filepath);
+
+	if(!filestream.is_open()) {
+		throw std::runtime_error(fmt::format("could not open {} file [{}]\n",
+		                                     depth > 0 ? "include" : "",
+		                                     filepath.string()));
+	}
+
+	return preprocess_shader_source(root_dir, filestream, depth, defines);
+}
+
+std::string preprocess_shader_source(
+	const std::filesystem::path& root_dir,
+	std::ifstream& ifs,
+	int depth,
+	ShaderSet::macros_t definitions)
+{
+	std::string result;
+
+	size_t current_line = 0;
+
+	bool version_found = false;
+
+	auto append_line = [&result](std::string_view line) {
+		result.append(line);
+		result.push_back('\n');
+	};
+
+	std::string line;
+	while(std::getline(ifs, line)) {
+		++current_line;
+
+		if (!version_found) {
+			if (line.find("#version") != line.npos) {
+				append_line(line);
+				version_found = true;
+
+				for (const auto& macro: definitions) {
+					result.append(macro.get_define_string());
+				}
+				result.append(make_line(0, current_line+1));
+				continue;
+			}
+		}
+
+		if (line.find("#include") != line.npos) {
+			auto path = get_include(line);
+			auto p = root_dir / path;
+			auto source = load_and_process_shader(root_dir, p, depth+1);
+			if (source.empty()) {
+				throw std::runtime_error(fmt::format("could not open include file [{}]\n", p.string()));
+			}
+			result.append(make_line(depth+1, 1));
+			result.append(source);
+			result.push_back('\n');
+			result.append(make_line(depth, current_line+1));
+			continue;
+		}
+
+		append_line(line);
+	}
+	return result;
+}
+
 GLenum shader_type_from_filename(const std::string_view filename)
 {
 	auto ext_pos = filename.find_last_of('.');
@@ -52,11 +155,17 @@ GLenum shader_type_from_filename(const std::string_view filename)
 
 struct Shader
 {
-	std::string     filepath;
-	cf_time_t       last_mod = {};
-	rc::shader_handle   handle;
+	std::filesystem::path           filepath;
+	std::filesystem::path           root_path;
+	ShaderSet::macros_t             definitions;
+	std::filesystem::file_time_type last_write_time;
+	rc::shader_handle               handle;
 
-	explicit Shader(std::string&& fpath) : filepath(std::move(fpath)) { }
+	explicit Shader(std::filesystem::path&& root_path, std::filesystem::path&& fpath, ShaderSet::macros_t&& defines) :
+	        filepath(std::move(fpath)),
+	        root_path(std::move(root_path)),
+	        definitions(std::move(defines))
+	{ }
 
 	~Shader() = default;
 	Shader(Shader&& o) noexcept = default;
@@ -65,13 +174,11 @@ struct Shader
 
 	bool should_reload()
 	{
-		cf_time_t ft;
-		cf_get_file_time(filepath.data(), &ft);
-
-		if(likely(0 == cf_compare_file_times(&last_mod, &ft))) {
+		auto file_time = std::filesystem::last_write_time(filepath);
+		if(likely(file_time == last_write_time)) {
 			return false;
 		}
-		last_mod = ft;
+		last_write_time = file_time;
 		return true;
 	}
 
@@ -80,19 +187,19 @@ struct Shader
 		if(!should_reload())
 			return false;
 
-		std::ifstream filestream;
-		filestream.open(filepath);
+		auto shader_type = shader_type_from_filename(filepath.string());
 
-		if(!filestream.is_open()) {
-			fmt::print(stderr, "[shader]  reload failed: could not open file [{}]\n", filepath);
+		std::string shader_source;
+
+		try {
+			shader_source = load_and_process_shader(root_path / "include", filepath, 0, definitions);
+
+		} catch (const std::exception& e) {
+			fmt::print(stderr, "[shader]  reload failed  [{}]: {}\n", filepath.string(), e.what());
 			std::fflush(stderr);
+			return false;
 		}
 
-		std::ostringstream oss{};
-		oss << filestream.rdbuf();
-
-		auto shader_type = shader_type_from_filename(filepath);
-		const auto shader_source = oss.str();
 		const auto shader_source_ptr = shader_source.data();
 
 		rc::shader_handle new_handle(glCreateShader(shader_type));
@@ -102,7 +209,7 @@ struct Shader
 		glGetShaderiv(*new_handle, GL_COMPILE_STATUS, &success);
 		if(success && new_handle) {
 			handle = std::move(new_handle);
-			fmt::print("[shader]  reload success [{}]\n", filepath);
+			fmt::print("[shader]  reload success [{}]\n", filepath.string());
 			std::fflush(stdout);
 			return true;
 		}
@@ -120,7 +227,7 @@ struct Shader
 	}
 };
 
-}
+} // anonymous namespace
 
 class ShaderSet::Program
 {
@@ -210,20 +317,21 @@ bool ShaderSet::check_updates()
 	return ret;
 }
 
-gl::GLuint * ShaderSet::load_program(std::initializer_list<std::string_view> names)
+gl::GLuint * ShaderSet::load_program(std::vector<std::string>&& names, macros_t&& defines)
 {
 	Program program;
 
 	for(const auto& name : names) {
-		std::string filepath(m_directory);
-		filepath.append(name);
 
-		if(!cf_file_exists(filepath.data())) {
-			fmt::print(stderr, "[shader]  shader file does not exist: [{}]\n", filepath);
+		std::filesystem::path dirpath = m_directory;
+		auto filepath = dirpath / name;
+
+		if(!std::filesystem::exists(filepath)) {
+			fmt::print(stderr, "[shader]  shader file does not exist: [{}]\n", filepath.string());
 			return nullptr;
 		}
 
-		program.attach_shader(Shader(std::move(filepath)));
+		program.attach_shader(Shader(std::move(dirpath), std::move(filepath), std::move(defines)));
 	}
 
 	program.reload();
@@ -255,3 +363,20 @@ bool ShaderSet::deleteProgram(uint32_t** p)
 
 
 
+
+ShaderMacro::ShaderMacro(std::string_view name, std::string_view value) : m_name(name), m_value(value) { }
+
+ShaderMacro::ShaderMacro(std::string_view name, float value) : ShaderMacro(name, std::to_string(value)) { }
+
+ShaderMacro::ShaderMacro(std::string_view name, int value) : ShaderMacro(name, std::to_string(value)) { }
+
+ShaderMacro::ShaderMacro(std::string_view name, unsigned value) : ShaderMacro(name, std::to_string(value)) { }
+
+ShaderMacro::ShaderMacro(std::string_view name, bool value) : ShaderMacro(name, std::to_string(value)) { }
+
+ShaderMacro::ShaderMacro(std::string_view name, double value) : ShaderMacro(name, std::to_string(value)) { }
+
+std::string ShaderMacro::get_define_string() const
+{
+	return make_definition(m_name, m_value);
+}

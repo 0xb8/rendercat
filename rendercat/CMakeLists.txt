@@ -59,7 +59,6 @@ target_link_libraries(${PROJECT_NAME}
 		mikktspace::mikktspace
 		OpenGL::GL
 		stb::image
-		tinyheaders::tinyfiles
 		fx-gltf::fx-gltf
 		doctest::doctest
 )

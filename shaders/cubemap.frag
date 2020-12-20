@@ -1,7 +1,8 @@
 #version 440 core
-out vec4 FragColor;
 
-in vec3 FragPos;
+layout(location = 0) out vec4 FragColor;
+
+layout(location = 0) in vec3 FragPos;
 
 layout(binding=0) uniform samplerCubeArray skybox;
 
