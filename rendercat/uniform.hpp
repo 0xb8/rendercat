@@ -1,186 +1,112 @@
 #pragma once
 #include <rendercat/common.hpp>
 #include <rendercat/util/gl_unique_handle.hpp>
-#include <glbinding/gl45core/types.h>
-#include <glbinding/gl45core/boolean.h>
-#include <glbinding/gl45core/functions.h>
+#include <zcm/vec2.hpp>
+#include <zcm/vec3.hpp>
+#include <zcm/mat3.hpp>
+#include <zcm/mat4.hpp>
 #include <string_view>
-#include <zcm/type_ptr.hpp>
 
 namespace rc {
 namespace unif {
 
 // --- bool --------------------------------------------------------------------
 
-inline void b1(gl45core::GLuint shader, const std::string_view name, bool value)
-{
-	gl45core::glProgramUniform1i(shader, gl45core::glGetUniformLocation(shader, name.data()), (int)value);
-}
+void b1(uint32_t shader, std::string_view name, bool value);
 
 // --- int --------------------------------------------------------------------
 
-inline void i1(gl45core::GLuint shader, gl45core::GLint location, int value)
-{
-	gl45core::glProgramUniform1i(shader, location, value);
-}
+void i1(uint32_t shader, int location, int value);
+void i1(uint32_t shader, std::string_view name, int value);
 
-inline void i1(gl45core::GLuint shader, const std::string_view name, int value)
-{
-	i1(shader, gl45core::glGetUniformLocation(shader, name.data()), value);
-}
-
-inline void i2(gl45core::GLuint shader, gl45core::GLint location, int a, int b)
-{
-	gl45core::glProgramUniform2i(shader, location, gl45core::GLint(a), b);
-}
-
-inline void i2(gl45core::GLuint shader, const std::string_view name, int a, int b)
-{
-	i2(shader, gl45core::glGetUniformLocation(shader, name.data()), a, b);
-}
+void i2(uint32_t shader, int location, int a, int b);
+void i2(uint32_t shader, std::string_view name, int a, int b);
 
 // --- float -------------------------------------------------------------------
 
-inline void f1(gl45core::GLuint shader, gl45core::GLint location, float value)
-{
-	gl45core::glProgramUniform1f(shader, location, value);
-}
-
-inline void f1(gl45core::GLuint shader, const std::string_view name, float value)
-{
-	f1(shader, gl45core::glGetUniformLocation(shader, name.data()), value);
-}
+void f1(uint32_t shader, int location, float value);
+void f1(uint32_t shader, std::string_view name, float value);
 
 // --- vec ---------------------------------------------------------------------
 
-inline void v2(gl45core::GLuint shader, gl45core::GLint location, const zcm::vec2 &value)
-{
-	gl45core::glProgramUniform2fv(shader, location, 1, zcm::value_ptr(value));
-}
+void v2(uint32_t shader, int location, zcm::vec2 value);
+void v2(uint32_t shader, std::string_view name, zcm::vec2 value);
 
-inline void v2(gl45core::GLuint shader, const std::string_view name, const zcm::vec2 &value)
-{
-	v2(shader, gl45core::glGetUniformLocation(shader, name.data()), value);
-}
+void v3(uint32_t shader, int location, zcm::vec3 value);
+void v3(uint32_t shader, std::string_view name, zcm::vec3 value);
 
-
-inline void v3(gl45core::GLuint shader, gl45core::GLint location, const zcm::vec3 &value)
-{
-	gl45core::glProgramUniform3fv(shader, location, 1, zcm::value_ptr(value));
-}
-
-inline void v3(gl45core::GLuint shader, const std::string_view name, const zcm::vec3 &value)
-{
-	v3(shader, gl45core::glGetUniformLocation(shader, name.data()), value);
-}
-
-
-inline void v4(gl45core::GLuint shader, gl45core::GLint location, const zcm::vec4 &value)
-{
-	gl45core::glProgramUniform4fv(shader, location, 1, zcm::value_ptr(value));
-}
-
-inline void v4(gl45core::GLuint shader, const std::string_view name, const zcm::vec4 &value)
-{
-	v4(shader, gl45core::glGetUniformLocation(shader, name.data()), value);
-}
+void v4(uint32_t shader, int location, zcm::vec4 value);
+void v4(uint32_t shader, std::string_view name, zcm::vec4 value);
 
 // --- mat ---------------------------------------------------------------------
 
-inline void m3(gl45core::GLuint shader, gl45core::GLint location, const zcm::mat3 &mat)
-{
-	gl45core::glProgramUniformMatrix3fv(shader, location, 1, gl45core::GL_FALSE, zcm::value_ptr(mat));
-}
+void m3(uint32_t shader, int location, const zcm::mat3 &mat);
+void m3(uint32_t shader, std::string_view name, const zcm::mat3 &mat);
 
-inline void m3(gl45core::GLuint shader, const std::string_view name, const zcm::mat3 &mat)
-{
-	m3(shader, gl45core::glGetUniformLocation(shader, name.data()), mat);
-}
+void m4(uint32_t shader, int location, const zcm::mat4 &mat);
+void m4(uint32_t shader, std::string_view name, const zcm::mat4 &mat);
 
-inline void m4(gl45core::GLuint shader, gl45core::GLint location, const zcm::mat4 &mat)
-{
-	gl45core::glProgramUniformMatrix4fv(shader, location, 1, gl45core::GL_FALSE, zcm::value_ptr(mat));
-}
 
-inline void m4(gl45core::GLuint shader, const std::string_view name, const zcm::mat4 &mat)
-{
-	m4(shader, gl45core::glGetUniformLocation(shader, name.data()), mat);
-}
+struct basic_buf {
+	void unmap();
+	explicit operator bool() const noexcept;
 
-template<typename T, gl45core::GLenum BindBufferType, unsigned N=1>
-struct buf {
+protected:
+	basic_buf(size_t size);
+	~basic_buf();
 
-	static constexpr auto map_flags = gl45core::GL_MAP_WRITE_BIT | gl45core::GL_MAP_READ_BIT | gl45core::GL_MAP_PERSISTENT_BIT;
+	RC_DISABLE_COPY(basic_buf)
+
+	basic_buf(basic_buf&& other) noexcept;
+	basic_buf& operator=(basic_buf&& other) noexcept;
+
+	void bind_single(uint32_t index) const;
+	void bind_multi(uint32_t index, size_t offset, size_t size) const;
+	void map(size_t size);
+	void flush(size_t offset, size_t size);
+
+	rc::buffer_handle _buffer;
+	void* _data = nullptr;
+};
+
+template<typename T, unsigned N=1>
+struct buf : public basic_buf {
+
 	static constexpr auto _internal_size = sizeof (T) * N;
 
-	buf() {
-		gl45core::glCreateBuffers(1, _buffer.get());
-		gl45core::glNamedBufferStorage(*_buffer, _internal_size, nullptr,
-		                               map_flags | gl45core::GL_DYNAMIC_STORAGE_BIT);
+	buf() : basic_buf(_internal_size) {
 		map(true);
 	}
 
-	~buf() {
-		unmap();
-	}
+	buf(buf&& other) : basic_buf(std::move(other)), _index(other.index) { }
 
-	RC_DISABLE_COPY(buf)
-
-	buf(buf&& other) noexcept :
-		_buffer{std::exchange(other._buffer, rc::buffer_handle{})},
-		_data{std::exchange(other._data, nullptr)}
-	{
-
-	}
-
-	buf& operator=(buf&& other) noexcept {
-		unmap();
-		_buffer = std::exchange(other._buffer, rc::buffer_handle{});
-		_data = std::exchange(other._data, nullptr);
+	buf& operator=(buf&& other) {
+		basic_buf::operator=(std::move(other));
+		_index = other._index;
 		return *this;
 	}
 
-	T* map(bool init)
-	{
-		if (_data) return data(); // already mapped
-
-		if (_buffer) {
-			auto map = glMapNamedBufferRange(*_buffer, 0, _internal_size, map_flags | gl45core::GL_MAP_FLUSH_EXPLICIT_BIT);
-			assert(map);
-			if (init)
-				_data = new(map) T[N]{};
-			else
-				_data = reinterpret_cast<T*>(map);
-		} else {
-			_data = nullptr;
-		}
+	T* map(bool init) {
+		basic_buf::map(_internal_size);
+		if (init && _data)
+			new(_data) T[N]{};
 		return data();
 	}
 
 	T* data() const noexcept {
-		return _data + _index;
+		return reinterpret_cast<T*>(_data) + _index;
 	}
 
 	void bind(uint32_t index) const {
-		if constexpr(N == 1) {
-			gl45core::glBindBufferBase(BindBufferType, index, *_buffer);
+		if constexpr (N == 1) {
+			basic_buf::bind_single(index);
 		} else {
-			gl45core::glBindBufferRange(BindBufferType, index, *_buffer, _index * sizeof (T), sizeof (T));
+			basic_buf::bind_multi(index, _index * sizeof(T), sizeof(T));
 		}
 	}
 
-	void unmap()
-	{
-		if (_buffer && _data) {
-			gl45core::glUnmapNamedBuffer(*_buffer);
-		}
-		_data = nullptr;
-	}
-
-	void flush()
-	{
-		if (_data)
-			gl45core::glFlushMappedNamedBufferRange(*_buffer, _index * sizeof (T), sizeof (T));
+	void flush() {
+		basic_buf::flush(_index * sizeof (T), sizeof (T));
 	}
 
 	void next() {
@@ -189,13 +115,7 @@ struct buf {
 		_index = (_index+1) % N;
 	}
 
-	explicit operator bool() const noexcept {
-		return static_cast<bool>(_buffer);
-	}
-
 private:
-	rc::buffer_handle _buffer;
-	T* _data = nullptr;
 	size_t _index = 0;
 };
 

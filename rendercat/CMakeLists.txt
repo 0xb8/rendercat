@@ -19,6 +19,8 @@ add_executable(${PROJECT_NAME}
 	texture2d.hpp
 	texture_cache.cpp
 	texture_cache.hpp
+	uniform.hpp
+	uniform.cpp
 	core/bbox.cpp
 	core/bbox.hpp
 	core/camera.cpp

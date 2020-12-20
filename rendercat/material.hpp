@@ -75,7 +75,7 @@ private:
 	void cleanup(uint32_t prev_flags, uint32_t new_flags) noexcept;
 	void set_shader_flags();
 
-	unif::buf<UniformData, gl::GL_UNIFORM_BUFFER> m_unif_data;
+	unif::buf<UniformData> m_unif_data;
 	uint32_t           m_flags = 0;
 	Texture::AlphaMode m_alpha_mode = Texture::AlphaMode::Opaque;
 	bool               m_double_sided = true;

@@ -106,7 +106,7 @@ class Renderer
 		bool shadows_enabled;
 	};
 
-	unif::buf<PerFrameData, gl::GL_UNIFORM_BUFFER, 2> m_per_frame;
+	unif::buf<PerFrameData, 2> m_per_frame;
 
 	zcm::mat4 m_shadow_matrix;
 
