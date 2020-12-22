@@ -1,6 +1,6 @@
 #include <rendercat/shader_set.hpp>
 #include <rendercat/util/gl_unique_handle.hpp>
-#include <fmt/core.h>
+#include <fmt/format.h>
 #include <sstream>
 #include <fstream>
 #include <filesystem>
@@ -138,20 +138,23 @@ struct Shader
 {
 	std::filesystem::path           filepath;
 	std::filesystem::path           root_path;
-	ShaderSet::macros_t             definitions;
 	std::filesystem::file_time_type last_write_time;
 	rc::shader_handle               handle;
+	const ShaderSet::macros_t*      definitions = nullptr;
 
-	explicit Shader(std::filesystem::path&& root_path, std::filesystem::path&& fpath, ShaderSet::macros_t&& defines) :
+	explicit Shader(std::filesystem::path&& root_path, std::filesystem::path&& fpath) :
 	        filepath(std::move(fpath)),
-	        root_path(std::move(root_path)),
-	        definitions(std::move(defines))
+	        root_path(std::move(root_path))
 	{ }
 
 	~Shader() = default;
 	Shader(Shader&& o) noexcept = default;
 	Shader& operator =(Shader&& o) noexcept = default;
 	RC_DISABLE_COPY(Shader)
+
+	void set_definitions(const ShaderSet::macros_t& macros) {
+		definitions = &macros;
+	}
 
 	bool should_reload()
 	{
@@ -169,7 +172,7 @@ struct Shader
 			return false;
 
 		auto shader_type = shader_type_from_filename(filepath.string());
-		const auto shader_source = load_and_process_shader(root_path / "include", filepath, 0, definitions);
+		const auto shader_source = load_and_process_shader(root_path / "include", filepath, 0, definitions ? *definitions : ShaderSet::macros_t{});
 		const auto shader_source_ptr = shader_source.data();
 
 		rc::shader_handle new_handle(glCreateShader(shader_type));
@@ -195,6 +198,10 @@ struct Shader
 	{
 		return static_cast<bool>(handle);
 	}
+
+	const std::filesystem::path& path() const {
+		return filepath;
+	}
 };
 
 } // anonymous namespace
@@ -202,10 +209,11 @@ struct Shader
 class ShaderSet::Program
 {
 	std::vector<Shader> m_shaders;
+	macros_t m_macros;
 public:
 	rc::program_handle handle{};
 
-	Program() = default;
+	explicit Program(macros_t&& macros) : m_macros(std::move(macros)){ }
 	~Program() = default;
 	Program(Program&&) noexcept = default;
 	Program& operator=(Program&&) noexcept = default;
@@ -224,6 +232,7 @@ public:
 
 	void attach_shader(Shader&& s)
 	{
+		s.set_definitions(m_macros);
 		m_shaders.push_back(std::move(s));
 	}
 
@@ -251,6 +260,20 @@ public:
 			handle = std::move(new_handle);
 			return true;
 		}
+
+		std::vector<std::string> files;
+		for (const auto& shader : m_shaders)
+			files.push_back(shader.path().string());
+		fmt::print(stderr, "[shader]  failed shaders:\n"
+		                   "[shader]    {}\n", fmt::join(files, "\n[shader]    "));
+		std::vector<std::string> defines;
+		for(const auto& macro: m_macros) {
+			auto ds = macro.get_define_string();
+			defines.push_back(ds.substr(0, ds.size()-2));
+		}
+		fmt::print(stderr, "[shader]  failed macros:\n"
+		                   "[shader]    {}\n", fmt::join(defines, "\n[shader]    "));
+
 		// seems like there's no need to detach shaders before program deletion
 		return false;
 	}
@@ -299,7 +322,7 @@ void ShaderSet::check_updates()
 
 gl::GLuint * ShaderSet::load_program(std::vector<std::string>&& names, macros_t&& defines)
 {
-	Program program;
+	Program program(std::move(defines));
 
 	for(const auto& name : names) {
 
@@ -311,7 +334,7 @@ gl::GLuint * ShaderSet::load_program(std::vector<std::string>&& names, macros_t&
 			return nullptr;
 		}
 
-		program.attach_shader(Shader(std::move(dirpath), std::move(filepath), std::move(defines)));
+		program.attach_shader(Shader(std::move(dirpath), std::move(filepath)));
 	}
 
 	program.reload();
