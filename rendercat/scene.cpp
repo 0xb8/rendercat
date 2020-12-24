@@ -244,13 +244,14 @@ static bool edit_transform(RigidTransform& transform, int id, const CameraState&
 }
 
 template<typename T>
-static bool edit_light(T& light, int id, const CameraState& camera_state) noexcept
+static bool edit_light(T& light, int id, Camera& camera) noexcept
 {
 	const auto& main_viewport = ImGui::GetPlatformIO().MainViewport;
 	ImGuizmo::SetRect(main_viewport->Pos.x, main_viewport->Pos.y,
 	                  main_viewport->Size.x, main_viewport->Size.y);
 	ImGuizmo::SetID(id | (1 << 29));
 
+	auto& camera_state = camera.state;
 	auto view = make_view(camera_state);
 	auto proj = make_projection_non_reversed_z(camera_state);
 
@@ -275,6 +276,18 @@ static bool edit_light(T& light, int id, const CameraState& camera_state) noexce
 		ImGui::OpenPopup("RemovePopup");
 
 	ImGui::Checkbox("Follow Camera", &light_follow);
+	ImGui::SameLine();
+	if (ImGui::Button("Light to Camera")) {
+		if constexpr(is_spot) {
+			dir = camera_state.orientation;
+		}
+		pos = camera_state.position;
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Camera To Light")) {
+		camera.state.position = pos;
+		camera.update();
+	}
 	ImGui::Spacing();
 	ImGui::Spacing();
 	ImGui::PushItemWidth(-1.0f);
@@ -787,7 +800,7 @@ void Scene::update()
 			for(unsigned i = 0; i < spot_lights.size(); ++i) {
 				ImGui::PushID(i);
 				if(ImGui::TreeNode("SpotLight", "Spot light #%d", i)) {
-					if(!edit_light<SpotLight>(spot_lights[i], i, main_camera.state)) {
+					if(!edit_light<SpotLight>(spot_lights[i], i, main_camera)) {
 						spot_lights.erase(std::next(spot_lights.begin(), i));
 					}
 					ImGui::TreePop();
@@ -807,7 +820,7 @@ void Scene::update()
 				ImGui::PushID(i);
 				if(ImGui::TreeNode("PointLight", "Point light #%d", i)) {
 					auto& light = point_lights[i];
-					if(!edit_light<PointLight>(light, i, main_camera.state)) {
+					if(!edit_light<PointLight>(light, i, main_camera)) {
 						point_lights.erase(std::next(point_lights.begin(), i));
 					}
 					ImGui::TreePop();

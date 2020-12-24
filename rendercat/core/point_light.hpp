@@ -116,7 +116,7 @@ public:
 
 	void set_orientation(zcm::quat dir) noexcept
 	{
-		data.orientation = dir;
+		data.orientation = zcm::normalize(dir);
 	}
 
 	zcm::quat orientation() const noexcept

@@ -11,6 +11,7 @@ layout(binding=32) uniform sampler2DShadow shadow_map;
 layout(binding=33) uniform samplerCubeArray uReflection;
 layout(binding=34) uniform samplerCubeArray uIrradiance;
 layout(binding=35) uniform sampler2D uBRDFLut;
+layout(binding=36) uniform sampler2DArrayShadow pointShadows;
 
 
 const int MATERIAL_BASE_COLOR_MAP      = 1 << 1;
@@ -69,29 +70,34 @@ struct SpotLightData {
 };
 
 layout(std140, binding=1) uniform PerFrame_frag {
-    mat4 proj_view;
-    mat4 light_proj_view;
-    vec3  camera_forward;
-    float znear;
-    vec3  viewPos;
-    float _pading1;
+	mat4  proj_view;
+	mat4  light_proj_view;
+	vec3  camera_forward;
+	float znear;
+	vec3  viewPos;
+	float _pading1;
 
-    DirectionalLight directional_light;
-    ExponentialDirectionalFog directional_fog;
+	DirectionalLight directional_light;
+	ExponentialDirectionalFog directional_fog;
 
-    PointLightData point_light[MAX_DYNAMIC_LIGHTS];
-    SpotLightData  spot_light[MAX_DYNAMIC_LIGHTS];
+	PointLightData point_light[MAX_DYNAMIC_LIGHTS];
+	SpotLightData  spot_light[MAX_DYNAMIC_LIGHTS];
 
-    int num_msaa_samples;
-    bool shadows_enabled;
+	int num_msaa_samples;
+	bool shadows_enabled;
+};
+
+layout(std140, binding=2) uniform PerFrameLight_frag {
+	mat4 spot_light_matrices[MAX_DYNAMIC_LIGHTS];
+	int shadow_indices[MAX_DYNAMIC_LIGHTS];
 };
 
 
 struct Light {
-    vec4 colorIntensity;  // rgb, pre-exposed intensity
-    vec3 l;
-    float attenuation;
-    float NoL;
+	vec4 colorIntensity;  // rgb, pre-exposed intensity
+	vec3 l;
+	float attenuation;
+	float NoL;
 };
 
 struct PixelParams {
@@ -213,15 +219,43 @@ float calcDirectionalShadow(vec4 fragPosLightSpace, float NdotL)
 	float shadow = 0.0;
 	vec2 texelSize = 1.0 / textureSize(shadow_map, 0);
 
-	for(int x = -1; x <= 1; ++x)
-	{
-	    for(int y = -1; y <= 1; ++y)
-	    {
-	        shadow += texture(shadow_map, vec3(shadowTexCoords + vec2(x, y) * texelSize , currentDepth - bias)).r;
-	    }
+	for(int x = -1; x <= 1; ++x) {
+		for(int y = -1; y <= 1; ++y) {
+			shadow += texture(shadow_map, vec3(shadowTexCoords + vec2(x, y) * texelSize , currentDepth - bias)).r;
+		}
 	}
 	shadow /= 9.0;
 
+	if(projCoords.z > 1.0)
+		shadow = 0.0;
+
+	return shadow;
+}
+
+float calcSpotShadow(int light_index, float NdotL)
+{
+	int tex_index = shadow_indices[light_index];
+	if (tex_index < 0)
+	return 0.0;
+
+	vec4 fragPosLightSpace = spot_light_matrices[light_index] * vec4(fs_in.FragPos, 1.0);
+	// perform perspective divide
+	vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+	// transform to [0,1] range
+	vec2 shadowTexCoords = projCoords.xy * 0.5 + 0.5;
+	// get depth of current fragment from light's perspective
+	float currentDepth =  (projCoords.z);
+	// bias accounting the angle to surface
+	float bias = max(0.005 * (1.0 - NdotL), 0.001);
+	float shadow = 0.0;
+	vec2 texelSize = 1.0 / textureSize(pointShadows, 0).xy;
+
+	for(int x = -1; x <= 1; ++x) {
+		for(int y = -1; y <= 1; ++y) {
+			shadow += texture(pointShadows, vec4(shadowTexCoords + vec2(x, y) * texelSize, tex_index, currentDepth - bias)).r;
+		}
+	}
+	shadow /= 9.0;
 
 	if(projCoords.z > 1.0)
 		shadow = 0.0;
@@ -421,8 +455,11 @@ vec3 calcPBRSpot(const PixelParams pixel) {
 		spot.NoL = dot(pixel.n, spot.l);
 		spot.attenuation = distance_attenuation(lightDistance, sl.position.w);
 		spot.attenuation *= direction_attenuation(spot.l, sl.direction.xyz, sl.direction.w, sl.angle_offset.x);
-
-		color += surfaceShading(pixel, spot, 1.0);
+		float shadow = 1.0;
+		if (shadows_enabled) {
+			shadow = calcSpotShadow(spot_light_indices[i], spot.NoL);
+		}
+		color += surfaceShading(pixel, spot, 1.0) * shadow;
 	}
 	return color;
 }

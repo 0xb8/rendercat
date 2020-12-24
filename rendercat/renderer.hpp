@@ -7,6 +7,7 @@
 #include <debug_draw_interface.hpp>
 #include <zcm/mat3.hpp>
 #include <zcm/mat4.hpp>
+#include <rendercat/core/bbox.hpp>
 #include <vector>
 
 namespace rc {
@@ -22,6 +23,7 @@ class Renderer
 	uint32_t* m_shader = nullptr;
 	uint32_t* m_hdr_shader = nullptr;
 	uint32_t* m_shadow_shader = nullptr;
+	uint32_t* m_shadow_masked_shader = nullptr;
 	uint32_t* m_brdf_shader = nullptr;
 
 	uint32_t m_backbuffer_width  = 0;
@@ -36,6 +38,9 @@ class Renderer
 	rc::framebuffer_handle m_shadowmap_fbo;
 	rc::texture_handle     m_shadowmap_depth_to;
 
+	rc::framebuffer_handle m_point_shadow_fbo;
+	rc::texture_handle     m_point_shadow_depth_to;
+
 	rc::framebuffer_handle m_backbuffer_fbo;
 	rc::texture_handle     m_backbuffer_color_to;
 	rc::texture_handle     m_backbuffer_depth_to;
@@ -47,17 +52,28 @@ class Renderer
 	void set_shadow_uniforms();
 
 	void draw_shadow();
+	void draw_point_shadow();
 	void draw_skybox();
 	void init_shadow();
 	void init_brdf();
 
 	DDRenderInterfaceCoreGL debug_draw_ctx;
 
+	struct MeshTransform {
+		zcm::mat4 mat;
+		zcm::mat4 inv_mat;
+		bbox3 transformed_bbox;
+	};
+
+	std::vector<MeshTransform> m_transform_cache;
+
 	struct ModelMeshIdx
 	{
 		uint32_t model_idx;
 		uint32_t submesh_idx;
+		uint32_t transform_idx;
 	};
+	std::vector<ModelMeshIdx> m_opaque_meshes;
 	std::vector<ModelMeshIdx> m_masked_meshes;
 	std::vector<ModelMeshIdx> m_blended_meshes;
 
@@ -106,11 +122,26 @@ class Renderer
 		bool shadows_enabled;
 	};
 
+	struct alignas(256) LightPerframeData {
+		zcm::mat4 spot_light_matrices[RC_MAX_LIGHTS];
+
+		// std140 array alignment
+		struct alignas(16) LightIndex {
+			int index;
+		};
+
+		LightIndex shadow_indices[RC_MAX_LIGHTS];
+	};
+
 	unif::buf<PerFrameData, 2> m_per_frame;
+	unif::buf<LightPerframeData, 2> m_light_per_frame;
 
 	zcm::mat4 m_shadow_matrix;
 
 public:
+	static const unsigned int PointShadowWidth = 512;
+	static const unsigned int PointShadowHeight = 512;
+
 	static const unsigned int ShadowMapWidth = 2048;
 	static const unsigned int ShadowMapHeight = 2048;
 

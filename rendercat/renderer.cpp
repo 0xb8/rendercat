@@ -19,6 +19,7 @@
 #include <zcm/mat3.hpp>
 #include <zcm/exponential.hpp>
 #include <zcm/matrix_transform.hpp>
+#include <zcm/type_ptr.hpp>
 
 using namespace gl45core;
 using namespace rc;
@@ -81,7 +82,10 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 void Renderer::init_shadow()
 {
 	m_shadow_shader = m_shader_set.load_program({"shadow_mapping.vert", "shadow_mapping.frag"});
+	m_shadow_masked_shader = m_shader_set.load_program({"shadow_mapping.vert", "shadow_mapping.frag"},
+	                                                   {{"ALPHA_MASKED"}});
 
+	// create texture for directional light shadowmap
 	glCreateTextures(GL_TEXTURE_2D, 1, m_shadowmap_depth_to.get());
 	glTextureStorage2D(*m_shadowmap_depth_to, 1, GL_DEPTH_COMPONENT32F, ShadowMapWidth, ShadowMapHeight);
 	float borderColor[] = {0.0f, 0.0f, 0.0f, 1.0f };
@@ -99,6 +103,25 @@ void Renderer::init_shadow()
 		std::fflush(stderr);
 		return;
 	}
+
+	// create texture array for spot light shadowmaps
+	glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, m_point_shadow_depth_to.get());
+	glTextureStorage3D(*m_point_shadow_depth_to, 1, GL_DEPTH_COMPONENT16, PointShadowWidth, PointShadowHeight, MaxLights);
+	glTextureParameterfv(*m_point_shadow_depth_to, GL_TEXTURE_BORDER_COLOR, borderColor);
+	glTextureParameteri(*m_point_shadow_depth_to, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+	glTextureParameteri(*m_point_shadow_depth_to, GL_TEXTURE_COMPARE_FUNC, GL_LESS);
+	glTextureParameteri(*m_point_shadow_depth_to, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTextureParameteri(*m_point_shadow_depth_to, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	glCreateFramebuffers(1, m_point_shadow_fbo.get());
+	glNamedFramebufferTextureLayer(*m_point_shadow_fbo, GL_DEPTH_ATTACHMENT, *m_point_shadow_depth_to, 0, 0);
+
+	if (glCheckNamedFramebufferStatus(*m_point_shadow_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+		fmt::print(stderr, "[renderer] could not init point shadow framebuffer!");
+		std::fflush(stderr);
+		return;
+	}
+
 }
 
 void Renderer::init_brdf()
@@ -446,6 +469,125 @@ void Renderer::draw_shadow()
 	glBindVertexArray(0);
 }
 
+void Renderer::draw_point_shadow()
+{
+
+	glClearDepthf(1.0f);
+	glDepthFunc(GL_LESS);
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_BACK); // TODO: use front face culling
+
+	glBindFramebuffer(GL_FRAMEBUFFER, *m_point_shadow_fbo);
+	glViewport(0,0, PointShadowWidth, PointShadowHeight);
+	glClear(GL_DEPTH_BUFFER_BIT);
+
+	m_light_per_frame.next();
+	auto per_frame = m_light_per_frame.data();
+	assert(per_frame);
+	m_light_per_frame.bind(2);
+
+	std::fill(std::begin(per_frame->shadow_indices), std::end(per_frame->shadow_indices), LightPerframeData::LightIndex{-1});
+
+	for(auto&& light : m_scene->point_lights) {
+		if(!(light.state & PointLight::ShowWireframe))
+			continue;
+
+		if(m_scene->main_camera.frustum.sphere_culled(light.position(), light.radius()))
+			continue;
+
+		dd::sphere(light.position(), light.color(), 0.01f * light.radius(), 0, false);
+		dd::sphere(light.position(), light.color(), light.radius());
+	}
+
+	int spot_light_index = 0;
+
+	for(size_t scene_index = 0; scene_index < m_scene->spot_lights.size() && scene_index < MaxLights; ++scene_index) {
+		const auto& light = m_scene->spot_lights[scene_index];
+
+		if(!(light.state & SpotLight::Enabled))
+			continue;
+
+		if(m_scene->main_camera.frustum.sphere_culled(light.position(), light.radius()))
+			continue;
+
+		glNamedFramebufferTextureLayer(*m_point_shadow_fbo, GL_DEPTH_ATTACHMENT, *m_point_shadow_depth_to, 0, spot_light_index);
+		if (glCheckNamedFramebufferStatus(*m_point_shadow_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+			fmt::print(stderr, "[renderer] could not update point shadow framebuffer!");
+			std::fflush(stderr);
+			return;
+		}
+		glClear(GL_DEPTH_BUFFER_BIT);
+		glUseProgram(*m_shadow_shader);
+
+		per_frame->shadow_indices[scene_index].index = spot_light_index;
+		++spot_light_index;
+
+		auto light_camera_state = CameraState{zcm::conjugate(light.orientation()), light.position()};
+		light_camera_state.zfar = light.radius();
+		light_camera_state.znear = 0.1f;
+		light_camera_state.fov = light.angle_outer() * 1.9f;
+		light_camera_state.aspect = 1.0f;
+		light_camera_state.normalize();
+
+		auto view_mat = make_view(light_camera_state);
+		auto proj_mat = make_projection_non_reversed_z(light_camera_state);
+
+		auto light_mat = proj_mat * view_mat;
+		per_frame->spot_light_matrices[scene_index] = light_mat;
+
+		unif::m4(*m_shadow_shader, 0, light_mat);
+
+		auto frustum = Frustum();
+		frustum.update(light_camera_state);
+
+		for (const auto& idx : m_opaque_meshes) {
+			const MeshTransform& transform = m_transform_cache[idx.transform_idx];
+			if (frustum.bbox_culled(transform.transformed_bbox))
+				continue;
+
+			const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
+			const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
+
+			unif::m4(*m_shadow_shader, 1, transform.mat);
+			submit_draw_call(submesh);
+		}
+
+		glUseProgram(*m_shadow_masked_shader);
+		unif::m4(*m_shadow_masked_shader, 0, light_mat);
+
+		for (const auto& idx : m_masked_meshes) {
+			const MeshTransform& transform = m_transform_cache[idx.transform_idx];
+			if (frustum.bbox_culled(transform.transformed_bbox))
+				continue;
+
+			const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
+			const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
+			const auto& material = m_scene->materials[shaded_mesh.material];
+
+			unif::m4(*m_shadow_masked_shader, 1, transform.mat);
+			material.bind(*m_shadow_masked_shader);
+			submit_draw_call(submesh);
+		}
+
+		if(!(light.state & SpotLight::ShowWireframe))
+			continue;
+
+		dd::cone(light.position(),
+		         zcm::normalize(-light.direction_vec()) * light.radius(),
+		         light.color(),
+		         light.angle_outer() * light.radius(), 0.0f);
+
+		frustum.draw_debug();
+	}
+
+	m_light_per_frame.flush();
+	glUseProgram(0);
+	glBindVertexArray(0);
+}
+
+
+
 
 void Renderer::draw()
 {
@@ -455,15 +597,54 @@ void Renderer::draw()
 	if(unlikely(desired_render_scale != m_backbuffer_scale || desired_msaa_level != msaa_level))
 		resize(m_window_width, m_window_height, m_device_pixel_ratio, true);
 
-	// clear masked and blended queue
+	// clear all caches
+	m_opaque_meshes.clear();
 	m_masked_meshes.clear();
 	m_blended_meshes.clear();
+	m_transform_cache.clear();
+
+	// render opaque submeshes first and put masked and blended submeshes in respective queues
+	for(unsigned model_idx = 0; model_idx < m_scene->models.size(); ++model_idx) {
+		const Model& model = m_scene->models[model_idx];
+
+		for(unsigned model_mesh_idx = 0; model_mesh_idx < model.mesh_count; ++model_mesh_idx) {
+			const auto& shaded_mesh = m_scene->shaded_meshes[model.shaded_meshes[model_mesh_idx]];
+			auto submesh_global_idx = shaded_mesh.mesh;
+			const model::Mesh& submesh = m_scene->submeshes[submesh_global_idx];
+			const Material& material   = m_scene->materials[shaded_mesh.material];
+
+			auto final_transform_mat = model.transform.mat * shaded_mesh.transform.mat;
+			auto inv_final_transform_mat = shaded_mesh.transform.inv_mat * model.transform.inv_mat; // (AB)^-1 = B^-1 * A^-1
+			auto submesh_bbox = bbox3::transformed(submesh.bbox, final_transform_mat);
+
+			m_transform_cache.push_back({final_transform_mat, inv_final_transform_mat, submesh_bbox});
+			uint32_t transform_idx = m_transform_cache.size()-1;
+
+			if(material.alpha_mode() == Texture::AlphaMode::Mask) {
+				m_masked_meshes.push_back(ModelMeshIdx{model_idx, model.shaded_meshes[model_mesh_idx], transform_idx});
+				continue;
+			}
+			if(material.alpha_mode() == Texture::AlphaMode::Blend) {
+				m_blended_meshes.push_back(ModelMeshIdx{model_idx, model.shaded_meshes[model_mesh_idx], transform_idx});
+				continue;
+			}
+			m_opaque_meshes.push_back(ModelMeshIdx{model_idx, model.shaded_meshes[model_mesh_idx], transform_idx});
+		}
+
+		if (draw_model_bboxes) {
+			auto mesh_bbox = bbox3::transformed(model.bbox, model.transform.mat);
+			dd::aabb(mesh_bbox.min(), mesh_bbox.max(), dd::colors::Purple);
+		}
+	}
 
 	m_perfquery.begin();
-
 	if(do_shadow_mapping) {
 		// render shadow map
 		draw_shadow();
+	}
+
+	if (do_shadow_mapping) {
+		draw_point_shadow();
 	}
 
 	glClearDepthf(0.0f);
@@ -484,51 +665,34 @@ void Renderer::draw()
 	if (do_shadow_mapping) {
 		// bind shadow map texture
 		glBindTextureUnit(32, *m_shadowmap_depth_to);
+		glBindTextureUnit(36, *m_point_shadow_depth_to);
 	}
 
-	// render opaque submeshes first and put masked and blended submeshes in respective queues
-	for(unsigned model_idx = 0; model_idx < m_scene->models.size(); ++model_idx) {
-		const Model& model = m_scene->models[model_idx];
+	auto render_mesh_by_index = [this](const ModelMeshIdx& idx, const zcm::vec3& bbox_color) {
+		const MeshTransform& transform = m_transform_cache[idx.transform_idx];
+		if(m_scene->main_camera.frustum.bbox_culled(transform.transformed_bbox))
+			return;
 
-		for(unsigned model_mesh_idx = 0; model_mesh_idx < model.mesh_count; ++model_mesh_idx) {
-			const auto& shaded_mesh = m_scene->shaded_meshes[model.shaded_meshes[model_mesh_idx]];
-			auto submesh_global_idx = shaded_mesh.mesh;
-			const model::Mesh& submesh = m_scene->submeshes[submesh_global_idx];
-			const Material& material   = m_scene->materials[shaded_mesh.material];
+		const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
+		const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
+		const Material& material   = m_scene->materials[shaded_mesh.material];
 
-			auto final_transform_mat = model.transform.mat * shaded_mesh.transform.mat;
-			auto inv_final_transform_mat = shaded_mesh.transform.inv_mat * model.transform.inv_mat; // (AB)^-1 = B^-1 * A^-1
+		unif::m4(*m_shader, "model", transform.mat);
+		unif::m3(*m_shader, "normal_matrix", zcm::transpose(zcm::mat3{transform.inv_mat}));
 
-			unif::m4(*m_shader, "model", final_transform_mat);
-			unif::m3(*m_shader, "normal_matrix", zcm::transpose(zcm::mat3{inv_final_transform_mat}));
+		process_point_lights(m_scene->point_lights, m_scene->main_camera.frustum, transform.transformed_bbox, *m_shader);
+		process_spot_lights(m_scene->spot_lights, m_scene->main_camera.frustum, transform.transformed_bbox, *m_shader);
+		render_generic(submesh, material, *m_shader);
 
-			if(material.alpha_mode() == Texture::AlphaMode::Mask) {
-				m_masked_meshes.push_back(ModelMeshIdx{model_idx, model.shaded_meshes[model_mesh_idx]});
-				continue;
-			}
-			if(material.alpha_mode() == Texture::AlphaMode::Blend) {
-				m_blended_meshes.push_back(ModelMeshIdx{model_idx, model.shaded_meshes[model_mesh_idx]});
-				continue;
-			}
+		if(draw_mesh_bboxes)
+			dd::aabb(transform.transformed_bbox.min(), transform.transformed_bbox.max(), bbox_color);
+	};
 
-			auto submesh_bbox = bbox3::transformed(submesh.bbox, final_transform_mat);
-			if(m_scene->main_camera.frustum.bbox_culled(submesh_bbox))
-				continue;
-
-			process_point_lights(m_scene->point_lights, m_scene->main_camera.frustum, submesh_bbox, *m_shader);
-			process_spot_lights(m_scene->spot_lights, m_scene->main_camera.frustum, submesh_bbox, *m_shader);
-			render_generic(submesh, material, *m_shader);
-
-
-			if(draw_mesh_bboxes)
-				dd::aabb(submesh_bbox.min(), submesh_bbox.max(), dd::colors::White);
-		}
-
-		if (draw_model_bboxes) {
-			auto mesh_bbox = bbox3::transformed(model.bbox, model.transform.mat);
-			dd::aabb(mesh_bbox.min(), mesh_bbox.max(), dd::colors::Purple);
-		}
+	for(const auto& idx : m_opaque_meshes) {
+		render_mesh_by_index(idx, dd::colors::White);
 	}
+
+
 
 	if(MSAASampleCount > 1) {
 		glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
@@ -537,57 +701,12 @@ void Renderer::draw()
 	}
 
 	for(const auto& idx : m_masked_meshes) {
-		const Model& model = m_scene->models[idx.model_idx];
-		const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
-
-		const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
-		const Material& material   = m_scene->materials[shaded_mesh.material];
-
-		auto final_transform_mat = model.transform.mat * shaded_mesh.transform.mat;
-		auto inv_final_transform_mat = shaded_mesh.transform.inv_mat * model.transform.inv_mat; // (AB)^-1 = B^-1 * A^-1
-
-		auto submesh_bbox = bbox3::transformed(submesh.bbox, final_transform_mat);
-		if(m_scene->main_camera.frustum.bbox_culled(submesh_bbox))
-			continue;
-
-		unif::m4(*m_shader, "model", final_transform_mat);
-		unif::m3(*m_shader, "normal_matrix", zcm::transpose(zcm::mat3{inv_final_transform_mat}));
-
-		process_point_lights(m_scene->point_lights, m_scene->main_camera.frustum, submesh_bbox, *m_shader);
-		process_spot_lights(m_scene->spot_lights, m_scene->main_camera.frustum, submesh_bbox, *m_shader);
-		render_generic(submesh, material, *m_shader);
-
-		if(draw_mesh_bboxes)
-			dd::aabb(submesh_bbox.min(),submesh_bbox.max(), dd::colors::Aquamarine);
+		render_mesh_by_index(idx, dd::colors::Red);
 
 	}
 
 	if(MSAASampleCount > 1) {
 		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
-	}
-
-	for(auto&& light : m_scene->point_lights) {
-		if(!(light.state & PointLight::ShowWireframe))
-			continue;
-
-		if(m_scene->main_camera.frustum.sphere_culled(light.position(), light.radius()))
-			continue;
-
-		dd::sphere(light.position(), light.color(), 0.01f * light.radius(), 0, false);
-		dd::sphere(light.position(), light.color(), light.radius());
-	}
-
-	for(auto&& light : m_scene->spot_lights) {
-		if(!(light.state & SpotLight::ShowWireframe))
-			continue;
-
-		if(m_scene->main_camera.frustum.sphere_culled(light.position(), light.radius()))
-			continue;
-
-		dd::cone(light.position(),
-		         zcm::normalize(-light.direction_vec()) * light.radius(),
-		         light.color(),
-		         light.angle_outer() * light.radius(), 0.0f);
 	}
 
 	const auto& frustum = m_scene->main_camera.frustum;
