@@ -10,6 +10,7 @@ add_library(imgui STATIC
 	imgui/backends/imgui_impl_glfw.cpp
 	imgui/backends/imgui_impl_opengl3.cpp
 	imgui/imgui.h
+	imgui/misc/cpp/imgui_stdlib.cpp
 	imguizmo/ImGuizmo.h
 	imguizmo/ImGuizmo.cpp
 	implot/implot.h

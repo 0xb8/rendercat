@@ -110,18 +110,18 @@ void Renderer::init_shadow()
 	}
 
 	// create texture array for spot light shadowmaps
-	glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, m_point_shadow_depth_to.get());
-	glTextureStorage3D(*m_point_shadow_depth_to, 1, GL_DEPTH_COMPONENT16, PointShadowWidth, PointShadowHeight, MaxLights);
-	glTextureParameterfv(*m_point_shadow_depth_to, GL_TEXTURE_BORDER_COLOR, borderColor);
-	glTextureParameteri(*m_point_shadow_depth_to, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-	glTextureParameteri(*m_point_shadow_depth_to, GL_TEXTURE_COMPARE_FUNC, GL_LESS);
-	glTextureParameteri(*m_point_shadow_depth_to, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTextureParameteri(*m_point_shadow_depth_to, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, m_spot_shadow_depth_to.get());
+	glTextureStorage3D(*m_spot_shadow_depth_to, 1, GL_DEPTH_COMPONENT16, PointShadowWidth, PointShadowHeight, MaxLights);
+	glTextureParameterfv(*m_spot_shadow_depth_to, GL_TEXTURE_BORDER_COLOR, borderColor);
+	glTextureParameteri(*m_spot_shadow_depth_to, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+	glTextureParameteri(*m_spot_shadow_depth_to, GL_TEXTURE_COMPARE_FUNC, GL_LESS);
+	glTextureParameteri(*m_spot_shadow_depth_to, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTextureParameteri(*m_spot_shadow_depth_to, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	glCreateFramebuffers(1, m_point_shadow_fbo.get());
-	glNamedFramebufferTextureLayer(*m_point_shadow_fbo, GL_DEPTH_ATTACHMENT, *m_point_shadow_depth_to, 0, 0);
+	glCreateFramebuffers(1, m_spot_shadow_fbo.get());
+	glNamedFramebufferTextureLayer(*m_spot_shadow_fbo, GL_DEPTH_ATTACHMENT, *m_spot_shadow_depth_to, 0, 0);
 
-	if (glCheckNamedFramebufferStatus(*m_point_shadow_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+	if (glCheckNamedFramebufferStatus(*m_spot_shadow_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
 		fmt::print(stderr, "[renderer] could not init point shadow framebuffer!");
 		std::fflush(stderr);
 		return;
@@ -480,17 +480,17 @@ void Renderer::draw_shadow()
 	glBindVertexArray(0);
 }
 
-void Renderer::draw_point_shadow()
+void Renderer::draw_spot_shadow()
 {
 	ZoneScoped;
-	TracyGpuZone("draw_point_shadow");
+	TracyGpuZone("draw_spot_shadow");
 	glClearDepthf(1.0f);
 	glDepthFunc(GL_LESS);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK); // TODO: use front face culling
 
-	glBindFramebuffer(GL_FRAMEBUFFER, *m_point_shadow_fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, *m_spot_shadow_fbo);
 	glViewport(0,0, PointShadowWidth, PointShadowHeight);
 	glClear(GL_DEPTH_BUFFER_BIT);
 
@@ -523,8 +523,8 @@ void Renderer::draw_point_shadow()
 		if(m_scene->main_camera.frustum.sphere_culled(light.position(), light.radius()))
 			continue;
 
-		glNamedFramebufferTextureLayer(*m_point_shadow_fbo, GL_DEPTH_ATTACHMENT, *m_point_shadow_depth_to, 0, spot_light_index);
-		if (glCheckNamedFramebufferStatus(*m_point_shadow_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+		glNamedFramebufferTextureLayer(*m_spot_shadow_fbo, GL_DEPTH_ATTACHMENT, *m_spot_shadow_depth_to, 0, spot_light_index);
+		if (glCheckNamedFramebufferStatus(*m_spot_shadow_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
 			fmt::print(stderr, "[renderer] could not update point shadow framebuffer!");
 			std::fflush(stderr);
 			return;
@@ -667,7 +667,7 @@ void Renderer::draw()
 	}
 
 	if (do_shadow_mapping) {
-		draw_point_shadow();
+		draw_spot_shadow();
 	}
 
 	glClearDepthf(0.0f);
@@ -688,7 +688,7 @@ void Renderer::draw()
 	if (do_shadow_mapping) {
 		// bind shadow map texture
 		glBindTextureUnit(32, *m_shadowmap_depth_to);
-		glBindTextureUnit(36, *m_point_shadow_depth_to);
+		glBindTextureUnit(36, *m_spot_shadow_depth_to);
 	}
 
 	int64_t num_point_lights = 0;

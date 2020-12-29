@@ -41,7 +41,7 @@ if(NOT GLSLC_EXECUTABLE)
 else()
 	add_custom_target(shaders
 		SOURCES ${SHADER_ALL_SOURCES}
-		COMMAND ${GLSLC_EXECUTABLE} -Iinclude -c --target-env=opengl ${SHADER_ALL_SOURCES}
+		COMMAND ${GLSLC_EXECUTABLE} -Iinclude -c --target-env=opengl --target-spv=spv1.3 ${SHADER_ALL_SOURCES}
 		COMMENT "Validating shader sources"
 		WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
 	)

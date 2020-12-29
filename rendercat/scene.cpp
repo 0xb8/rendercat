@@ -3,6 +3,8 @@
 #include <rendercat/texture_cache.hpp>
 #include <rendercat/util/color_temperature.hpp>
 #include <imgui.h>
+#include <imgui/misc/cpp/imgui_stdlib.h>
+#include <fmt/core.h>
 #include <imguizmo/ImGuizmo.h>
 #include <zcm/geometric.hpp>
 #include <zcm/type_ptr.hpp>
@@ -288,6 +290,11 @@ static bool edit_light(T& light, int id, Camera& camera) noexcept
 		camera.state.position = pos;
 		camera.update();
 	}
+	ImGui::SameLine();
+	if (ImGui::Button("Copy data")) {
+		ImGui::OpenPopup("CopyCodePopup");
+	}
+
 	ImGui::Spacing();
 	ImGui::Spacing();
 	ImGui::PushItemWidth(-1.0f);
@@ -392,6 +399,54 @@ static bool edit_light(T& light, int id, Camera& camera) noexcept
 	if (ImGui::BeginPopup("RemovePopup")) {
 		if(ImGui::Button("Confirm"))
 			ret = false;
+		ImGui::EndPopup();
+	}
+	if (ImGui::BeginPopup("CopyCodePopup")) {
+		static bool with_pos = true;
+		ImGui::Checkbox("Location", &with_pos);
+		ImGui::SameLine();
+		static bool with_color = true;
+		ImGui::Checkbox("Color + power", &with_color);
+
+		static std::string result;
+		result.reserve(256);
+		result.clear();
+
+		const char* light_name = is_spot ? "spot" : "point";
+		if (with_pos) {
+			result.append(fmt::format("{}.set_position({{{}, {}, {}}});\n",
+			                          light_name,
+			                          pos.x, pos.y, pos.z));
+			result.append(fmt::format("{}.set_radius({});\n",
+			                          light_name,
+			                          radius));
+			if constexpr(is_spot) {
+				result.append(fmt::format("{}.set_orientation({{{}, {}, {}, {}}});\n",
+				                          light_name,
+				                          dir.w, dir.x, dir.y, dir.z));
+				result.append(fmt::format("{}.set_angle_outer({});\n",
+				                          light_name,
+				                          angle_o));
+				result.append(fmt::format("{}.set_angle_inner({});\n",
+				                          light_name,
+				                          angle_i));
+			}
+		}
+
+		if (with_color) {
+			result.append(fmt::format("{}.set_color({{{}, {}, {}}});\n",
+			                          light_name,
+			                          diff.x, diff.y, diff.z));
+			result.append(fmt::format("{}.set_flux({});\n",
+			                          light_name,
+			                          power));
+		}
+
+		if (ImGui::Button("Copy to clipboard")) {
+			ImGui::SetClipboardText(result.c_str());
+		}
+
+		ImGui::InputTextMultiline("Code", &result);
 		ImGui::EndPopup();
 	}
 	return ret;

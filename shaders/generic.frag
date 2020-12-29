@@ -1,6 +1,17 @@
 #version 450 core
 
-//layout(early_fragment_tests) in;
+#extension GL_ARB_shader_group_vote: enable
+#ifndef OPENGL
+	#extension GL_KHR_shader_subgroup_vote: enable
+#endif
+
+#ifdef GL_ARB_shader_group_vote
+	#define subgroupAll allInvocationARB
+	#define subgroupAny anyInvocationARB
+	#define subgroupAllEqual(value) allInvocationsEqualARB(equal(value))
+#endif
+
+layout(early_fragment_tests) in;
 layout(binding=0) uniform sampler2D material_diffuse;
 layout(binding=1) uniform sampler2D material_normal;
 layout(binding=2) uniform sampler2D material_specular_map;
@@ -424,16 +435,17 @@ vec3 calcPBRPoint(const PixelParams pixel) {
 
 		PointLightData pl = point_light[point_light_indices[i]];
 
-		Light point;
-		point.colorIntensity = pl.color;
-
 		vec3 lightv = pl.position.xyz - fs_in.FragPos;
 		float lightDistance = length(lightv);
-		point.l = lightv / lightDistance;
 
-		point.NoL = dot(pixel.n, point.l);
-		point.attenuation = distance_attenuation(lightDistance, pl.position.w);
-		color += surfaceShading(pixel, point, 1.0);
+		if (subgroupAny(lightDistance <= pl.position.w)) {
+			Light point;
+			point.attenuation = distance_attenuation(lightDistance, pl.position.w);
+			point.l = lightv / lightDistance;
+			point.colorIntensity = pl.color;
+			point.NoL = dot(pixel.n, point.l);
+			color += surfaceShading(pixel, point, 1.0);
+		}
 	}
 	return color;
 }
@@ -445,21 +457,25 @@ vec3 calcPBRSpot(const PixelParams pixel) {
 
 		SpotLightData sl = spot_light[spot_light_indices[i]];
 
-		Light spot;
-		spot.colorIntensity = sl.color;
-
 		vec3 lightv = sl.position.xyz - fs_in.FragPos;
 		float lightDistance = length(lightv);
-		spot.l = lightv / lightDistance;
 
-		spot.NoL = dot(pixel.n, spot.l);
-		spot.attenuation = distance_attenuation(lightDistance, sl.position.w);
-		spot.attenuation *= direction_attenuation(spot.l, sl.direction.xyz, sl.direction.w, sl.angle_offset.x);
-		float shadow = 1.0;
-		if (shadows_enabled) {
-			shadow = calcSpotShadow(spot_light_indices[i], spot.NoL);
+		if (subgroupAny(lightDistance <= sl.position.w)) {
+			Light spot;
+			spot.l = lightv / lightDistance;
+			spot.attenuation = distance_attenuation(lightDistance, sl.position.w);
+			spot.attenuation *= direction_attenuation(spot.l, sl.direction.xyz, sl.direction.w, sl.angle_offset.x);
+			if (subgroupAny(spot.attenuation > 0)) {
+				spot.NoL = dot(pixel.n, spot.l);
+				spot.colorIntensity = sl.color;
+
+				float shadow = 1.0;
+				if (shadows_enabled) {
+					shadow = calcSpotShadow(spot_light_indices[i], spot.NoL);
+				}
+				color += surfaceShading(pixel, spot, 1.0) * shadow;
+			}
 		}
-		color += surfaceShading(pixel, spot, 1.0) * shadow;
 	}
 	return color;
 }

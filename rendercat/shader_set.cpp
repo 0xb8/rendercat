@@ -90,6 +90,7 @@ std::string load_and_process_shader(
 				append_line(line);
 				version_found = true;
 
+				result.append(make_definition("OPENGL", ""));
 				for (const auto& macro: definitions) {
 					result.append(macro.get_define_string());
 				}

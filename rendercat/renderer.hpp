@@ -38,8 +38,8 @@ class Renderer
 	rc::framebuffer_handle m_shadowmap_fbo;
 	rc::texture_handle     m_shadowmap_depth_to;
 
-	rc::framebuffer_handle m_point_shadow_fbo;
-	rc::texture_handle     m_point_shadow_depth_to;
+	rc::framebuffer_handle m_spot_shadow_fbo;
+	rc::texture_handle     m_spot_shadow_depth_to;
 
 	rc::framebuffer_handle m_backbuffer_fbo;
 	rc::texture_handle     m_backbuffer_color_to;
@@ -52,7 +52,7 @@ class Renderer
 	void set_shadow_uniforms();
 
 	void draw_shadow();
-	void draw_point_shadow();
+	void draw_spot_shadow();
 	void draw_skybox();
 	void init_shadow();
 	void init_brdf();
