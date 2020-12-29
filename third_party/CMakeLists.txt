@@ -19,6 +19,7 @@ add_subdirectory(debug_draw_integration EXCLUDE_FROM_ALL)
 set(JSON_BuildTests OFF CACHE INTERNAL "")
 add_subdirectory(nlohmann_json EXCLUDE_FROM_ALL)
 add_subdirectory(fx-gltf EXCLUDE_FROM_ALL)
+add_subdirectory(tracy_integration EXCLUDE_FROM_ALL)
 
 if(NOT USE_SYSTEM_GLBINDING)
 	set(OPTION_BUILD_EXAMPLES OFF)

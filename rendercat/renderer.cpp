@@ -15,6 +15,8 @@
 #include <glbinding-aux/Meta.h>
 
 #include <debug_draw.hpp>
+#include <tracy/Tracy.hpp>
+
 
 #include <zcm/mat3.hpp>
 #include <zcm/exponential.hpp>
@@ -22,6 +24,9 @@
 #include <zcm/type_ptr.hpp>
 
 using namespace gl45core;
+#define GL_TIMESTAMP gl45core::GL_TIMESTAMP
+#include <tracy/TracyOpenGL.hpp>
+
 using namespace rc;
 
 static GLint max_elements_vertices;
@@ -156,6 +161,8 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 	if(width < 2 || height < 2)
 		return;
 
+	ZoneScoped;
+
 	m_device_pixel_ratio = device_pixel_ratio;
 
 	if(unlikely(width > (GLuint)max_framebuffer_width || height > (GLuint)max_framebuffer_height))
@@ -240,6 +247,7 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 
 void Renderer::clear_screen()
 {
+	TracyGpuZone("clear screen");
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glViewport(0, 0, m_window_width, m_window_height);
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
@@ -265,6 +273,7 @@ static const char* indexed_uniform(std::string_view array, std::string_view name
 
 void Renderer::set_uniforms()
 {
+	ZoneScoped;
 	m_scene->main_camera.update();
 
 	auto view = make_view(m_scene->main_camera.state);
@@ -439,6 +448,8 @@ static void render_generic(const model::Mesh& submesh,
 
 void Renderer::draw_shadow()
 {
+	ZoneScoped;
+	TracyGpuZone("draw_shadow");
 	glClearDepthf(1.0f);
 	glDepthFunc(GL_LESS);
 	glEnable(GL_DEPTH_TEST);
@@ -471,7 +482,8 @@ void Renderer::draw_shadow()
 
 void Renderer::draw_point_shadow()
 {
-
+	ZoneScoped;
+	TracyGpuZone("draw_point_shadow");
 	glClearDepthf(1.0f);
 	glDepthFunc(GL_LESS);
 	glEnable(GL_DEPTH_TEST);
@@ -581,6 +593,9 @@ void Renderer::draw_point_shadow()
 		frustum.draw_debug();
 	}
 
+	TracyPlot("Visible spotlights", int64_t(spot_light_index));
+
+
 	m_light_per_frame.flush();
 	glUseProgram(0);
 	glBindVertexArray(0);
@@ -592,6 +607,8 @@ void Renderer::draw_point_shadow()
 void Renderer::draw()
 {
 	if(unlikely(!m_shader)) return;
+
+	ZoneScoped;
 	m_shader_set.check_updates();
 
 	if(unlikely(desired_render_scale != m_backbuffer_scale || desired_msaa_level != msaa_level))
@@ -603,39 +620,45 @@ void Renderer::draw()
 	m_blended_meshes.clear();
 	m_transform_cache.clear();
 
-	// render opaque submeshes first and put masked and blended submeshes in respective queues
-	for(unsigned model_idx = 0; model_idx < m_scene->models.size(); ++model_idx) {
-		const Model& model = m_scene->models[model_idx];
+	{
+		ZoneScopedNC("Prepare render data", 0xaa4455);
+		// render opaque submeshes first and put masked and blended submeshes in respective queues
+		for(unsigned model_idx = 0; model_idx < m_scene->models.size(); ++model_idx) {
+			const Model& model = m_scene->models[model_idx];
 
-		for(unsigned model_mesh_idx = 0; model_mesh_idx < model.mesh_count; ++model_mesh_idx) {
-			const auto& shaded_mesh = m_scene->shaded_meshes[model.shaded_meshes[model_mesh_idx]];
-			auto submesh_global_idx = shaded_mesh.mesh;
-			const model::Mesh& submesh = m_scene->submeshes[submesh_global_idx];
-			const Material& material   = m_scene->materials[shaded_mesh.material];
+			for(unsigned model_mesh_idx = 0; model_mesh_idx < model.mesh_count; ++model_mesh_idx) {
+				const auto& shaded_mesh = m_scene->shaded_meshes[model.shaded_meshes[model_mesh_idx]];
+				auto submesh_global_idx = shaded_mesh.mesh;
+				const model::Mesh& submesh = m_scene->submeshes[submesh_global_idx];
+				const Material& material   = m_scene->materials[shaded_mesh.material];
 
-			auto final_transform_mat = model.transform.mat * shaded_mesh.transform.mat;
-			auto inv_final_transform_mat = shaded_mesh.transform.inv_mat * model.transform.inv_mat; // (AB)^-1 = B^-1 * A^-1
-			auto submesh_bbox = bbox3::transformed(submesh.bbox, final_transform_mat);
+				auto final_transform_mat = model.transform.mat * shaded_mesh.transform.mat;
+				auto inv_final_transform_mat = shaded_mesh.transform.inv_mat * model.transform.inv_mat; // (AB)^-1 = B^-1 * A^-1
+				auto submesh_bbox = bbox3::transformed(submesh.bbox, final_transform_mat);
 
-			m_transform_cache.push_back({final_transform_mat, inv_final_transform_mat, submesh_bbox});
-			uint32_t transform_idx = m_transform_cache.size()-1;
+				m_transform_cache.push_back({final_transform_mat, inv_final_transform_mat, submesh_bbox});
+				uint32_t transform_idx = m_transform_cache.size()-1;
 
-			if(material.alpha_mode() == Texture::AlphaMode::Mask) {
-				m_masked_meshes.push_back(ModelMeshIdx{model_idx, model.shaded_meshes[model_mesh_idx], transform_idx});
-				continue;
+				if(material.alpha_mode() == Texture::AlphaMode::Mask) {
+					m_masked_meshes.push_back(ModelMeshIdx{model_idx, model.shaded_meshes[model_mesh_idx], transform_idx});
+					continue;
+				}
+				if(material.alpha_mode() == Texture::AlphaMode::Blend) {
+					m_blended_meshes.push_back(ModelMeshIdx{model_idx, model.shaded_meshes[model_mesh_idx], transform_idx});
+					continue;
+				}
+				m_opaque_meshes.push_back(ModelMeshIdx{model_idx, model.shaded_meshes[model_mesh_idx], transform_idx});
 			}
-			if(material.alpha_mode() == Texture::AlphaMode::Blend) {
-				m_blended_meshes.push_back(ModelMeshIdx{model_idx, model.shaded_meshes[model_mesh_idx], transform_idx});
-				continue;
+
+			if (draw_model_bboxes) {
+				auto mesh_bbox = bbox3::transformed(model.bbox, model.transform.mat);
+				dd::aabb(mesh_bbox.min(), mesh_bbox.max(), dd::colors::Purple);
 			}
-			m_opaque_meshes.push_back(ModelMeshIdx{model_idx, model.shaded_meshes[model_mesh_idx], transform_idx});
 		}
 
-		if (draw_model_bboxes) {
-			auto mesh_bbox = bbox3::transformed(model.bbox, model.transform.mat);
-			dd::aabb(mesh_bbox.min(), mesh_bbox.max(), dd::colors::Purple);
-		}
 	}
+
+	TracyGpuZone("draw_generic");
 
 	m_perfquery.begin();
 	if(do_shadow_mapping) {
@@ -668,7 +691,11 @@ void Renderer::draw()
 		glBindTextureUnit(36, *m_point_shadow_depth_to);
 	}
 
-	auto render_mesh_by_index = [this](const ModelMeshIdx& idx, const zcm::vec3& bbox_color) {
+	int64_t num_point_lights = 0;
+	int64_t num_spot_lights = 0;
+	int64_t num_drawcalls = 0;
+
+	auto render_mesh_by_index = [this, &num_point_lights, &num_spot_lights, &num_drawcalls](const ModelMeshIdx& idx, const zcm::vec3& bbox_color) {
 		const MeshTransform& transform = m_transform_cache[idx.transform_idx];
 		if(m_scene->main_camera.frustum.bbox_culled(transform.transformed_bbox))
 			return;
@@ -680,16 +707,20 @@ void Renderer::draw()
 		unif::m4(*m_shader, "model", transform.mat);
 		unif::m3(*m_shader, "normal_matrix", zcm::transpose(zcm::mat3{transform.inv_mat}));
 
-		process_point_lights(m_scene->point_lights, m_scene->main_camera.frustum, transform.transformed_bbox, *m_shader);
-		process_spot_lights(m_scene->spot_lights, m_scene->main_camera.frustum, transform.transformed_bbox, *m_shader);
+		num_point_lights += process_point_lights(m_scene->point_lights, m_scene->main_camera.frustum, transform.transformed_bbox, *m_shader);
+		num_spot_lights += process_spot_lights(m_scene->spot_lights, m_scene->main_camera.frustum, transform.transformed_bbox, *m_shader);
+		++num_drawcalls;
 		render_generic(submesh, material, *m_shader);
 
 		if(draw_mesh_bboxes)
 			dd::aabb(transform.transformed_bbox.min(), transform.transformed_bbox.max(), bbox_color);
 	};
 
-	for(const auto& idx : m_opaque_meshes) {
-		render_mesh_by_index(idx, dd::colors::White);
+	{
+		TracyGpuZoneC("draw_opaque", 0xaaaaaa);
+		for(const auto& idx : m_opaque_meshes) {
+			render_mesh_by_index(idx, dd::colors::White);
+		}
 	}
 
 
@@ -699,15 +730,23 @@ void Renderer::draw()
 	} else {
 		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
 	}
+	{
+		TracyGpuZoneC("draw_masked", 0xaa4444);
+		for(const auto& idx : m_masked_meshes) {
+			render_mesh_by_index(idx, dd::colors::Red);
 
-	for(const auto& idx : m_masked_meshes) {
-		render_mesh_by_index(idx, dd::colors::Red);
-
+		}
 	}
 
 	if(MSAASampleCount > 1) {
 		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
 	}
+
+	TracyPlot("% unculled draws", (float)rc::math::percent(size_t(num_drawcalls), m_masked_meshes.size() + m_opaque_meshes.size() + m_blended_meshes.size()));
+	TracyPlotConfig("% unculled draws", tracy::PlotFormatType::Percentage);
+
+	TracyPlot("Point lights total", num_point_lights);
+	TracyPlot("Spot lights total", num_spot_lights);
 
 	const auto& frustum = m_scene->main_camera.frustum;
 	if(frustum.state & Frustum::ShowWireframe) {
@@ -719,22 +758,26 @@ void Renderer::draw()
 
 	dd::flush();
 
-//	glBlitNamedFramebuffer(*m_backbuffer_fbo,
-//	                       *m_backbuffer_resolve_fbo,
-//	                       0, 0, m_backbuffer_width, m_backbuffer_height,
-//	                       0, 0, m_backbuffer_width, m_backbuffer_height,
-//	                       GL_COLOR_BUFFER_BIT,
-//	                       GL_NEAREST);
 
 
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glViewport(0, 0, m_window_width, m_window_height);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glUseProgram(*m_hdr_shader);
-	glBindTextureUnit(0, *m_backbuffer_color_to);
-	unif::f1(*m_hdr_shader, 0, m_scene->main_camera.state.exposure);
-	unif::i1(*m_hdr_shader, 1, MSAASampleCount);
-	renderQuad();
+	{
+		//	glBlitNamedFramebuffer(*m_backbuffer_fbo,
+		//	                       *m_backbuffer_resolve_fbo,
+		//	                       0, 0, m_backbuffer_width, m_backbuffer_height,
+		//	                       0, 0, m_backbuffer_width, m_backbuffer_height,
+		//	                       GL_COLOR_BUFFER_BIT,
+		//	                       GL_NEAREST);
+
+		TracyGpuNamedZone(rresolve, "resolve and tonemap", true);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glViewport(0, 0, m_window_width, m_window_height);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glUseProgram(*m_hdr_shader);
+		glBindTextureUnit(0, *m_backbuffer_color_to);
+		unif::f1(*m_hdr_shader, 0, m_scene->main_camera.state.exposure);
+		unif::i1(*m_hdr_shader, 1, MSAASampleCount);
+		renderQuad();
+	}
 
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);
@@ -747,6 +790,7 @@ void Renderer::draw()
 
 void Renderer::draw_gui()
 {
+	ZoneScoped;
 #if 0
 	ImGui::Begin("BRDF LUT");
 	const auto uv0 = ImVec2(0.0f, 1.0f);
@@ -771,7 +815,13 @@ void Renderer::draw_gui()
 
 	ImGui::PushItemWidth(-1.0f);
 
-	m_perfquery.collect();
+	{
+		ZoneNamedN(collect, "perfquery collect", true);
+		TracyGpuZone("perfquery collect");
+
+		m_perfquery.collect();
+
+	}
 
 	char avgbuf[64];
 	snprintf(avgbuf, std::size(avgbuf),
@@ -824,6 +874,7 @@ void Renderer::save_hdr_backbuffer(std::string_view path)
 
 void Renderer::draw_skybox()
 {
+	ZoneScoped;
 	glDepthFunc(GL_GEQUAL);
 	auto view = make_view(m_scene->main_camera.state);
 	auto projection = make_projection(m_scene->main_camera.state);

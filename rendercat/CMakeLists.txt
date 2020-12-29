@@ -63,6 +63,7 @@ target_link_libraries(${PROJECT_NAME}
 		stb::image
 		fx-gltf::fx-gltf
 		doctest::doctest
+		tracy::tracy
 )
 
 target_precompile_headers(${PROJECT_NAME} PRIVATE $<BUILD_INTERFACE:rendercat/CMakePCH.h>)

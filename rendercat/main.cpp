@@ -32,7 +32,11 @@
 #define DOCTEST_CONFIG_COLORS_NONE
 #include <doctest/doctest.h>
 
+#include <tracy/Tracy.hpp>
 using namespace gl45core;
+#define GL_TIMESTAMP gl45core::GL_TIMESTAMP
+#include <tracy/TracyOpenGL.hpp>
+
 
 namespace consts {
 	static const char* window_title = "rendercat";
@@ -232,6 +236,7 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 
 static void glfw_process_input(rc::Scene* s, float dt)
 {
+	ZoneScoped;
 	float cameraSpeed = 3.0f * dt;
 
 	if(input::shift)
@@ -416,6 +421,7 @@ static void set_glfw_window_params(GLFWwindow* window)
 
 static void process_screenshot(rc::Renderer& renderer)
 {
+	ZoneScoped;
 	input::screenshot_counter = std::max(0, input::screenshot_counter - 1);
 	if (input::screenshot_counter > 0) {
 		input::screenshot_requested = input::ScreenShot::DoNothing;
@@ -497,6 +503,8 @@ int main(int argc, char *argv[]) try
 	enable_gl_debug_callback();
 	enable_gl_clip_control();
 
+	TracyGpuContext;
+
 	{
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
@@ -544,33 +552,45 @@ int main(int argc, char *argv[]) try
 			set_imgui_font();
 		}
 
-		ImGui_ImplOpenGL3_NewFrame();
-		ImGui_ImplGlfw_NewFrame();
+		{
+			ZoneScopedN("ImGui NewFrame");
+			ImGui_ImplOpenGL3_NewFrame();
+			ImGui_ImplGlfw_NewFrame();
 
-		ImGui::NewFrame();
-		ImGuizmo::BeginFrame();
+			ImGui::NewFrame();
+			ImGuizmo::BeginFrame();
+		}
+
 
 		scene.update();
 
 		renderer.draw();
 		renderer.draw_gui();
 
-		ImGui::Render();
-		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-		// Update and Render additional Platform Windows
-		// (Platform functions may change the current OpenGL context, so we save/restore it to make it easier to paste this code elsewhere.
-		//  For this specific demo app we could also call glfwMakeContextCurrent(window) directly)
-		if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
 		{
-			GLFWwindow* backup_current_context = glfwGetCurrentContext();
-			ImGui::UpdatePlatformWindows();
-			ImGui::RenderPlatformWindowsDefault();
-			glfwMakeContextCurrent(backup_current_context);
+			ZoneNamedN(imgui_render, "ImGui Render", true);
+			ImGui::Render();
+			TracyGpuNamedZone(imgui_gpu_render, "ImGui Render GL", true);
+			ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+			// Update and Render additional Platform Windows
+			// (Platform functions may change the current OpenGL context, so we save/restore it to make it easier to paste this code elsewhere.
+			//  For this specific demo app we could also call glfwMakeContextCurrent(window) directly)
+			if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+			{
+				GLFWwindow* backup_current_context = glfwGetCurrentContext();
+				ImGui::UpdatePlatformWindows();
+				ImGui::RenderPlatformWindowsDefault();
+				glfwMakeContextCurrent(backup_current_context);
+			}
 		}
 
 		process_screenshot(renderer);
 
 		glfwSwapBuffers(window);
+		FrameMark;
+		TracyGpuCollect;
+
 		auto end_time = glfwGetTime();
 		globals::delta_time = end_time - globals::last_frame_time;
 		globals::last_frame_time = end_time;

@@ -43,3 +43,6 @@
 [submodule "third_party/imgui_integration/implot"]
 	path = third_party/imgui_integration/implot
 	url = https://github.com/epezent/implot
+[submodule "third_party/tracy_integration/tracy"]
+	path = third_party/tracy_integration/tracy
+	url = https://github.com/wolfpld/tracy.git
