@@ -39,6 +39,8 @@ add_executable(${PROJECT_NAME}
 	util/gl_screenshot.hpp
 	util/gl_unique_handle.cpp
 	util/gl_unique_handle.hpp
+	util/turbo_colormap.cpp
+	util/turbo_colormap.hpp
 )
 
 set_target_properties(${PROJECT_NAME}

@@ -3,6 +3,7 @@
 #include <rendercat/scene.hpp>
 #include <rendercat/uniform.hpp>
 #include <rendercat/util/gl_screenshot.hpp>
+#include <rendercat/util/turbo_colormap.hpp>
 #include <fmt/core.h>
 #include <string>
 #include <imgui.h>
@@ -82,6 +83,7 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 	dd::initialize(&debug_draw_ctx);
 	init_shadow();
 	init_brdf();
+	init_colormap();
 }
 
 void Renderer::init_shadow()
@@ -151,6 +153,13 @@ void Renderer::init_brdf()
 	glTextureParameteri(*m_brdf_lut_to, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTextureParameteri(*m_brdf_lut_to, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTextureParameteri(*m_brdf_lut_to, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+}
+
+void Renderer::init_colormap()
+{
+	glCreateTextures(GL_TEXTURE_1D, 1, m_turbo_colormap_to.get());
+	glTextureStorage1D(*m_turbo_colormap_to, 1, GL_RGB32F, 256);
+	glTextureSubImage1D(*m_turbo_colormap_to, 0, 0, 256, GL_RGB, GL_FLOAT, &rc::util::turbo_srgb_floats);
 }
 
 void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio, bool force)
@@ -325,7 +334,8 @@ void Renderer::set_uniforms()
 
 	m_scene->cubemap_diffuse_irradiance.bind_to_unit(34);
 	m_scene->cubemap_specular_environment.bind_to_unit(33);
-	glBindTextureUnit(35, *m_brdf_lut_to);
+	glBindTextureUnit(30, *m_turbo_colormap_to);
+	glBindTextureUnit(31, *m_brdf_lut_to);
 }
 
 void Renderer::set_shadow_uniforms()
@@ -501,11 +511,18 @@ void Renderer::draw_spot_shadow()
 
 	std::fill(std::begin(per_frame->shadow_indices), std::end(per_frame->shadow_indices), LightPerframeData::LightIndex{-1});
 
+	int point_light_index = 0;
 	for(auto&& light : m_scene->point_lights) {
-		if(!(light.state & PointLight::ShowWireframe))
+
+		if(!(light.state & SpotLight::Enabled))
 			continue;
 
 		if(m_scene->main_camera.frustum.sphere_culled(light.position(), light.radius()))
+			continue;
+
+		++point_light_index;
+
+		if(!(light.state & PointLight::ShowWireframe))
 			continue;
 
 		dd::sphere(light.position(), light.color(), 0.01f * light.radius(), 0, false);
@@ -517,8 +534,7 @@ void Renderer::draw_spot_shadow()
 	for(size_t scene_index = 0; scene_index < m_scene->spot_lights.size() && scene_index < MaxLights; ++scene_index) {
 		const auto& light = m_scene->spot_lights[scene_index];
 
-		if(!(light.state & SpotLight::Enabled))
-			continue;
+
 
 		if(m_scene->main_camera.frustum.sphere_culled(light.position(), light.radius()))
 			continue;
@@ -593,8 +609,11 @@ void Renderer::draw_spot_shadow()
 		frustum.draw_debug();
 	}
 
-	TracyPlot("Visible spotlights", int64_t(spot_light_index));
+	TracyPlot("Visible spot lights", int64_t(spot_light_index));
+	TracyPlot("Visible point lighs", int64_t(point_light_index));
 
+	per_frame->num_visible_point_lights = point_light_index;
+	per_frame->num_visible_spot_lights = spot_light_index;
 
 	m_light_per_frame.flush();
 	glUseProgram(0);

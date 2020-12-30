@@ -34,6 +34,7 @@ class Renderer
 	float    m_device_pixel_ratio = 1.0f;
 
 	rc::texture_handle     m_brdf_lut_to;
+	rc::texture_handle     m_turbo_colormap_to;
 
 	rc::framebuffer_handle m_shadowmap_fbo;
 	rc::texture_handle     m_shadowmap_depth_to;
@@ -56,6 +57,7 @@ class Renderer
 	void draw_skybox();
 	void init_shadow();
 	void init_brdf();
+	void init_colormap();
 
 	DDRenderInterfaceCoreGL debug_draw_ctx;
 
@@ -124,6 +126,8 @@ class Renderer
 
 	struct alignas(256) LightPerframeData {
 		zcm::mat4 spot_light_matrices[RC_MAX_LIGHTS];
+		int num_visible_point_lights;
+		int num_visible_spot_lights;
 
 		// std140 array alignment
 		struct alignas(16) LightIndex {

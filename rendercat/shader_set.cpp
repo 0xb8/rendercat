@@ -173,7 +173,8 @@ struct Shader
 			return false;
 
 		auto shader_type = shader_type_from_filename(filepath.string());
-		const auto shader_source = load_and_process_shader(root_path / "include", filepath, 0, definitions ? *definitions : ShaderSet::macros_t{});
+		static const auto empty_defs = ShaderSet::macros_t{};
+		const auto shader_source = load_and_process_shader(root_path / "include", filepath, 0, definitions ? *definitions : empty_defs);
 		const auto shader_source_ptr = shader_source.data();
 
 		rc::shader_handle new_handle(glCreateShader(shader_type));
@@ -323,7 +324,7 @@ void ShaderSet::check_updates()
 
 gl::GLuint * ShaderSet::load_program(std::vector<std::string>&& names, macros_t&& defines)
 {
-	Program program(std::move(defines));
+	auto program = std::make_unique<Program>(std::move(defines));
 
 	for(const auto& name : names) {
 
@@ -335,19 +336,18 @@ gl::GLuint * ShaderSet::load_program(std::vector<std::string>&& names, macros_t&
 			return nullptr;
 		}
 
-		program.attach_shader(Shader(std::move(dirpath), std::move(filepath)));
+		program->attach_shader(Shader(std::move(dirpath), std::move(filepath)));
 	}
 
-	program.reload();
+	program->reload();
 
-	if(program.valid()) {
-		m_programs[m_program_count] = new Program{std::move(program)};
+	if(program->valid()) {
+		m_programs[m_program_count] = program.release();
 		m_dirty = true;
 		return m_programs[m_program_count++]->handle.get();
 	}
 
 	return nullptr;
-
 }
 
 

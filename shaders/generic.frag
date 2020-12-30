@@ -18,10 +18,11 @@ layout(binding=2) uniform sampler2D material_specular_map;
 layout(binding=3) uniform sampler2D material_roughness_metallic;
 layout(binding=4) uniform sampler2D material_occlusion;
 layout(binding=5) uniform sampler2D material_emission;
+layout(binding=30) uniform sampler1D turbo_colormap;
+layout(binding=31) uniform sampler2D uBRDFLut;
 layout(binding=32) uniform sampler2DShadow shadow_map;
 layout(binding=33) uniform samplerCubeArray uReflection;
 layout(binding=34) uniform samplerCubeArray uIrradiance;
-layout(binding=35) uniform sampler2D uBRDFLut;
 layout(binding=36) uniform sampler2DArrayShadow pointShadows;
 
 
@@ -100,6 +101,8 @@ layout(std140, binding=1) uniform PerFrame_frag {
 
 layout(std140, binding=2) uniform PerFrameLight_frag {
 	mat4 spot_light_matrices[MAX_DYNAMIC_LIGHTS];
+	int num_visible_point_lights;
+	int num_visible_spot_lights;
 	int shadow_indices[MAX_DYNAMIC_LIGHTS];
 };
 
@@ -435,13 +438,16 @@ vec3 calcPBRPoint(const PixelParams pixel) {
 
 		PointLightData pl = point_light[point_light_indices[i]];
 
-		vec3 lightv = pl.position.xyz - fs_in.FragPos;
-		float lightDistance = length(lightv);
+		const vec3 lightv = pl.position.xyz - fs_in.FragPos;
+		const float lightDistanceSqared = dot(lightv, lightv);
+		const float radius = pl.position.w;
 
-		if (subgroupAny(lightDistance <= pl.position.w)) {
+		if (subgroupAny(lightDistanceSqared <= radius*radius)) {
 			Light point;
-			point.attenuation = distance_attenuation(lightDistance, pl.position.w);
+			const float lightDistance = length(lightv);
+
 			point.l = lightv / lightDistance;
+			point.attenuation = distance_attenuation(lightDistance, pl.position.w);
 			point.colorIntensity = pl.color;
 			point.NoL = dot(pixel.n, point.l);
 			color += surfaceShading(pixel, point, 1.0);
@@ -457,11 +463,14 @@ vec3 calcPBRSpot(const PixelParams pixel) {
 
 		SpotLightData sl = spot_light[spot_light_indices[i]];
 
-		vec3 lightv = sl.position.xyz - fs_in.FragPos;
-		float lightDistance = length(lightv);
+		const vec3 lightv = sl.position.xyz - fs_in.FragPos;
+		const float lightDistanceSqared = dot(lightv, lightv);
+		const float radius = sl.position.w;
 
-		if (subgroupAny(lightDistance <= sl.position.w)) {
+		if (subgroupAny(lightDistanceSqared <= radius*radius)) {
 			Light spot;
+
+			const float lightDistance = length(lightv);
 			spot.l = lightv / lightDistance;
 			spot.attenuation = distance_attenuation(lightDistance, sl.position.w);
 			spot.attenuation *= direction_attenuation(spot.l, sl.direction.xyz, sl.direction.w, sl.angle_offset.x);
