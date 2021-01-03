@@ -12,6 +12,7 @@ namespace unif {
 
 // --- bool --------------------------------------------------------------------
 
+void b1(uint32_t shader, int location, bool value);
 void b1(uint32_t shader, std::string_view name, bool value);
 
 // --- int --------------------------------------------------------------------

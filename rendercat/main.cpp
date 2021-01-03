@@ -364,7 +364,8 @@ static void check_required_extensions()
 	const gl::GLextension exts[] = {gl::GLextension::GL_ARB_clip_control,
 	                                gl::GLextension::GL_ARB_direct_state_access,
 	                                gl::GLextension::GL_ARB_framebuffer_sRGB,
-	                                gl::GLextension::GL_ARB_shader_group_vote};
+	                                gl::GLextension::GL_ARB_shader_group_vote,
+	                                gl::GLextension::GL_ARB_shader_viewport_layer_array};
 
 	for(unsigned i = 0; i < std::size(exts); ++i) {
 		rc::glmeta::require_extension(exts[i]);

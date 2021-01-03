@@ -87,7 +87,12 @@ basic_buf::operator bool() const noexcept
 
 void b1(uint32_t shader, std::string_view name, bool value)
 {
-	gl45core::glProgramUniform1i(shader, gl45core::glGetUniformLocation(shader, name.data()), (int)value);
+	b1(shader, gl45core::glGetUniformLocation(shader, name.data()), (int)value);
+}
+
+void b1(uint32_t shader, int location, bool value)
+{
+	gl45core::glProgramUniform1i(shader, location, (int)value);
 }
 
 void i1(uint32_t shader, int location, int value)

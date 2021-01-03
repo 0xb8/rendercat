@@ -81,26 +81,30 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 #endif
 
 	dd::initialize(&debug_draw_ctx);
-	init_shadow();
+	init_shadow_resources();
 	init_brdf();
 	init_colormap();
 }
 
-void Renderer::init_shadow()
+void Renderer::init_shadow_resources()
 {
 	m_shadow_shader = m_shader_set.load_program({"shadow_mapping.vert", "shadow_mapping.frag"});
-	m_shadow_masked_shader = m_shader_set.load_program({"shadow_mapping.vert", "shadow_mapping.frag"},
-	                                                   {{"ALPHA_MASKED"}});
+	m_shadow_point_shader = m_shader_set.load_program({"shadow_mapping.vert", "shadow_mapping.frag"},
+	                                                   {{"POINT_LIGHT"}});
 
 	// create texture for directional light shadowmap
 	glCreateTextures(GL_TEXTURE_2D, 1, m_shadowmap_depth_to.get());
 	glTextureStorage2D(*m_shadowmap_depth_to, 1, GL_DEPTH_COMPONENT32F, ShadowMapWidth, ShadowMapHeight);
-	float borderColor[] = {0.0f, 0.0f, 0.0f, 1.0f };
-	glTextureParameterfv(*m_shadowmap_depth_to, GL_TEXTURE_BORDER_COLOR, borderColor);
-	glTextureParameteri(*m_shadowmap_depth_to, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-	glTextureParameteri(*m_shadowmap_depth_to, GL_TEXTURE_COMPARE_FUNC, GL_LESS);
-	glTextureParameteri(*m_shadowmap_depth_to, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTextureParameteri(*m_shadowmap_depth_to, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	auto set_shadow_sampling_params = [](auto texture){
+		float borderColor[] = {0.0f, 0.0f, 0.0f, 1.0f };
+		glTextureParameterfv(texture, GL_TEXTURE_BORDER_COLOR, borderColor);
+		glTextureParameteri(texture, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+		glTextureParameteri(texture, GL_TEXTURE_COMPARE_FUNC, GL_LESS);
+		glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	};
+	set_shadow_sampling_params(*m_shadowmap_depth_to);
 
 	glCreateFramebuffers(1, m_shadowmap_fbo.get());
 	glNamedFramebufferTexture(*m_shadowmap_fbo, GL_DEPTH_ATTACHMENT, *m_shadowmap_depth_to, 0);
@@ -108,25 +112,33 @@ void Renderer::init_shadow()
 	if (glCheckNamedFramebufferStatus(*m_shadowmap_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
 		fmt::print(stderr, "[renderer] could not init shadow framebuffer!");
 		std::fflush(stderr);
-		return;
 	}
 
 	// create texture array for spot light shadowmaps
 	glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, m_spot_shadow_depth_to.get());
 	glTextureStorage3D(*m_spot_shadow_depth_to, 1, GL_DEPTH_COMPONENT16, PointShadowWidth, PointShadowHeight, MaxLights);
-	glTextureParameterfv(*m_spot_shadow_depth_to, GL_TEXTURE_BORDER_COLOR, borderColor);
-	glTextureParameteri(*m_spot_shadow_depth_to, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-	glTextureParameteri(*m_spot_shadow_depth_to, GL_TEXTURE_COMPARE_FUNC, GL_LESS);
-	glTextureParameteri(*m_spot_shadow_depth_to, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTextureParameteri(*m_spot_shadow_depth_to, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	set_shadow_sampling_params(*m_spot_shadow_depth_to);
 
 	glCreateFramebuffers(1, m_spot_shadow_fbo.get());
-	glNamedFramebufferTextureLayer(*m_spot_shadow_fbo, GL_DEPTH_ATTACHMENT, *m_spot_shadow_depth_to, 0, 0);
+	glNamedFramebufferTexture(*m_spot_shadow_fbo, GL_DEPTH_ATTACHMENT, *m_spot_shadow_depth_to, 0);
 
 	if (glCheckNamedFramebufferStatus(*m_spot_shadow_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+		fmt::print(stderr, "[renderer] could not init spot shadow framebuffer!");
+		std::fflush(stderr);
+	}
+
+	// create texture array for point light shadowmaps
+	glCreateTextures(GL_TEXTURE_CUBE_MAP_ARRAY, 1, m_point_shadow_depth_to.get());
+	glTextureStorage3D(*m_point_shadow_depth_to, 1, GL_DEPTH_COMPONENT16, PointShadowWidth, PointShadowHeight, MaxLights * 6);
+	set_shadow_sampling_params(*m_point_shadow_depth_to);
+	glTextureParameteri(*m_point_shadow_depth_to, GL_TEXTURE_CUBE_MAP_SEAMLESS, GL_TRUE);
+
+	glCreateFramebuffers(1, m_point_shadow_fbo.get());
+	glNamedFramebufferTexture(*m_point_shadow_fbo, GL_DEPTH_ATTACHMENT, *m_point_shadow_depth_to, 0);
+
+	if (glCheckNamedFramebufferStatus(*m_point_shadow_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
 		fmt::print(stderr, "[renderer] could not init point shadow framebuffer!");
 		std::fflush(stderr);
-		return;
 	}
 
 }
@@ -186,21 +198,21 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 	rc::texture_handle color_to;
 	glCreateTextures(GL_TEXTURE_2D_MULTISAMPLE, 1, color_to.get());
 	glTextureStorage2DMultisample(*color_to,
-				      samples,
-				      GL_RGBA16F,
-				      backbuffer_width,
-				      backbuffer_height,
-				      GL_FALSE);
+	                              samples,
+	                              GL_RGBA16F,
+	                              backbuffer_width,
+	                              backbuffer_height,
+	                              GL_FALSE);
 
 	// reinitialize multisampled depth texture object
 	rc::texture_handle depth_to;
 	glCreateTextures(GL_TEXTURE_2D_MULTISAMPLE, 1, depth_to.get());
 	glTextureStorage2DMultisample(*depth_to,
-				      samples,
-				      GL_DEPTH_COMPONENT32F, // TODO: research if GL_DEPTH24_STENCIL8 is viable here
-				      backbuffer_width,
-				      backbuffer_height,
-				      GL_FALSE);
+	                              samples,
+	                              GL_DEPTH_COMPONENT32F, // TODO: research if GL_DEPTH24_STENCIL8 is viable here
+	                              backbuffer_width,
+	                              backbuffer_height,
+	                              GL_FALSE);
 
 	if(!color_to || !depth_to) {
 		fmt::print(stderr, "[renderer] backbuffer {} texture creation failed\n", color_to ? "depth" : "color");
@@ -326,7 +338,18 @@ void Renderer::set_uniforms()
 	}
 
 	per_frame->num_msaa_samples = MSAASampleCount;
-	per_frame->shadows_enabled = do_shadow_mapping;
+
+	const uint32_t SHADOWS_DIRECTIONAL          = 1 << 1;
+	const uint32_t SHADOWS_POINT                = 1 << 2;
+	const uint32_t SHADOWS_SPOT                 = 1 << 3;
+
+	uint32_t flags = 0;
+	if (do_shadow_mapping) {
+		flags |= enable_directional_shadows ? SHADOWS_DIRECTIONAL : 0;
+		flags |= enable_point_shadows       ? SHADOWS_POINT : 0;
+		flags |= enable_spot_shadows        ? SHADOWS_SPOT : 0;
+	}
+	per_frame->flags = flags;
 
 	m_per_frame.flush();
 
@@ -338,23 +361,6 @@ void Renderer::set_uniforms()
 	glBindTextureUnit(31, *m_brdf_lut_to);
 }
 
-void Renderer::set_shadow_uniforms()
-{
-	// TODO: determine frustum size dynamically
-	static float near_plane = -25.0f, far_plane = 25.0f;
-	static zcm::vec4 params = zcm::vec4(-15.0f, 15.0f, -15.0f, 15.0f);
-	auto pos = m_scene->directional_light.direction;
-
-	zcm::mat4 lightProjection = zcm::orthoRH_ZO(params[0], params[1], params[2],params[3], near_plane, far_plane);
-	auto lightView = zcm::lookAtRH(pos,
-	                             zcm::vec3(0.0f, 0.0f, 0.0f),
-	                             zcm::vec3(0.0f, 1.0f, 0.0f));
-
-	auto proj_view = lightProjection * lightView;
-
-	unif::m4(*m_shadow_shader, 0, proj_view);
-	m_shadow_matrix = proj_view;
-}
 
 static int process_point_lights(const std::vector<PointLight>& point_lights,
                                  const Frustum& frustum,
@@ -410,6 +416,7 @@ static int process_spot_lights(const std::vector<SpotLight>& spot_lights,
 	return spot_light_count;
 }
 
+template<int NInstances = 1>
 static void submit_draw_call(const model::Mesh& submesh)
 {
 	glBindVertexArray(*submesh.vao);
@@ -420,23 +427,39 @@ static void submit_draw_call(const model::Mesh& submesh)
 		       || submesh.index_type == GL_UNSIGNED_SHORT
 		       || submesh.index_type == GL_UNSIGNED_BYTE);
 
-		if (likely(submesh.index_max > submesh.index_min)) {
+		if constexpr(NInstances == 1) {
 
-			glDrawRangeElements((GLenum)submesh.draw_mode,
-			                    submesh.index_min,
-			                    submesh.index_max,
-			                    submesh.numverts,
-			                    GLenum(submesh.index_type),
-			                    nullptr);
-		} else {
+			if (likely(submesh.index_max > submesh.index_min)) {
 
-			glDrawElements((GLenum)submesh.draw_mode,
-			               submesh.numverts,
-			               GLenum(submesh.index_type),
-			               nullptr);
+				glDrawRangeElements((GLenum)submesh.draw_mode,
+				                    submesh.index_min,
+				                    submesh.index_max,
+				                    submesh.numverts,
+				                    GLenum(submesh.index_type),
+				                    nullptr);
+
+			} else {
+
+				glDrawElements((GLenum)submesh.draw_mode,
+				               submesh.numverts,
+				               GLenum(submesh.index_type),
+				               nullptr);
+			}
+
+		} else { // instanced case
+			glDrawElementsInstanced((GLenum)submesh.draw_mode,
+			                        submesh.numverts,
+			                        GLenum(submesh.index_type),
+			                        nullptr,
+			                        NInstances);
+
 		}
 	} else {
-		glDrawArrays((GLenum)submesh.draw_mode, 0, submesh.numverts);
+		if constexpr(NInstances == 1) {
+			glDrawArrays((GLenum)submesh.draw_mode, 0, submesh.numverts);
+		} else {
+			glDrawArraysInstanced((GLenum)submesh.draw_mode, 0, submesh.numverts, NInstances);
+		}
 	}
 }
 
@@ -456,7 +479,7 @@ static void render_generic(const model::Mesh& submesh,
 }
 
 
-void Renderer::draw_shadow()
+void Renderer::draw_directional_shadow()
 {
 	ZoneScoped;
 	TracyGpuZone("draw_shadow");
@@ -470,49 +493,84 @@ void Renderer::draw_shadow()
 	glViewport(0,0, ShadowMapWidth, ShadowMapHeight);
 	glClear(GL_DEPTH_BUFFER_BIT);
 
-	set_shadow_uniforms();
-
 	glUseProgram(*m_shadow_shader);
 
-	for(unsigned model_idx = 0; model_idx < m_scene->models.size(); ++model_idx) {
-		const Model& model = m_scene->models[model_idx];
+	// TODO: determine frustum size dynamically
+	static float near_plane = -25.0f, far_plane = 25.0f;
+	static zcm::vec4 params = zcm::vec4(-15.0f, 15.0f, -15.0f, 15.0f);
+	auto pos = m_scene->directional_light.direction;
 
-		unif::m4(*m_shadow_shader, 1, model.transform.mat);
+	zcm::mat4 lightProjection = zcm::orthoRH_ZO(params[0], params[1], params[2],params[3], near_plane, far_plane);
+	auto lightView = zcm::lookAtRH(pos,
+	                             zcm::vec3(0.0f, 0.0f, 0.0f),
+	                             zcm::vec3(0.0f, 1.0f, 0.0f));
 
-		// TODO: culling
-		for(unsigned submesh_idx = 0; submesh_idx < model.mesh_count; ++submesh_idx) {
-			const model::Mesh& submesh = m_scene->submeshes[m_scene->shaded_meshes[model.shaded_meshes[submesh_idx]].mesh];
-			submit_draw_call(submesh);
-		}
+	auto proj_view = lightProjection * lightView;
+
+	unif::m4(*m_shadow_shader, 4, proj_view);
+	m_shadow_matrix = proj_view;
+	unif::b1(*m_shadow_shader, 0, false); // alpha-masked
+
+	for (const auto& idx : m_opaque_meshes) {
+		const MeshTransform& transform = m_transform_cache[idx.transform_idx];
+
+		const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
+		const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
+
+		unif::m4(*m_shadow_shader, 1, transform.mat);
+		submit_draw_call(submesh);
+	}
+
+	unif::b1(*m_shadow_shader, 0, true); // alpha-masked
+
+	for (const auto& idx : m_masked_meshes) {
+		const MeshTransform& transform = m_transform_cache[idx.transform_idx];
+
+		const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
+		const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
+		const auto& material = m_scene->materials[shaded_mesh.material];
+
+		unif::m4(*m_shadow_shader, 1, transform.mat);
+		material.bind(*m_shadow_shader);
+		submit_draw_call(submesh);
 	}
 
 	glUseProgram(0);
 	glBindVertexArray(0);
 }
 
-void Renderer::draw_spot_shadow()
+Renderer::LightPerframeData * Renderer::begin_draw_light_shadows()
 {
-	ZoneScoped;
-	TracyGpuZone("draw_spot_shadow");
 	glClearDepthf(1.0f);
 	glDepthFunc(GL_LESS);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK); // TODO: use front face culling
 
-	glBindFramebuffer(GL_FRAMEBUFFER, *m_spot_shadow_fbo);
-	glViewport(0,0, PointShadowWidth, PointShadowHeight);
-	glClear(GL_DEPTH_BUFFER_BIT);
-
 	m_light_per_frame.next();
 	auto per_frame = m_light_per_frame.data();
 	assert(per_frame);
 	m_light_per_frame.bind(2);
 
-	std::fill(std::begin(per_frame->shadow_indices), std::end(per_frame->shadow_indices), LightPerframeData::LightIndex{-1});
+	std::fill(std::begin(per_frame->spot_shadow_indices), std::end(per_frame->spot_shadow_indices), LightPerframeData::LightIndex{-1});
+	std::fill(std::begin(per_frame->point_shadow_indices), std::end(per_frame->point_shadow_indices), LightPerframeData::LightIndex{-1});
+	return per_frame;
+}
 
-	int point_light_index = 0;
-	for(auto&& light : m_scene->point_lights) {
+void Renderer::draw_point_shadow(Renderer::LightPerframeData *per_frame)
+{
+	ZoneScoped;
+	TracyGpuZone("draw_point_shadow");
+
+	glBindFramebuffer(GL_FRAMEBUFFER, *m_point_shadow_fbo);
+	glViewport(0,0, PointShadowWidth, PointShadowHeight);
+	glClear(GL_DEPTH_BUFFER_BIT);
+
+	int point_shadowmap_layer_index = 0;
+	glUseProgram(*m_shadow_point_shader);
+
+	for(size_t scene_index = 0; scene_index < m_scene->point_lights.size() && scene_index < MaxLights; ++scene_index) {
+		const auto& light = m_scene->point_lights[scene_index];
 
 		if(!(light.state & SpotLight::Enabled))
 			continue;
@@ -520,7 +578,65 @@ void Renderer::draw_spot_shadow()
 		if(m_scene->main_camera.frustum.sphere_culled(light.position(), light.radius()))
 			continue;
 
-		++point_light_index;
+		per_frame->point_shadow_indices[scene_index].index = point_shadowmap_layer_index;
+
+		float near = 0.1f;
+
+		per_frame->point_near_plane = near;
+
+		zcm::mat4 proj = zcm::perspectiveRH_ZO(zcm::radians(90.0f), 1, near, light.radius());
+		std::array<zcm::mat4, 6> shadowTransforms {
+			proj * zcm::lookAtRH(light.position(), light.position() + zcm::vec3( 1.0, 0.0, 0.0), zcm::vec3(0.0,-1.0, 0.0)),
+			proj * zcm::lookAtRH(light.position(), light.position() + zcm::vec3(-1.0, 0.0, 0.0), zcm::vec3(0.0,-1.0, 0.0)),
+			proj * zcm::lookAtRH(light.position(), light.position() + zcm::vec3( 0.0, 1.0, 0.0), zcm::vec3(0.0, 0.0, 1.0)),
+			proj * zcm::lookAtRH(light.position(), light.position() + zcm::vec3( 0.0,-1.0, 0.0), zcm::vec3(0.0, 0.0,-1.0)),
+			proj * zcm::lookAtRH(light.position(), light.position() + zcm::vec3( 0.0, 0.0, 1.0), zcm::vec3(0.0,-1.0, 0.0)),
+			proj * zcm::lookAtRH(light.position(), light.position() + zcm::vec3( 0.0, 0.0,-1.0), zcm::vec3(0.0,-1.0, 0.0))
+		};
+
+		for (int i = 0; i < 6; ++i) {
+			unif::m4(*m_shadow_point_shader, 4 + i, shadowTransforms[i]);
+		}
+		unif::b1(*m_shadow_point_shader, 0, false); // alpha-masked
+		unif::i1(*m_shadow_point_shader, 2, point_shadowmap_layer_index);
+
+		auto light_culled = [](const auto& bbox, const auto& light) {
+			return bbox3::intersects_sphere(bbox,
+			                              light.position(),
+			                              light.radius()) == Intersection::Outside;
+		};
+
+		for (const auto& idx : m_opaque_meshes) {
+			const MeshTransform& transform = m_transform_cache[idx.transform_idx];
+
+			if (light_culled(transform.transformed_bbox, light))
+				continue;
+
+			const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
+			const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
+
+			unif::m4(*m_shadow_point_shader, 1, transform.mat);
+			submit_draw_call<6>(submesh);
+		}
+
+		unif::b1(*m_shadow_point_shader, 0, true); // alpha-masked
+
+		for (const auto& idx : m_masked_meshes) {
+			const MeshTransform& transform = m_transform_cache[idx.transform_idx];
+
+			if (light_culled(transform.transformed_bbox, light))
+				continue;
+
+			const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
+			const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
+			const auto& material = m_scene->materials[shaded_mesh.material];
+
+			unif::m4(*m_shadow_point_shader, 1, transform.mat);
+			material.bind(*m_shadow_point_shader);
+			submit_draw_call<6>(submesh);
+		}
+
+		++point_shadowmap_layer_index;
 
 		if(!(light.state & PointLight::ShowWireframe))
 			continue;
@@ -528,28 +644,28 @@ void Renderer::draw_spot_shadow()
 		dd::sphere(light.position(), light.color(), 0.01f * light.radius(), 0, false);
 		dd::sphere(light.position(), light.color(), light.radius());
 	}
+	per_frame->num_visible_point_lights = point_shadowmap_layer_index;
+	TracyPlot("Visible point lighs", int64_t(point_shadowmap_layer_index));
+}
 
-	int spot_light_index = 0;
+void Renderer::draw_spot_shadow(LightPerframeData *per_frame)
+{
+	ZoneScoped;
+	TracyGpuZone("draw_spot_shadow");
+
+	glBindFramebuffer(GL_FRAMEBUFFER, *m_spot_shadow_fbo);
+	glViewport(0,0, PointShadowWidth, PointShadowHeight);
+	glClear(GL_DEPTH_BUFFER_BIT);
+	int spot_shadowmap_layer_index = 0;
+	glUseProgram(*m_shadow_shader);
 
 	for(size_t scene_index = 0; scene_index < m_scene->spot_lights.size() && scene_index < MaxLights; ++scene_index) {
 		const auto& light = m_scene->spot_lights[scene_index];
 
-
-
 		if(m_scene->main_camera.frustum.sphere_culled(light.position(), light.radius()))
 			continue;
 
-		glNamedFramebufferTextureLayer(*m_spot_shadow_fbo, GL_DEPTH_ATTACHMENT, *m_spot_shadow_depth_to, 0, spot_light_index);
-		if (glCheckNamedFramebufferStatus(*m_spot_shadow_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-			fmt::print(stderr, "[renderer] could not update point shadow framebuffer!");
-			std::fflush(stderr);
-			return;
-		}
-		glClear(GL_DEPTH_BUFFER_BIT);
-		glUseProgram(*m_shadow_shader);
-
-		per_frame->shadow_indices[scene_index].index = spot_light_index;
-		++spot_light_index;
+		per_frame->spot_shadow_indices[scene_index].index = spot_shadowmap_layer_index;
 
 		auto light_camera_state = CameraState{zcm::conjugate(light.orientation()), light.position()};
 		light_camera_state.zfar = light.radius();
@@ -564,13 +680,27 @@ void Renderer::draw_spot_shadow()
 		auto light_mat = proj_mat * view_mat;
 		per_frame->spot_light_matrices[scene_index] = light_mat;
 
-		unif::m4(*m_shadow_shader, 0, light_mat);
+		unif::b1(*m_shadow_shader, 0, false); // alpha-masked
+		unif::m4(*m_shadow_shader, 4, light_mat);
+		unif::i1(*m_shadow_shader, 2, spot_shadowmap_layer_index);
 
 		auto frustum = Frustum();
 		frustum.update(light_camera_state);
 
+		auto spot_culled = [](const auto& bbox, const auto& light) {
+			return bbox3::intersects_cone(bbox,
+			                              light.position(),
+			                              -light.direction_vec(),
+			                              light.angle_outer(),
+			                              light.radius()) == Intersection::Outside;
+		};
+
 		for (const auto& idx : m_opaque_meshes) {
 			const MeshTransform& transform = m_transform_cache[idx.transform_idx];
+
+			if (spot_culled(transform.transformed_bbox, light))
+				continue;
+
 			if (frustum.bbox_culled(transform.transformed_bbox))
 				continue;
 
@@ -579,24 +709,31 @@ void Renderer::draw_spot_shadow()
 
 			unif::m4(*m_shadow_shader, 1, transform.mat);
 			submit_draw_call(submesh);
+
 		}
 
-		glUseProgram(*m_shadow_masked_shader);
-		unif::m4(*m_shadow_masked_shader, 0, light_mat);
+		unif::b1(*m_shadow_shader, 0, true); // alpha-masked
 
 		for (const auto& idx : m_masked_meshes) {
 			const MeshTransform& transform = m_transform_cache[idx.transform_idx];
+
+			if (spot_culled(transform.transformed_bbox, light))
+				continue;
+
 			if (frustum.bbox_culled(transform.transformed_bbox))
 				continue;
+
 
 			const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
 			const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
 			const auto& material = m_scene->materials[shaded_mesh.material];
 
-			unif::m4(*m_shadow_masked_shader, 1, transform.mat);
-			material.bind(*m_shadow_masked_shader);
+			unif::m4(*m_shadow_shader, 1, transform.mat);
+			material.bind(*m_shadow_shader);
 			submit_draw_call(submesh);
 		}
+
+		++spot_shadowmap_layer_index;
 
 		if(!(light.state & SpotLight::ShowWireframe))
 			continue;
@@ -609,19 +746,16 @@ void Renderer::draw_spot_shadow()
 		frustum.draw_debug();
 	}
 
-	TracyPlot("Visible spot lights", int64_t(spot_light_index));
-	TracyPlot("Visible point lighs", int64_t(point_light_index));
+	per_frame->num_visible_spot_lights = spot_shadowmap_layer_index;
+	TracyPlot("Visible spot lights", int64_t(spot_shadowmap_layer_index));
+}
 
-	per_frame->num_visible_point_lights = point_light_index;
-	per_frame->num_visible_spot_lights = spot_light_index;
-
+void Renderer::end_draw_light_shadows()
+{
 	m_light_per_frame.flush();
 	glUseProgram(0);
 	glBindVertexArray(0);
 }
-
-
-
 
 void Renderer::draw()
 {
@@ -680,13 +814,23 @@ void Renderer::draw()
 	TracyGpuZone("draw_generic");
 
 	m_perfquery.begin();
-	if(do_shadow_mapping) {
-		// render shadow map
-		draw_shadow();
-	}
 
 	if (do_shadow_mapping) {
-		draw_spot_shadow();
+		if (enable_directional_shadows)
+			draw_directional_shadow();
+
+		if (enable_point_shadows || enable_spot_shadows) {
+
+			auto data = begin_draw_light_shadows();
+
+			if (enable_point_shadows)
+				draw_point_shadow(data);
+
+			if (enable_spot_shadows)
+				draw_spot_shadow(data);
+
+			end_draw_light_shadows();
+		}
 	}
 
 	glClearDepthf(0.0f);
@@ -708,6 +852,7 @@ void Renderer::draw()
 		// bind shadow map texture
 		glBindTextureUnit(32, *m_shadowmap_depth_to);
 		glBindTextureUnit(36, *m_spot_shadow_depth_to);
+		glBindTextureUnit(37, *m_point_shadow_depth_to);
 	}
 
 	int64_t num_point_lights = 0;
@@ -866,8 +1011,20 @@ void Renderer::draw_gui()
 	ImGui::Combo("MSAA", &desired_msaa_level, labels, std::size(labels));
 	//show_help_tooltip("Multi-Sample Antialiasing\n\nValues > 4x may be unsupported on some setups.");
 	ImGui::SliderFloat("Resolution scale", &desired_render_scale, 0.1f, 2.0f, "%.1f");
+
+
 	ImGui::Checkbox("Shadows", &do_shadow_mapping);
 	ImGui::SameLine();
+	ImGui::PushStyleVar(ImGuiStyleVar_Alpha, do_shadow_mapping ? 1.0f : 0.3f);
+	ImGui::Checkbox("Directional", &enable_directional_shadows);
+	ImGui::SameLine();
+	ImGui::Checkbox("Point", &enable_point_shadows);
+	ImGui::SameLine();
+	ImGui::Checkbox("Spot", &enable_spot_shadows);
+	ImGui::PopStyleVar();
+	ImGui::Spacing();
+
+
 	ImGui::Checkbox("Show submesh bboxes", &draw_mesh_bboxes);
 	ImGui::SameLine();
 	ImGui::Checkbox("Show model bboxes", &draw_model_bboxes);
@@ -916,6 +1073,8 @@ void Renderer::draw_skybox()
 	}
 	glDepthFunc(GL_GREATER);
 }
+
+
 
 
 

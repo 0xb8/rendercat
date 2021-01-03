@@ -1,4 +1,9 @@
 #version 450 core
+layout(early_fragment_tests) in;
+
+#include "constants.glsl"
+#include "material.glsl"
+
 
 #extension GL_ARB_shader_group_vote: enable
 #ifndef OPENGL
@@ -11,48 +16,15 @@
 	#define subgroupAllEqual(value) allInvocationsEqualARB(equal(value))
 #endif
 
-layout(early_fragment_tests) in;
-layout(binding=0) uniform sampler2D material_diffuse;
-layout(binding=1) uniform sampler2D material_normal;
-layout(binding=2) uniform sampler2D material_specular_map;
-layout(binding=3) uniform sampler2D material_roughness_metallic;
-layout(binding=4) uniform sampler2D material_occlusion;
-layout(binding=5) uniform sampler2D material_emission;
+
 layout(binding=30) uniform sampler1D turbo_colormap;
 layout(binding=31) uniform sampler2D uBRDFLut;
 layout(binding=32) uniform sampler2DShadow shadow_map;
 layout(binding=33) uniform samplerCubeArray uReflection;
 layout(binding=34) uniform samplerCubeArray uIrradiance;
-layout(binding=36) uniform sampler2DArrayShadow pointShadows;
+layout(binding=36) uniform sampler2DArrayShadow spot_shadowmaps;
+layout(binding=37) uniform samplerCubeArrayShadow point_shadowmaps;
 
-
-const int MATERIAL_BASE_COLOR_MAP      = 1 << 1;
-const int MATERIAL_NORMAL_MAP          = 1 << 2;
-const int MATERIAL_ROUGHNESS_METALLIC  = 1 << 3;
-const int MATERIAL_OCCLUSION_MAP       = 1 << 4;
-const int MATERIAL_EMISSION_MAP        = 1 << 5;
-const int MATERIAL_SPECULAR_GLOSSINESS = 1 << 6;
-const int MATERIAL_BLEND               = 1 << 14;
-const int MATERIAL_ALPHA_MASK          = 1 << 15;
-
-const int MAX_DYNAMIC_LIGHTS = 16;
-const float PI = 3.14159265359;
-
-
-struct Material {
-	vec4      base_color_factor;
-	vec3      emission_factor;
-	float     normal_scale;
-	float     roughness;
-	float     metallic;
-	float     occlusion_strength;
-	float     alpha_cutoff;
-	int       type;
-};
-
-layout(std140, binding=0) uniform MaterialUBO {
-	Material material;
-};
 
 struct DirectionalLight {
 	vec4 color_intensity;
@@ -87,7 +59,7 @@ layout(std140, binding=1) uniform PerFrame_frag {
 	vec3  camera_forward;
 	float znear;
 	vec3  viewPos;
-	float _pading1;
+	uint  per_frame_flags;
 
 	DirectionalLight directional_light;
 	ExponentialDirectionalFog directional_fog;
@@ -96,14 +68,16 @@ layout(std140, binding=1) uniform PerFrame_frag {
 	SpotLightData  spot_light[MAX_DYNAMIC_LIGHTS];
 
 	int num_msaa_samples;
-	bool shadows_enabled;
 };
 
 layout(std140, binding=2) uniform PerFrameLight_frag {
 	mat4 spot_light_matrices[MAX_DYNAMIC_LIGHTS];
 	int num_visible_point_lights;
 	int num_visible_spot_lights;
-	int shadow_indices[MAX_DYNAMIC_LIGHTS];
+	float point_near;
+
+	int spot_shadowmap_indices[MAX_DYNAMIC_LIGHTS];
+	int point_shadowmap_indices[MAX_DYNAMIC_LIGHTS];
 };
 
 
@@ -220,6 +194,16 @@ vec3 surfaceShading(const PixelParams pixel, const Light light, float occlusion)
 	       (light.colorIntensity.w * light.attenuation * NoL * occlusion);
 }
 
+float linearizeDepth(in float depth, in float near) // with infinite far plane
+{
+	return near / depth;
+}
+
+float linearizeDepth(in float depth, in float near, in float far) // with finite far plane
+{
+	return -far / (near - far) - (far * near) / (depth * (far - near));
+}
+
 float calcDirectionalShadow(vec4 fragPosLightSpace, float NdotL)
 {
 	// perform perspective divide
@@ -248,9 +232,9 @@ float calcDirectionalShadow(vec4 fragPosLightSpace, float NdotL)
 
 float calcSpotShadow(int light_index, float NdotL)
 {
-	int tex_index = shadow_indices[light_index];
+	int tex_index = spot_shadowmap_indices[light_index];
 	if (tex_index < 0)
-	return 0.0;
+		return 0.0;
 
 	vec4 fragPosLightSpace = spot_light_matrices[light_index] * vec4(fs_in.FragPos, 1.0);
 	// perform perspective divide
@@ -262,16 +246,35 @@ float calcSpotShadow(int light_index, float NdotL)
 	// bias accounting the angle to surface
 	float bias = max(0.005 * (1.0 - NdotL), 0.001);
 	float shadow = 0.0;
-	vec2 texelSize = 1.0 / textureSize(pointShadows, 0).xy;
+	vec2 texelSize = 1.0 / textureSize(spot_shadowmaps, 0).xy;
 
 	for(int x = -1; x <= 1; ++x) {
 		for(int y = -1; y <= 1; ++y) {
-			shadow += texture(pointShadows, vec4(shadowTexCoords + vec2(x, y) * texelSize, tex_index, currentDepth - bias)).r;
+			shadow += texture(spot_shadowmaps, vec4(shadowTexCoords + vec2(x, y) * texelSize, tex_index, currentDepth - bias)).r;
 		}
 	}
 	shadow /= 9.0;
 
-	if(projCoords.z > 1.0)
+	if(currentDepth > 1.0)
+		shadow = 0.0;
+
+	return shadow;
+}
+
+float calcPointShadow(int light_index, float NdotL, float radius, vec3 L) {
+	int tex_index = point_shadowmap_indices[light_index];
+	if (tex_index < 0)
+		return 0.0;
+
+	vec3 absL = abs(L);
+	float Zcomp = max(absL.x, max(absL.y, absL.z));
+	float currentDepth = linearizeDepth(Zcomp, point_near, radius);
+
+	// bias accounting the angle to surface
+	float bias = max(0.005 * (1.0 - NdotL), 0.001);
+	float shadow = texture(point_shadowmaps, vec4(L, tex_index), currentDepth - bias).r;
+
+	if(currentDepth > 1.0)
 		shadow = 0.0;
 
 	return shadow;
@@ -409,11 +412,6 @@ float direction_attenuation(const in vec3 lightDir,
 	return att * att;
 }
 
-float linearizeDepth(in float depth)
-{
-	return znear / depth;
-}
-
 vec3 calcPBRDirect(const PixelParams pixel){
 
 	// calc direct light
@@ -424,7 +422,7 @@ vec3 calcPBRDirect(const PixelParams pixel){
 	direct_light.attenuation = 1.0;
 
 	float shadow;
-	if (shadows_enabled)
+	if ((per_frame_flags & SHADOWS_DIRECTIONAL) != 0)
 		shadow = calcDirectionalShadow(fs_in.FragPosLightSpace, direct_light.NoL);
 	else shadow = 1.0;
 
@@ -450,7 +448,13 @@ vec3 calcPBRPoint(const PixelParams pixel) {
 			point.attenuation = distance_attenuation(lightDistance, pl.position.w);
 			point.colorIntensity = pl.color;
 			point.NoL = dot(pixel.n, point.l);
-			color += surfaceShading(pixel, point, 1.0);
+
+			float shadow = 1.0;
+			if ((per_frame_flags & SHADOWS_POINT) != 0) {
+				shadow = calcPointShadow(point_light_indices[i], point.NoL, radius, -lightv);
+			}
+
+			color += surfaceShading(pixel, point, 1.0) * shadow;
 		}
 	}
 	return color;
@@ -479,7 +483,7 @@ vec3 calcPBRSpot(const PixelParams pixel) {
 				spot.colorIntensity = sl.color;
 
 				float shadow = 1.0;
-				if (shadows_enabled) {
+				if ((per_frame_flags & SHADOWS_SPOT) != 0) {
 					shadow = calcSpotShadow(spot_light_indices[i], spot.NoL);
 				}
 				color += surfaceShading(pixel, spot, 1.0) * shadow;

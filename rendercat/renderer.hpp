@@ -23,7 +23,7 @@ class Renderer
 	uint32_t* m_shader = nullptr;
 	uint32_t* m_hdr_shader = nullptr;
 	uint32_t* m_shadow_shader = nullptr;
-	uint32_t* m_shadow_masked_shader = nullptr;
+	uint32_t* m_shadow_point_shader = nullptr;
 	uint32_t* m_brdf_shader = nullptr;
 
 	uint32_t m_backbuffer_width  = 0;
@@ -42,6 +42,9 @@ class Renderer
 	rc::framebuffer_handle m_spot_shadow_fbo;
 	rc::texture_handle     m_spot_shadow_depth_to;
 
+	rc::framebuffer_handle m_point_shadow_fbo;
+	rc::texture_handle     m_point_shadow_depth_to;
+
 	rc::framebuffer_handle m_backbuffer_fbo;
 	rc::texture_handle     m_backbuffer_color_to;
 	rc::texture_handle     m_backbuffer_depth_to;
@@ -49,13 +52,7 @@ class Renderer
 	rc::framebuffer_handle m_backbuffer_resolve_fbo;
 	rc::texture_handle     m_backbuffer_resolve_color_to;
 
-	void set_uniforms();
-	void set_shadow_uniforms();
-
-	void draw_shadow();
-	void draw_spot_shadow();
-	void draw_skybox();
-	void init_shadow();
+	void init_shadow_resources();
 	void init_brdf();
 	void init_colormap();
 
@@ -87,7 +84,7 @@ class Renderer
 		zcm::vec3 camera_forward;
 		float     znear;
 		zcm::vec3 viewPos;
-		float     _pading1;
+		uint32_t  flags;
 
 		struct DirectionalLight {
 			zcm::vec4 color_intensity;
@@ -112,35 +109,46 @@ class Renderer
 			zcm::vec4 position_radius; // .xyz - pos,   .w - radius
 			zcm::vec4 color_intensity; // .rgb - color, .a - luminous intensity (candela)
 		};
-		PointLight point_lights[RC_MAX_LIGHTS];
 
 		struct SpotLight : public PointLight {
 			zcm::vec4 direction_angle_scale; // .xyz - dir,   .w - angle scale
 			zcm::vec4 angle_offset;
 		};
-		SpotLight spot_lights[RC_MAX_LIGHTS];
 
+		PointLight point_lights[RC_MAX_LIGHTS];
+		SpotLight spot_lights[RC_MAX_LIGHTS];
 		int32_t num_msaa_samples;
-		bool shadows_enabled;
 	};
 
 	struct alignas(256) LightPerframeData {
 		zcm::mat4 spot_light_matrices[RC_MAX_LIGHTS];
 		int num_visible_point_lights;
 		int num_visible_spot_lights;
+		float point_near_plane;
 
 		// std140 array alignment
 		struct alignas(16) LightIndex {
 			int index;
 		};
 
-		LightIndex shadow_indices[RC_MAX_LIGHTS];
+		LightIndex spot_shadow_indices[RC_MAX_LIGHTS];
+		LightIndex point_shadow_indices[RC_MAX_LIGHTS];
 	};
 
 	unif::buf<PerFrameData, 2> m_per_frame;
 	unif::buf<LightPerframeData, 2> m_light_per_frame;
 
 	zcm::mat4 m_shadow_matrix;
+
+	void set_uniforms();
+
+	void draw_directional_shadow();
+
+	LightPerframeData* begin_draw_light_shadows();
+	void draw_point_shadow(LightPerframeData* light_data);
+	void draw_spot_shadow(LightPerframeData* light_data);
+	void draw_skybox();
+	void end_draw_light_shadows();
 
 public:
 	static const unsigned int PointShadowWidth = 512;
@@ -162,6 +170,9 @@ public:
 	bool draw_mesh_bboxes = false;
 	bool draw_model_bboxes = false;
 	bool do_shadow_mapping = true;
+	bool enable_directional_shadows = true;
+	bool enable_point_shadows = true;
+	bool enable_spot_shadows = true;
 	bool window_shown = true;
 
 	static constexpr int MaxLights = RC_MAX_LIGHTS;
