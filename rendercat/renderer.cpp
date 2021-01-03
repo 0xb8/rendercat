@@ -285,13 +285,6 @@ static void renderQuad()
 	glBindVertexArray(0);
 }
 
-static const char* indexed_uniform(std::string_view array, std::string_view name, unsigned idx)
-{
-	static char buf[128] = {0};
-	snprintf(buf, std::size(buf), "%s[%d]%s", array.data(), idx, name.data());
-	return &buf[0];
-}
-
 void Renderer::set_uniforms()
 {
 	ZoneScoped;
@@ -362,13 +355,14 @@ void Renderer::set_uniforms()
 }
 
 
+template<size_t MaxLights>
 static int process_point_lights(const std::vector<PointLight>& point_lights,
                                  const Frustum& frustum,
                                  const bbox3& submesh_bbox,
                                  uint32_t shader)
 {
 	int point_light_count = 0;
-	for(unsigned i = 0; i < point_lights.size() && i < Renderer::MaxLights; ++i) {
+	for(unsigned i = 0; i < point_lights.size() && i < MaxLights; ++i) {
 		const auto& light = point_lights[i];
 		if(!(light.state & PointLight::Enabled))
 			continue;
@@ -379,7 +373,7 @@ static int process_point_lights(const std::vector<PointLight>& point_lights,
 		if(bbox3::intersects_sphere(submesh_bbox, light.position(), light.radius()) != Intersection::Outside) {
 			auto dist = zcm::length(light.position() - submesh_bbox.closest_point(light.position()));
 			if(light.distance_attenuation(dist) > 0.0f) {
-				unif::i1(shader, indexed_uniform("point_light_indices", "", point_light_count++), i);
+				unif::i1(shader, 10 + point_light_count++, i);
 			}
 		}
 	}
@@ -387,13 +381,14 @@ static int process_point_lights(const std::vector<PointLight>& point_lights,
 	return point_light_count;
 }
 
+template<size_t MaxLights>
 static int process_spot_lights(const std::vector<SpotLight>& spot_lights,
                                 const Frustum& frustum,
                                 const bbox3& submesh_bbox,
                                 uint32_t shader)
 {
 	int spot_light_count = 0;
-	for(unsigned i = 0; i < spot_lights.size() && i < Renderer::MaxLights; ++i) {
+	for(unsigned i = 0; i < spot_lights.size() && i < MaxLights; ++i) {
 		const auto& light = spot_lights[i];
 		if(!(light.state & SpotLight::Enabled))
 			continue;
@@ -408,7 +403,7 @@ static int process_spot_lights(const std::vector<SpotLight>& spot_lights,
 		                          light.radius()) != Intersection::Outside) {
 			auto dist = zcm::length(light.position() - submesh_bbox.closest_point(light.position()));
 			if(light.distance_attenuation(dist) > 0.0f) {
-				unif::i1(shader, indexed_uniform("spot_light_indices", "", spot_light_count++), i);
+				unif::i1(shader, 10 + MaxLights + spot_light_count++, i);
 			}
 		}
 	}
@@ -871,8 +866,8 @@ void Renderer::draw()
 		unif::m4(*m_shader, "model", transform.mat);
 		unif::m3(*m_shader, "normal_matrix", zcm::transpose(zcm::mat3{transform.inv_mat}));
 
-		num_point_lights += process_point_lights(m_scene->point_lights, m_scene->main_camera.frustum, transform.transformed_bbox, *m_shader);
-		num_spot_lights += process_spot_lights(m_scene->spot_lights, m_scene->main_camera.frustum, transform.transformed_bbox, *m_shader);
+		num_point_lights += process_point_lights<MaxLights>(m_scene->point_lights, m_scene->main_camera.frustum, transform.transformed_bbox, *m_shader);
+		num_spot_lights += process_spot_lights<MaxLights>(m_scene->spot_lights, m_scene->main_camera.frustum, transform.transformed_bbox, *m_shader);
 		++num_drawcalls;
 		render_generic(submesh, material, *m_shader);
 
