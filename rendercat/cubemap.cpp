@@ -1,7 +1,7 @@
 #include <rendercat/cubemap.hpp>
 #include <rendercat/uniform.hpp>
 #include <rendercat/shader_set.hpp>
-#include <rendercat/util/gl_perfquery.hpp>
+#include <rendercat/util/gl_debug.hpp>
 #include <stb_image.h>
 #include <string>
 #include <utility>
@@ -79,6 +79,7 @@ Cubemap::Cubemap()
 	}
 	if (!cubemap_vao) {
 		glCreateVertexArrays(1, &cubemap_vao);
+		rcObjectLabel(GL_VERTEX_ARRAY, cubemap_vao, "cubemap vao");
 		assert(cubemap_vao);
 	}
 	if (!cubemap_draw_shader) {
@@ -154,6 +155,7 @@ void Cubemap::load_cube(std::string_view basedir)
 			return;
 		}
 	}
+	rcObjectLabel(tex, fmt::format("cubemap: {} ({}x{})", basedir, prev_face_width, prev_face_height));
 	m_cubemap = std::move(tex);
 }
 
@@ -186,6 +188,7 @@ void Cubemap::load_equirectangular(std::string_view path)
 	glDispatchCompute(face_size/32, face_size/32, 6);
 
 	m_cubemap = std::move(cubemap_to);
+	rcObjectLabel(m_cubemap, fmt::format("cubemap: {} ({}x{})", path, face_size, face_size));
 }
 
 void Cubemap::draw(const zcm::mat4 & view, const zcm::mat4 & projection, int mip_level) noexcept

@@ -340,7 +340,7 @@ static void enable_gl_clip_control()
 static void enable_gl_debug_callback()
 {
 #ifndef NDEBUG
-	if(!(rc::glmeta::extension_supported(gl::GLextension::GL_KHR_debug) || rc::glmeta::extension_supported(gl::GLextension::GL_ARB_debug_output)))
+	if(!rc::glmeta::extension_supported(gl::GLextension::GL_ARB_debug_output))
 		return;
 	//glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 	//glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, 0, GL_FALSE);
@@ -365,7 +365,8 @@ static void check_required_extensions()
 	                                gl::GLextension::GL_ARB_direct_state_access,
 	                                gl::GLextension::GL_ARB_framebuffer_sRGB,
 	                                gl::GLextension::GL_ARB_shader_group_vote,
-	                                gl::GLextension::GL_ARB_shader_viewport_layer_array};
+	                                gl::GLextension::GL_ARB_shader_viewport_layer_array,
+	                                gl::GLextension::GL_KHR_debug};
 
 	for(unsigned i = 0; i < std::size(exts); ++i) {
 		rc::glmeta::require_extension(exts[i]);

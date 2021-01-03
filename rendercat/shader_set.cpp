@@ -1,5 +1,6 @@
 #include <rendercat/shader_set.hpp>
 #include <rendercat/util/gl_unique_handle.hpp>
+#include <rendercat/util/gl_debug.hpp>
 #include <fmt/format.h>
 #include <sstream>
 #include <fstream>
@@ -258,6 +259,24 @@ public:
 			glAttachShader(*new_handle, *s.handle);
 		}
 
+		fmt::memory_buffer buf;
+		buf.reserve(128);
+
+		for (auto& shader : m_shaders) {
+			auto sp = shader.filepath.filename().string();
+			fmt::format_to(buf, "{} ", sp);
+		}
+		fmt::format_to(buf, " (");
+		for (auto& defines : m_macros) {
+			if (defines.value().empty()) {
+				fmt::format_to(buf, "-D{} ", defines.name());
+			} else {
+				fmt::format_to(buf, "-D{}={} ", defines.name(), defines.value());
+			}
+		}
+		fmt::format_to(buf, ")");
+		glObjectLabel(GL_PROGRAM, *new_handle, buf.size(), buf.data());
+
 		if(Program::link(new_handle)) {
 			handle = std::move(new_handle);
 			return true;
@@ -384,4 +403,14 @@ ShaderMacro::ShaderMacro(std::string_view name, double value) : ShaderMacro(name
 std::string ShaderMacro::get_define_string() const
 {
 	return make_definition(m_name, m_value);
+}
+
+const std::string & ShaderMacro::name() const
+{
+	return m_name;
+}
+
+const std::string & ShaderMacro::value() const
+{
+	return m_value;
 }

@@ -1,9 +1,11 @@
 #include <rendercat/util/gl_perfquery.hpp>
+#include <rendercat/util/gl_debug.hpp>
 #include <glbinding/gl/types.h>
 #include <glbinding/gl45core/enum.h>
 #include <glbinding/gl45core/functions.h>
 #include <cassert>
 #include <utility>
+#include <fmt/core.h>
 
 using namespace gl45core;
 using namespace rc;
@@ -12,6 +14,8 @@ PerfQuery::PerfQuery()
 {
 	for(int i = 0; i < query_count; ++i) {
 		glCreateQueries(GL_TIME_ELAPSED, 1, m_query[i].get());
+		rcObjectLabel(m_query[i], fmt::format("perfquery[{}]", i));
+
 		m_state[i] = QueryState::ResultAvailable;
 	}
 }

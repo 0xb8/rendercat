@@ -25,6 +25,7 @@ struct TextureStorage2D
 	bool shared() const noexcept;
 	int  ref_count() const noexcept;
 	void reset() noexcept;
+	void set_label(std::string_view label);
 
 	void sub_image(uint16_t level,
 	               uint16_t width,

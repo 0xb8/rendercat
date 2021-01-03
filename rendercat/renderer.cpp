@@ -3,6 +3,7 @@
 #include <rendercat/scene.hpp>
 #include <rendercat/uniform.hpp>
 #include <rendercat/util/gl_screenshot.hpp>
+#include <rendercat/util/gl_debug.hpp>
 #include <rendercat/util/turbo_colormap.hpp>
 #include <fmt/core.h>
 #include <string>
@@ -80,6 +81,10 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 	           glbinding::aux::Meta::getString(frag_derivative_quality_hint));
 #endif
 
+	m_per_frame.set_label("per-frame generic uniforms");
+	m_light_per_frame.set_label("per-frame light uniforms");
+
+
 	dd::initialize(&debug_draw_ctx);
 	init_shadow_resources();
 	init_brdf();
@@ -94,6 +99,7 @@ void Renderer::init_shadow_resources()
 
 	// create texture for directional light shadowmap
 	glCreateTextures(GL_TEXTURE_2D, 1, m_shadowmap_depth_to.get());
+	rcObjectLabel(m_shadowmap_depth_to, "directional shadow depth");
 	glTextureStorage2D(*m_shadowmap_depth_to, 1, GL_DEPTH_COMPONENT32F, ShadowMapWidth, ShadowMapHeight);
 
 	auto set_shadow_sampling_params = [](auto texture){
@@ -107,6 +113,7 @@ void Renderer::init_shadow_resources()
 	set_shadow_sampling_params(*m_shadowmap_depth_to);
 
 	glCreateFramebuffers(1, m_shadowmap_fbo.get());
+	rcObjectLabel(m_shadowmap_fbo, "directional shadow FBO");
 	glNamedFramebufferTexture(*m_shadowmap_fbo, GL_DEPTH_ATTACHMENT, *m_shadowmap_depth_to, 0);
 
 	if (glCheckNamedFramebufferStatus(*m_shadowmap_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
@@ -116,6 +123,7 @@ void Renderer::init_shadow_resources()
 
 	// create texture array for spot light shadowmaps
 	glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, m_spot_shadow_depth_to.get());
+	rcObjectLabel(m_spot_shadow_depth_to, "spot shadow depth");
 	glTextureStorage3D(*m_spot_shadow_depth_to, 1, GL_DEPTH_COMPONENT16, PointShadowWidth, PointShadowHeight, MaxLights);
 	set_shadow_sampling_params(*m_spot_shadow_depth_to);
 
@@ -155,6 +163,7 @@ void Renderer::init_brdf()
 	int size = 256;
 
 	glCreateTextures(GL_TEXTURE_2D, 1, m_brdf_lut_to.get());
+	rcObjectLabel(m_brdf_lut_to, "BRDF LUT");
 	glTextureStorage2D(*m_brdf_lut_to, 1, GL_RG16F, size, size);
 
 	glBindImageTexture(0, *m_brdf_lut_to, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RG16F);
@@ -170,6 +179,7 @@ void Renderer::init_brdf()
 void Renderer::init_colormap()
 {
 	glCreateTextures(GL_TEXTURE_1D, 1, m_turbo_colormap_to.get());
+	rcObjectLabel(m_turbo_colormap_to, "turbo colormap");
 	glTextureStorage1D(*m_turbo_colormap_to, 1, GL_RGB32F, 256);
 	glTextureSubImage1D(*m_turbo_colormap_to, 0, 0, 256, GL_RGB, GL_FLOAT, &rc::util::turbo_srgb_floats);
 }
@@ -197,6 +207,8 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 	// reinitialize multisampled color texture object
 	rc::texture_handle color_to;
 	glCreateTextures(GL_TEXTURE_2D_MULTISAMPLE, 1, color_to.get());
+	rcObjectLabel(color_to, fmt::format("backbuffer color ({}x{}, {} samples)",
+	                                    backbuffer_width, backbuffer_height, samples));
 	glTextureStorage2DMultisample(*color_to,
 	                              samples,
 	                              GL_RGBA16F,
@@ -207,6 +219,8 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 	// reinitialize multisampled depth texture object
 	rc::texture_handle depth_to;
 	glCreateTextures(GL_TEXTURE_2D_MULTISAMPLE, 1, depth_to.get());
+	rcObjectLabel(depth_to, fmt::format("backbuffer depth ({}x{}, {} samples)",
+	                                    backbuffer_width, backbuffer_height, samples));
 	glTextureStorage2DMultisample(*depth_to,
 	                              samples,
 	                              GL_DEPTH_COMPONENT32F, // TODO: research if GL_DEPTH24_STENCIL8 is viable here
@@ -223,6 +237,7 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 	// reinitialize framebuffer
 	rc::framebuffer_handle fbo;
 	glCreateFramebuffers(1, fbo.get());
+	rcObjectLabel(fbo,"backbuffer FBO");
 	// attach texture objects
 	glNamedFramebufferTexture(*fbo, GL_COLOR_ATTACHMENT0, *color_to, 0);
 	glNamedFramebufferTexture(*fbo, GL_DEPTH_ATTACHMENT,  *depth_to, 0);
@@ -235,10 +250,14 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 
 	rc::texture_handle resolve_to;
 	glCreateTextures(GL_TEXTURE_2D, 1, resolve_to.get());
+	rcObjectLabel(resolve_to, fmt::format("backbuffer color resolve ({}x{})",
+	                                      backbuffer_width, backbuffer_height));
+
 	glTextureStorage2D(*resolve_to, 1, GL_RGBA16F, backbuffer_width, backbuffer_height);
 
 	rc::framebuffer_handle resolve_fbo;
 	glCreateFramebuffers(1, resolve_fbo.get());
+	rcObjectLabel(resolve_fbo, "backbuffer resolve FBO ({}x{})");
 	glNamedFramebufferTexture(*resolve_fbo, GL_COLOR_ATTACHMENT0, *resolve_to, 0);
 
 	if (glCheckNamedFramebufferStatus(*resolve_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
@@ -246,6 +265,8 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 		std::fflush(stderr);
 		return;
 	}
+
+	assert(glGetError() == GL_NO_ERROR);
 
 	m_backbuffer_fbo = std::move(fbo);
 	m_backbuffer_color_to = std::move(color_to);
@@ -279,6 +300,7 @@ static void renderQuad()
 	static GLuint vao;
 	if (unlikely(vao == 0)) {
 		glCreateVertexArrays(1, &vao);
+		rcObjectLabel(GL_VERTEX_ARRAY, vao, "single quad VAO");
 	}
 	glBindVertexArray(vao);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);

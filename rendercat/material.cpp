@@ -40,6 +40,7 @@ static ImageTexture2D  _default_diffuse;
 
 Material::Material(const std::string_view name_) : name(name_) {
 	map(true);
+	m_unif_data.set_label(fmt::format("material: {}", name));
 }
 
 Material::~Material()

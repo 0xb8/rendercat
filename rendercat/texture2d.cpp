@@ -1,4 +1,5 @@
 #include <rendercat/texture2d.hpp>
+#include <rendercat/util/gl_debug.hpp>
 #include <stb_image.h>
 #include <fmt/core.h>
 #include <cassert>
@@ -221,6 +222,17 @@ TextureStorage2D TextureStorage2D::share_view(unsigned minlevel, unsigned numlev
 		// if this is first time we share this texture, remember original handle
 		m_shared = increment_clamp(m_shared);
 		ret.m_shared = m_shared;
+
+		auto curr_label = rcGetObjectLabel(m_handle);
+		std::string lvls_str;
+		if (numlevels != m_mip_levels) {
+			lvls_str = fmt::format(" minlvl: {} numlvls: {}", minlevel, numlevels);
+		}
+
+		ret.set_label(fmt::format("{} (shared, {}{})",
+		                          curr_label,
+		                          view_format == InternalFormat::KeepParentFormat ? "" : enum_value_str(ret.format()),
+		                          lvls_str));
 	}
 
 	return ret;
@@ -250,6 +262,11 @@ void TextureStorage2D::reset() noexcept
 	m_width = 0;
 	m_height = 0;
 	m_mip_levels = 0;
+}
+
+void TextureStorage2D::set_label(std::string_view label)
+{
+	rcObjectLabel(m_handle, label);
 }
 
 void TextureStorage2D::sub_image(uint16_t level,
@@ -379,6 +396,11 @@ ImageTexture2D ImageTexture2D::fromFile(const std::string_view path,
 	if(ret.m_storage.valid()) {
 		glGenerateTextureMipmap(ret.m_storage.texture_handle());
 		ret.set_default_params();
+		ret.m_storage.set_label(fmt::format("{} ({}x{} {})",
+		                                    path,
+		                                    ret.m_storage.width(),
+		                                    ret.m_storage.height(),
+		                                    enum_value_str(ret.m_storage.format())));
 	}
 	return ret;
 }

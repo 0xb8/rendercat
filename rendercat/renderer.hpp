@@ -162,7 +162,7 @@ public:
 	int msaa_level = 0;
 	int MSAASampleCount = 1;
 	int MSAASampleCountMax = 4;
-	int desired_msaa_level = 2;
+	int desired_msaa_level = 0;
 	int selected_cubemap = 0;
 	int cubemap_mip_level = 0;
 

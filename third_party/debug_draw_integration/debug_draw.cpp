@@ -172,10 +172,19 @@ void DDRenderInterfaceCoreGL::setupShaderPrograms()
 
 	linePointProgram_MvpMatrixLocation = glGetUniformLocation(linePointProgram, "u_MvpMatrix");
 	assert(linePointProgram_MvpMatrixLocation >= 0 && "Unable to get u_MvpMatrix uniform location!");
+
+	glDeleteShader(linePointVS);
+	glDeleteShader(linePointFS);
+
+	auto label = std::string_view("debug draw line/point shader");
+	glObjectLabel(GL_PROGRAM, linePointProgram, label.size(), label.data());
+
+	assert(glGetError() == GL_NO_ERROR);
 }
 
 void DDRenderInterfaceCoreGL::setupVertexBuffers()
 {
+
 	glGenVertexArrays(1, &linePointVAO);
 	glGenBuffers(1, &linePointVBO);
 
@@ -208,7 +217,12 @@ void DDRenderInterfaceCoreGL::setupVertexBuffers()
 				/* stride    = */ sizeof(dd::DrawVertex),
 				/* offset    = */ reinterpret_cast<void *>(offset));
 
+	glObjectLabel(GL_VERTEX_ARRAY, linePointVAO, -1, "debug draw line/point VAO");
+	glObjectLabel(GL_BUFFER, linePointVBO, -1, "debug draw line/point VBO");
+
 	// VAOs can be a pain in the neck if left enabled...
 	glBindVertexArray(0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	assert(glGetError() == GL_NO_ERROR);
 }

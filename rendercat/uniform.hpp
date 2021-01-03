@@ -51,6 +51,7 @@ void m4(uint32_t shader, std::string_view name, const zcm::mat4 &mat);
 struct basic_buf {
 	void unmap();
 	explicit operator bool() const noexcept;
+	void set_label(std::string_view label);
 
 protected:
 	basic_buf(size_t size);

@@ -31,6 +31,7 @@ add_executable(${PROJECT_NAME}
 	core/frustum.hpp
 	util/color_temperature.cpp
 	util/color_temperature.hpp
+	util/gl_debug.hpp
 	util/gl_meta.cpp
 	util/gl_meta.hpp
 	util/gl_perfquery.cpp

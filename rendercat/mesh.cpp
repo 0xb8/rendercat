@@ -1,5 +1,6 @@
 #include <rendercat/mesh.hpp>
 #include <rendercat/material.hpp>
+#include <rendercat/util/gl_debug.hpp>
 #include <fx/gltf.h>
 #include <fmt/core.h>
 #include <numeric>
@@ -523,8 +524,10 @@ void model::Mesh::upload_data(attr_description_t index, std::vector<attr_descrip
 
 	// set up GPU objects --------------------------------------------------
 	glCreateVertexArrays(1, vao.get());
+	rcObjectLabel(vao, fmt::format("mesh vao: {}", name));
 	if (!index.data.empty()) {
 		glCreateBuffers(1, ebo.get());
+		rcObjectLabel(ebo, fmt::format("mesh ebo: {}", name));
 		glNamedBufferStorage(*ebo, index.data.size(), index.data.data(), gl::GL_NONE_BIT);
 		index_type = index.comp_type;
 		numverts = index.elem_count;
@@ -560,6 +563,7 @@ void model::Mesh::upload_data(attr_description_t index, std::vector<attr_descrip
 	}
 
 	glCreateBuffers(1, vbo.get());
+	rcObjectLabel(vbo, fmt::format("mesh vbo: {}", name));
 	glNamedBufferStorage(*vbo, storage.size(), storage.data(), gl::GL_NONE_BIT);
 
 	int binding_index = 0;

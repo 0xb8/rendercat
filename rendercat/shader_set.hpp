@@ -16,6 +16,8 @@ public:
 	ShaderMacro(std::string_view name, double value);
 
 	std::string get_define_string() const;
+	const std::string& name() const;
+	const std::string& value() const;
 private:
 	std::string m_name;
 	std::string m_value;

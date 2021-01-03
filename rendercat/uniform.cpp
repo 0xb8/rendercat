@@ -1,4 +1,5 @@
 #include <rendercat/uniform.hpp>
+#include <rendercat/util/gl_debug.hpp>
 #include <glbinding/gl45core/enum.h>
 #include <glbinding/gl45core/types.h>
 #include <glbinding/gl45core/boolean.h>
@@ -82,12 +83,18 @@ basic_buf::operator bool() const noexcept
 }
 
 
+void basic_buf::set_label(std::string_view label)
+{
+	rcObjectLabel(_buffer, label);
+}
+
+
 // --------------- single uniforms ----------------
 
 
 void b1(uint32_t shader, std::string_view name, bool value)
 {
-	b1(shader, gl45core::glGetUniformLocation(shader, name.data()), (int)value);
+	b1(shader, gl45core::glGetUniformLocation(shader, name.data()), value);
 }
 
 void b1(uint32_t shader, int location, bool value)
