@@ -18,6 +18,7 @@
 #include <rendercat/shader_set.hpp>
 #include <rendercat/scene.hpp>
 #include <rendercat/renderer.hpp>
+#include <rendercat/util/gl_debug.hpp>
 #include <rendercat/util/gl_screenshot.hpp>
 #include <rendercat/util/gl_meta.hpp>
 
@@ -99,43 +100,43 @@ void GLAPIENTRY gl_debug_callback(GLenum source,
                                   const void* /*userParam*/)
 {
 
-	std::stringstream ss;
-	ss << "\n[GL] ";
+	fmt::memory_buffer buf;
+
+	fmt::format_to(buf, "\n[GL] ");
 	switch (source)
 	{
-		case GL_DEBUG_SOURCE_API:             ss << "OpenGL API "; break;
-		case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   ss << "Window System "; break;
-		case GL_DEBUG_SOURCE_SHADER_COMPILER: ss << "Shader Compiler "; break;
-		case GL_DEBUG_SOURCE_THIRD_PARTY:     ss << "Third Party "; break;
-		case GL_DEBUG_SOURCE_APPLICATION:     ss << "Application "; break;
-		case GL_DEBUG_SOURCE_OTHER:           ss << "Other "; break;
+		case GL_DEBUG_SOURCE_API:             fmt::format_to(buf, "OpenGL API "); break;
+		case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   fmt::format_to(buf, "Window System "); break;
+		case GL_DEBUG_SOURCE_SHADER_COMPILER: fmt::format_to(buf, "Shader Compiler "); break;
+		case GL_DEBUG_SOURCE_THIRD_PARTY:     fmt::format_to(buf, "Third Party "); break;
+		case GL_DEBUG_SOURCE_APPLICATION:     fmt::format_to(buf, "Application "); break;
+		case GL_DEBUG_SOURCE_OTHER:           fmt::format_to(buf, "Other "); break;
 		default: break;
 	}
 
 	switch (type)
 	{
-		case GL_DEBUG_TYPE_ERROR:               ss << "Error "; break;
-		case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: ss << "Deprecated Behavior"; break;
-		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  ss << "Undefined Behavior"; break;
-		case GL_DEBUG_TYPE_PORTABILITY:         ss << "Portability "; break;
-		case GL_DEBUG_TYPE_PERFORMANCE:         ss << "Performance "; break;
-		case GL_DEBUG_TYPE_MARKER:              ss << "Marker "; break;
-		case GL_DEBUG_TYPE_OTHER:               ss << "Other "; break;
+		case GL_DEBUG_TYPE_ERROR:               fmt::format_to(buf, "Error "); break;
+		case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: fmt::format_to(buf, "Deprecated Behavior"); break;
+		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  fmt::format_to(buf, "Undefined Behavior"); break;
+		case GL_DEBUG_TYPE_PORTABILITY:         fmt::format_to(buf, "Portability "); break;
+		case GL_DEBUG_TYPE_PERFORMANCE:         fmt::format_to(buf, "Performance "); break;
+		case GL_DEBUG_TYPE_MARKER:              fmt::format_to(buf, "Marker "); break;
+		case GL_DEBUG_TYPE_OTHER:               fmt::format_to(buf, "Other "); break;
 		default: break;
 	}
 
 	switch (severity)
 	{
-		case GL_DEBUG_SEVERITY_HIGH:         ss << "(high) "; break;
-		case GL_DEBUG_SEVERITY_MEDIUM:       ss << "(med)  "; break;
-		case GL_DEBUG_SEVERITY_LOW:          ss << "(low)  "; break;
-		case GL_DEBUG_SEVERITY_NOTIFICATION: ss << "(info) "; break;
+		case GL_DEBUG_SEVERITY_HIGH:         fmt::format_to(buf, "(high) "); break;
+		case GL_DEBUG_SEVERITY_MEDIUM:       fmt::format_to(buf, "(med)  "); break;
+		case GL_DEBUG_SEVERITY_LOW:          fmt::format_to(buf, "(low)  "); break;
+		case GL_DEBUG_SEVERITY_NOTIFICATION: fmt::format_to(buf, "(info) "); break;
 		default: break;
 	}
 
-	ss << "[" << id << "]\n\t" << message << '\n';
-	auto str = ss.str();
-	std::fwrite(str.data(), sizeof(char), str.size(), stderr);
+	fmt::format_to(buf, "[{}]\n\t{}\n", id, message);
+	std::fwrite(buf.data(), sizeof(decltype(buf)::value_type), buf.size(), stderr);
 	std::fflush(stderr);
 }
 
@@ -344,6 +345,11 @@ static void enable_gl_debug_callback()
 		return;
 	//glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 	//glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, 0, GL_FALSE);
+	uint32_t ids[] = {
+	        rc::rc_debug_group::debug_group_id
+	};
+	glDebugMessageControl(rc::rc_debug_group::source, GL_DEBUG_TYPE_PUSH_GROUP, GL_DONT_CARE, std::size(ids), ids, GL_FALSE);
+	glDebugMessageControl(rc::rc_debug_group::source, GL_DEBUG_TYPE_POP_GROUP, GL_DONT_CARE, std::size(ids), ids, GL_FALSE);
 	glDebugMessageCallback(gl_debug_callback, 0);
 #endif
 }
@@ -574,6 +580,7 @@ int main(int argc, char *argv[]) try
 			ZoneNamedN(imgui_render, "ImGui Render", true);
 			ImGui::Render();
 			TracyGpuNamedZone(imgui_gpu_render, "ImGui Render GL", true);
+			RC_DEBUG_GROUP("imgui");
 			ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
 			// Update and Render additional Platform Windows

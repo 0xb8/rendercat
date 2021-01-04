@@ -260,8 +260,6 @@ public:
 		}
 
 		fmt::memory_buffer buf;
-		buf.reserve(128);
-
 		for (auto& shader : m_shaders) {
 			auto sp = shader.filepath.filename().string();
 			fmt::format_to(buf, "{} ", sp);

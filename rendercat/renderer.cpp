@@ -162,6 +162,8 @@ void Renderer::init_brdf()
 
 	int size = 256;
 
+	RC_DEBUG_GROUP("init BRDF LUT");
+
 	glCreateTextures(GL_TEXTURE_2D, 1, m_brdf_lut_to.get());
 	rcObjectLabel(m_brdf_lut_to, "BRDF LUT");
 	glTextureStorage2D(*m_brdf_lut_to, 1, GL_RG16F, size, size);
@@ -290,6 +292,7 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 void Renderer::clear_screen()
 {
 	TracyGpuZone("clear screen");
+	RC_DEBUG_GROUP("clear screen");
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glViewport(0, 0, m_window_width, m_window_height);
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
@@ -500,6 +503,7 @@ void Renderer::draw_directional_shadow()
 {
 	ZoneScoped;
 	TracyGpuZone("draw_shadow");
+	RC_DEBUG_GROUP("directional shadow");
 	glClearDepthf(1.0f);
 	glDepthFunc(GL_LESS);
 	glEnable(GL_DEPTH_TEST);
@@ -528,28 +532,33 @@ void Renderer::draw_directional_shadow()
 	m_shadow_matrix = proj_view;
 	unif::b1(*m_shadow_shader, 0, false); // alpha-masked
 
-	for (const auto& idx : m_opaque_meshes) {
-		const MeshTransform& transform = m_transform_cache[idx.transform_idx];
+	{
+		RC_DEBUG_GROUP("opaque meshes");
+		for (const auto& idx : m_opaque_meshes) {
+			const MeshTransform& transform = m_transform_cache[idx.transform_idx];
 
-		const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
-		const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
+			const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
+			const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
 
-		unif::m4(*m_shadow_shader, 1, transform.mat);
-		submit_draw_call(submesh);
+			unif::m4(*m_shadow_shader, 1, transform.mat);
+			submit_draw_call(submesh);
+		}
 	}
+	{
+		RC_DEBUG_GROUP("masked meshes");
+		unif::b1(*m_shadow_shader, 0, true); // alpha-masked
 
-	unif::b1(*m_shadow_shader, 0, true); // alpha-masked
+		for (const auto& idx : m_masked_meshes) {
+			const MeshTransform& transform = m_transform_cache[idx.transform_idx];
 
-	for (const auto& idx : m_masked_meshes) {
-		const MeshTransform& transform = m_transform_cache[idx.transform_idx];
+			const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
+			const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
+			const auto& material = m_scene->materials[shaded_mesh.material];
 
-		const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
-		const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
-		const auto& material = m_scene->materials[shaded_mesh.material];
-
-		unif::m4(*m_shadow_shader, 1, transform.mat);
-		material.bind(*m_shadow_shader);
-		submit_draw_call(submesh);
+			unif::m4(*m_shadow_shader, 1, transform.mat);
+			material.bind(*m_shadow_shader);
+			submit_draw_call(submesh);
+		}
 	}
 
 	glUseProgram(0);
@@ -578,6 +587,7 @@ void Renderer::draw_point_shadow(Renderer::LightPerframeData *per_frame)
 {
 	ZoneScoped;
 	TracyGpuZone("draw_point_shadow");
+	RC_DEBUG_GROUP("point shadows");
 
 	glBindFramebuffer(GL_FRAMEBUFFER, *m_point_shadow_fbo);
 	glViewport(0,0, PointShadowWidth, PointShadowHeight);
@@ -588,6 +598,8 @@ void Renderer::draw_point_shadow(Renderer::LightPerframeData *per_frame)
 
 	for(size_t scene_index = 0; scene_index < m_scene->point_lights.size() && scene_index < MaxLights; ++scene_index) {
 		const auto& light = m_scene->point_lights[scene_index];
+
+		RC_DEBUG_GROUP(fmt::format("point light {} (#{})", scene_index, point_shadowmap_layer_index));
 
 		if(!(light.state & SpotLight::Enabled))
 			continue;
@@ -623,34 +635,40 @@ void Renderer::draw_point_shadow(Renderer::LightPerframeData *per_frame)
 			                              light.radius()) == Intersection::Outside;
 		};
 
-		for (const auto& idx : m_opaque_meshes) {
-			const MeshTransform& transform = m_transform_cache[idx.transform_idx];
+		{
+			RC_DEBUG_GROUP("opaque meshes");
+			for (const auto& idx : m_opaque_meshes) {
+				const MeshTransform& transform = m_transform_cache[idx.transform_idx];
 
-			if (light_culled(transform.transformed_bbox, light))
-				continue;
+				if (light_culled(transform.transformed_bbox, light))
+					continue;
 
-			const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
-			const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
+				const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
+				const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
 
-			unif::m4(*m_shadow_point_shader, 1, transform.mat);
-			submit_draw_call<6>(submesh);
+				unif::m4(*m_shadow_point_shader, 1, transform.mat);
+				submit_draw_call<6>(submesh);
+			}
 		}
 
-		unif::b1(*m_shadow_point_shader, 0, true); // alpha-masked
+		{
+			RC_DEBUG_GROUP("masked meshes");
+			unif::b1(*m_shadow_point_shader, 0, true); // alpha-masked
 
-		for (const auto& idx : m_masked_meshes) {
-			const MeshTransform& transform = m_transform_cache[idx.transform_idx];
+			for (const auto& idx : m_masked_meshes) {
+				const MeshTransform& transform = m_transform_cache[idx.transform_idx];
 
-			if (light_culled(transform.transformed_bbox, light))
-				continue;
+				if (light_culled(transform.transformed_bbox, light))
+					continue;
 
-			const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
-			const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
-			const auto& material = m_scene->materials[shaded_mesh.material];
+				const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
+				const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
+				const auto& material = m_scene->materials[shaded_mesh.material];
 
-			unif::m4(*m_shadow_point_shader, 1, transform.mat);
-			material.bind(*m_shadow_point_shader);
-			submit_draw_call<6>(submesh);
+				unif::m4(*m_shadow_point_shader, 1, transform.mat);
+				material.bind(*m_shadow_point_shader);
+				submit_draw_call<6>(submesh);
+			}
 		}
 
 		++point_shadowmap_layer_index;
@@ -669,6 +687,7 @@ void Renderer::draw_spot_shadow(LightPerframeData *per_frame)
 {
 	ZoneScoped;
 	TracyGpuZone("draw_spot_shadow");
+	RC_DEBUG_GROUP("spot shadows");
 
 	glBindFramebuffer(GL_FRAMEBUFFER, *m_spot_shadow_fbo);
 	glViewport(0,0, PointShadowWidth, PointShadowHeight);
@@ -678,6 +697,7 @@ void Renderer::draw_spot_shadow(LightPerframeData *per_frame)
 
 	for(size_t scene_index = 0; scene_index < m_scene->spot_lights.size() && scene_index < MaxLights; ++scene_index) {
 		const auto& light = m_scene->spot_lights[scene_index];
+		RC_DEBUG_GROUP(fmt::format("point light {} (#{})", scene_index, spot_shadowmap_layer_index));
 
 		if(m_scene->main_camera.frustum.sphere_culled(light.position(), light.radius()))
 			continue;
@@ -712,42 +732,48 @@ void Renderer::draw_spot_shadow(LightPerframeData *per_frame)
 			                              light.radius()) == Intersection::Outside;
 		};
 
-		for (const auto& idx : m_opaque_meshes) {
-			const MeshTransform& transform = m_transform_cache[idx.transform_idx];
+		{
+			RC_DEBUG_GROUP("opaque meshes");
+			for (const auto& idx : m_opaque_meshes) {
+				const MeshTransform& transform = m_transform_cache[idx.transform_idx];
 
-			if (spot_culled(transform.transformed_bbox, light))
-				continue;
+				if (spot_culled(transform.transformed_bbox, light))
+					continue;
 
-			if (frustum.bbox_culled(transform.transformed_bbox))
-				continue;
+				if (frustum.bbox_culled(transform.transformed_bbox))
+					continue;
 
-			const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
-			const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
+				const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
+				const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
 
-			unif::m4(*m_shadow_shader, 1, transform.mat);
-			submit_draw_call(submesh);
+				unif::m4(*m_shadow_shader, 1, transform.mat);
+				submit_draw_call(submesh);
 
+			}
 		}
 
-		unif::b1(*m_shadow_shader, 0, true); // alpha-masked
+		{
+			RC_DEBUG_GROUP("masked meshes");
+			unif::b1(*m_shadow_shader, 0, true); // alpha-masked
 
-		for (const auto& idx : m_masked_meshes) {
-			const MeshTransform& transform = m_transform_cache[idx.transform_idx];
+			for (const auto& idx : m_masked_meshes) {
+				const MeshTransform& transform = m_transform_cache[idx.transform_idx];
 
-			if (spot_culled(transform.transformed_bbox, light))
-				continue;
+				if (spot_culled(transform.transformed_bbox, light))
+					continue;
 
-			if (frustum.bbox_culled(transform.transformed_bbox))
-				continue;
+				if (frustum.bbox_culled(transform.transformed_bbox))
+					continue;
 
 
-			const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
-			const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
-			const auto& material = m_scene->materials[shaded_mesh.material];
+				const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
+				const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
+				const auto& material = m_scene->materials[shaded_mesh.material];
 
-			unif::m4(*m_shadow_shader, 1, transform.mat);
-			material.bind(*m_shadow_shader);
-			submit_draw_call(submesh);
+				unif::m4(*m_shadow_shader, 1, transform.mat);
+				material.bind(*m_shadow_shader);
+				submit_draw_call(submesh);
+			}
 		}
 
 		++spot_shadowmap_layer_index;
@@ -829,6 +855,7 @@ void Renderer::draw()
 	}
 
 	TracyGpuZone("draw_generic");
+	RC_DEBUG_GROUP("draw generic");
 
 	m_perfquery.begin();
 
@@ -898,6 +925,7 @@ void Renderer::draw()
 	};
 
 	{
+		RC_DEBUG_GROUP("opaque meshes");
 		TracyGpuZoneC("draw_opaque", 0xaaaaaa);
 		for(const auto& idx : m_opaque_meshes) {
 			render_mesh_by_index(idx, dd::colors::White);
@@ -912,6 +940,7 @@ void Renderer::draw()
 		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
 	}
 	{
+		RC_DEBUG_GROUP("masked meshes");
 		TracyGpuZoneC("draw_masked", 0xaa4444);
 		for(const auto& idx : m_masked_meshes) {
 			render_mesh_by_index(idx, dd::colors::Red);
@@ -950,6 +979,7 @@ void Renderer::draw()
 		//	                       GL_NEAREST);
 
 		TracyGpuNamedZone(rresolve, "resolve and tonemap", true);
+		RC_DEBUG_GROUP("resolve and tonemap");
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glViewport(0, 0, m_window_width, m_window_height);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1068,6 +1098,7 @@ void Renderer::save_hdr_backbuffer(std::string_view path)
 void Renderer::draw_skybox()
 {
 	ZoneScoped;
+	RC_DEBUG_GROUP("skybox");
 	glDepthFunc(GL_GEQUAL);
 	auto view = make_view(m_scene->main_camera.state);
 	auto projection = make_projection(m_scene->main_camera.state);
