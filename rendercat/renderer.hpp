@@ -25,6 +25,7 @@ class Renderer
 	uint32_t* m_shadow_shader = nullptr;
 	uint32_t* m_shadow_point_shader = nullptr;
 	uint32_t* m_brdf_shader = nullptr;
+	uint32_t* m_bloom_downscale_shader = nullptr;
 
 	uint32_t m_backbuffer_width  = 0;
 	uint32_t m_backbuffer_height = 0;
@@ -51,6 +52,7 @@ class Renderer
 
 	rc::framebuffer_handle m_backbuffer_resolve_fbo;
 	rc::texture_handle     m_backbuffer_resolve_color_to;
+	rc::texture_handle     m_bloom_color_to;
 
 	void init_shadow_resources();
 	void init_brdf();
@@ -150,6 +152,8 @@ class Renderer
 	void draw_skybox();
 	void end_draw_light_shadows();
 
+	void bloom_pass();
+
 public:
 	static const unsigned int PointShadowWidth = 512;
 	static const unsigned int PointShadowHeight = 512;
@@ -162,11 +166,14 @@ public:
 	int msaa_level = 0;
 	int MSAASampleCount = 1;
 	int MSAASampleCountMax = 4;
-	int desired_msaa_level = 0;
+	int desired_msaa_level = 2;
 	int selected_cubemap = 0;
 	int cubemap_mip_level = 0;
 
 	float desired_render_scale = 1.0f;
+	bool do_bloom = true;
+	float bloom_threshold = 3.0f;
+	float bloom_strength = 0.15f;
 	bool draw_mesh_bboxes = false;
 	bool draw_model_bboxes = false;
 	bool do_shadow_mapping = true;
@@ -176,6 +183,7 @@ public:
 	bool window_shown = true;
 
 	static constexpr int MaxLights = RC_MAX_LIGHTS;
+	static constexpr unsigned NumMipsBloomDownscale = 3u;
 
 	explicit Renderer(Scene* s);
 	~Renderer() = default;

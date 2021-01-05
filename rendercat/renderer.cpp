@@ -19,7 +19,7 @@
 #include <debug_draw.hpp>
 #include <tracy/Tracy.hpp>
 
-
+#include <zcm/ivec2.hpp>
 #include <zcm/mat3.hpp>
 #include <zcm/exponential.hpp>
 #include <zcm/matrix_transform.hpp>
@@ -47,6 +47,7 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 
 	m_shader = m_shader_set.load_program({"generic.vert", "generic.frag"});
 	m_hdr_shader = m_shader_set.load_program({"fullscreen_quad.vert", "hdr.frag"});
+	m_bloom_downscale_shader = m_shader_set.load_program({"downscale_bloom_luma.comp"});
 
 	glEnable(GL_FRAMEBUFFER_SRGB);
 
@@ -209,7 +210,7 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 	// reinitialize multisampled color texture object
 	rc::texture_handle color_to;
 	glCreateTextures(GL_TEXTURE_2D_MULTISAMPLE, 1, color_to.get());
-	rcObjectLabel(color_to, fmt::format("backbuffer color ({}x{}, {} samples)",
+	rcObjectLabel(color_to, fmt::format("backbuffer MSAA color ({}x{}, {} samples)",
 	                                    backbuffer_width, backbuffer_height, samples));
 	glTextureStorage2DMultisample(*color_to,
 	                              samples,
@@ -221,7 +222,7 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 	// reinitialize multisampled depth texture object
 	rc::texture_handle depth_to;
 	glCreateTextures(GL_TEXTURE_2D_MULTISAMPLE, 1, depth_to.get());
-	rcObjectLabel(depth_to, fmt::format("backbuffer depth ({}x{}, {} samples)",
+	rcObjectLabel(depth_to, fmt::format("backbuffer MSAA depth ({}x{}, {} samples)",
 	                                    backbuffer_width, backbuffer_height, samples));
 	glTextureStorage2DMultisample(*depth_to,
 	                              samples,
@@ -239,7 +240,7 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 	// reinitialize framebuffer
 	rc::framebuffer_handle fbo;
 	glCreateFramebuffers(1, fbo.get());
-	rcObjectLabel(fbo,"backbuffer FBO");
+	rcObjectLabel(fbo,"backbuffer MSAA FBO");
 	// attach texture objects
 	glNamedFramebufferTexture(*fbo, GL_COLOR_ATTACHMENT0, *color_to, 0);
 	glNamedFramebufferTexture(*fbo, GL_DEPTH_ATTACHMENT,  *depth_to, 0);
@@ -259,7 +260,7 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 
 	rc::framebuffer_handle resolve_fbo;
 	glCreateFramebuffers(1, resolve_fbo.get());
-	rcObjectLabel(resolve_fbo, "backbuffer resolve FBO ({}x{})");
+	rcObjectLabel(resolve_fbo, "backbuffer resolve FBO");
 	glNamedFramebufferTexture(*resolve_fbo, GL_COLOR_ATTACHMENT0, *resolve_to, 0);
 
 	if (glCheckNamedFramebufferStatus(*resolve_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
@@ -268,6 +269,25 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 		return;
 	}
 
+	auto downscaled_width = backbuffer_width / 2;
+	auto downscaled_height = backbuffer_height / 2;
+
+	rc::texture_handle resolve_downscale_to;
+	glCreateTextures(GL_TEXTURE_2D, 1, resolve_downscale_to.get());
+	rcObjectLabel(resolve_downscale_to, fmt::format("backbuffer color resolve downscale ({}x{})",
+	                                      downscaled_width, downscaled_height));
+
+	glTextureStorage2D(*resolve_downscale_to,
+	                   std::min(NumMipsBloomDownscale, rc::math::num_mipmap_levels(downscaled_width, downscaled_height)),
+	                   GL_RGBA16F,
+	                   downscaled_width,
+	                   downscaled_height);
+
+	glTextureParameteri(*resolve_downscale_to, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
+	glTextureParameteri(*resolve_downscale_to, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
+	glTextureParameteri(*resolve_downscale_to, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTextureParameteri(*resolve_downscale_to, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+
 	assert(glGetError() == GL_NO_ERROR);
 
 	m_backbuffer_fbo = std::move(fbo);
@@ -275,6 +295,7 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 	m_backbuffer_depth_to = std::move(depth_to);
 	m_backbuffer_resolve_fbo = std::move(resolve_fbo);
 	m_backbuffer_resolve_color_to = std::move(resolve_to);
+	m_bloom_color_to = std::move(resolve_downscale_to);
 	m_backbuffer_scale = desired_render_scale;
 	msaa_level = desired_msaa_level;
 	MSAASampleCount = samples;
@@ -800,6 +821,76 @@ void Renderer::end_draw_light_shadows()
 	glBindVertexArray(0);
 }
 
+void Renderer::bloom_pass()
+{
+	RC_DEBUG_GROUP("bloom pass");
+	ZoneScoped;
+	TracyGpuZone("bloom pass");
+	glBlitNamedFramebuffer(*m_backbuffer_fbo,
+	                       *m_backbuffer_resolve_fbo,
+	                       0, 0, m_backbuffer_width, m_backbuffer_height,
+	                       0, 0, m_backbuffer_width, m_backbuffer_height,
+	                       GL_COLOR_BUFFER_BIT,
+	                       GL_NEAREST);
+
+	auto read_texture = *m_backbuffer_resolve_color_to;
+	auto downsample_width = m_backbuffer_width / 2;
+	auto downsample_height = m_backbuffer_height / 2;
+	const auto levels = std::min(NumMipsBloomDownscale, rc::math::num_mipmap_levels(downsample_width, downsample_height));
+	std::array<zcm::ivec2, NumMipsBloomDownscale> widths;
+
+	glUseProgram(*m_bloom_downscale_shader);
+
+	unif::i2(*m_bloom_downscale_shader, 0, -1, 0); // lvl: 0 mode: down
+	unif::v2(*m_bloom_downscale_shader, 1, {1.0f / downsample_width, 1.0f / downsample_height});
+	unif::v2(*m_bloom_downscale_shader, 2, {bloom_threshold, bloom_strength});
+
+	glMemoryBarrier(GL_FRAMEBUFFER_BARRIER_BIT|GL_TEXTURE_FETCH_BARRIER_BIT);
+
+	{
+		RC_DEBUG_GROUP("downsample");
+		for (unsigned level = 0; level < levels; ++level) {
+			widths[level] = {static_cast<int>(downsample_width),
+			                 static_cast<int>(downsample_height)};
+
+			glBindTextureUnit(0, read_texture);
+			glBindImageTexture(0, *m_bloom_color_to, level, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+
+
+			glDispatchCompute(1 + downsample_width / 16,
+			                  1 + downsample_height / 16,
+			                  1);
+			glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT|GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+			read_texture = *m_bloom_color_to;
+			downsample_width /= 2;
+			downsample_height /= 2;
+
+			unif::i2(*m_bloom_downscale_shader, 0, level, 0); // downscale
+			unif::v2(*m_bloom_downscale_shader, 1, {1.0f / downsample_width, 1.0f / downsample_height});
+		}
+	}
+
+	{
+		RC_DEBUG_GROUP("upsample");
+		for (int level = levels-1; level > 0; level--) {
+
+			downsample_width = widths[level-1].x;
+			downsample_height = widths[level-1].y;
+
+			glBindTextureUnit(0, *m_bloom_color_to);
+			glBindImageTexture(0, *m_bloom_color_to, level-1, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+			unif::i2(*m_bloom_downscale_shader, 0, level, 1); // upscale
+			unif::v2(*m_bloom_downscale_shader, 1, {1.0f / downsample_width, 1.0f / downsample_height});
+
+			glDispatchCompute(1 + downsample_width / 16,
+			                  1 + downsample_height / 16,
+			                  1);
+			glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT|GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+		}
+	}
+}
+
 void Renderer::draw()
 {
 	if(unlikely(!m_shader)) return;
@@ -968,25 +1059,24 @@ void Renderer::draw()
 
 	dd::flush();
 
-
+	if (do_bloom) {
+		bloom_pass();
+	}
 
 	{
-		//	glBlitNamedFramebuffer(*m_backbuffer_fbo,
-		//	                       *m_backbuffer_resolve_fbo,
-		//	                       0, 0, m_backbuffer_width, m_backbuffer_height,
-		//	                       0, 0, m_backbuffer_width, m_backbuffer_height,
-		//	                       GL_COLOR_BUFFER_BIT,
-		//	                       GL_NEAREST);
-
 		TracyGpuNamedZone(rresolve, "resolve and tonemap", true);
 		RC_DEBUG_GROUP("resolve and tonemap");
+
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glViewport(0, 0, m_window_width, m_window_height);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glUseProgram(*m_hdr_shader);
 		glBindTextureUnit(0, *m_backbuffer_color_to);
+		glBindTextureUnit(1, *m_bloom_color_to);
 		unif::f1(*m_hdr_shader, 0, m_scene->main_camera.state.exposure);
 		unif::i1(*m_hdr_shader, 1, MSAASampleCount);
+		unif::f1(*m_hdr_shader, 2, bloom_strength);
+		unif::b1(*m_hdr_shader, 3, do_bloom);
 		renderQuad();
 	}
 
@@ -1059,6 +1149,13 @@ void Renderer::draw_gui()
 	//show_help_tooltip("Multi-Sample Antialiasing\n\nValues > 4x may be unsupported on some setups.");
 	ImGui::SliderFloat("Resolution scale", &desired_render_scale, 0.1f, 2.0f, "%.1f");
 
+	ImGui::Spacing();
+	ImGui::Checkbox("Bloom", &do_bloom);
+	ImGui::PushStyleVar(ImGuiStyleVar_Alpha, do_bloom ? 1.0f : 0.3f);
+	ImGui::SliderFloat("Bloom threshold", &bloom_threshold, 0.05f, 10.0f);
+	ImGui::SliderFloat("Bloom strength", &bloom_strength, 0.05f, 2.0f);
+	ImGui::PopStyleVar();
+	ImGui::Spacing();
 
 	ImGui::Checkbox("Shadows", &do_shadow_mapping);
 	ImGui::SameLine();

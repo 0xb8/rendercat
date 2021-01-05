@@ -1,5 +1,5 @@
 #version 450 core
-layout(early_fragment_tests) in;
+//layout(early_fragment_tests) in; // breaks alpha-masked sample to coverage, todo: add a define
 
 #include "constants.glsl"
 #include "material.glsl"

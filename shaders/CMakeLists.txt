@@ -18,7 +18,8 @@ set(COMPUTE_SHADER_SOURCES
 	brdf_lut.comp
 	cubemap_from_equirectangular.comp
 	cubemap_diffuse_irradiance.comp
-	cubemap_specular_envmap.comp)
+	cubemap_specular_envmap.comp
+	downscale_bloom_luma.comp)
 
 file(GLOB_RECURSE GLSL_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "*.glsl")
 source_group("GLSL files" FILES ${GLSL_FILES})

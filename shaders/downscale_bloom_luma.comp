@@ -1,0 +1,55 @@
+#version 450 core
+
+layout(binding=0) uniform sampler2D inputTexture;
+layout(binding=0, rgba16f) restrict writeonly uniform image2D outputTexture;
+
+layout(location=0) uniform ivec2 src_level_mode;
+layout(location=1) uniform vec2 inv_output_size;
+layout(location=2) uniform vec2 bloom_threshold_strength;
+
+vec4 downsample(sampler2D tex, float lvl, vec2 uv, vec2 halfpixel){
+	vec4 sum = textureLod(tex, uv, lvl) * 4.0;
+	sum += textureLod(tex, uv-halfpixel.xy, lvl);
+	sum += textureLod(tex, uv+halfpixel.xy, lvl);
+	sum += textureLod(tex, uv+vec2(halfpixel.x,-halfpixel.y), lvl);
+	sum += textureLod(tex, uv-vec2(halfpixel.x,-halfpixel.y), lvl);
+	return sum / 8.0;
+}
+
+vec4 upsample(sampler2D tex, float lvl, vec2 uv, vec2 halfpixel){
+	vec4 sum = textureLod(tex, uv+ vec2(-halfpixel.x* 2.0, 0.0), lvl);
+	sum += textureLod(tex, uv+ vec2(-halfpixel.x, halfpixel.y), lvl) * 2.0;
+	sum += textureLod(tex, uv+ vec2(0.0, halfpixel.y* 2.0), lvl);
+	sum += textureLod(tex, uv+ vec2(halfpixel.x, halfpixel.y), lvl) * 2.0;
+	sum += textureLod(tex, uv+ vec2(halfpixel.x* 2.0, 0.0), lvl);
+	sum += textureLod(tex, uv+ vec2(halfpixel.x, -halfpixel.y), lvl) * 2.0;
+	sum += textureLod(tex, uv+ vec2(0.0, -halfpixel.y* 2.0), lvl);
+	sum += textureLod(tex, uv+ vec2(-halfpixel.x, -halfpixel.y), lvl) * 2.0;
+	return sum / 12.0;
+}
+
+layout(local_size_x=16, local_size_y=16, local_size_z=1) in;
+void main(void)
+{
+	vec2 uv = vec2((gl_GlobalInvocationID.xy + 0.5) * inv_output_size);
+	const int inputTextureLevel = src_level_mode.x;
+	const bool is_downsample = src_level_mode.y == 0;
+
+	vec4 result = vec4(0);
+	if (is_downsample) {
+		const vec2 halfpixel = vec2(0.5) * inv_output_size;
+		result = downsample(inputTexture, max(0, inputTextureLevel), uv, halfpixel);
+
+		if (inputTextureLevel == -1) {
+			float threshold = bloom_threshold_strength.x;
+			float strength  = bloom_threshold_strength.y * 2;
+			result.a = dot(result.rgb, vec3(0.2126,0.7152,0.0722));
+			result.rgb = mix(vec3(0), result.rgb, smoothstep(0, 1, strength * (result.a - threshold)));
+		}
+	} else {
+		const vec2 halfpixel = vec2(1.16) * inv_output_size;
+		result = upsample(inputTexture, inputTextureLevel, uv, halfpixel);
+	}
+
+	imageStore(outputTexture, ivec2(gl_GlobalInvocationID), result);
+}
