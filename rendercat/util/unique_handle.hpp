@@ -63,7 +63,7 @@ public:
 
 	explicit operator bool() const noexcept
 	{
-		return m_handle != 0;
+		return m_handle != T{};
 	}
 
 	std::add_lvalue_reference_t<T> operator*() noexcept
@@ -79,6 +79,14 @@ public:
 	T* get() noexcept
 	{
 		return &m_handle;
+	}
+
+	bool operator==(std::nullptr_t) const noexcept {
+		return m_handle == T{};
+	}
+
+	bool operator !=(std::nullptr_t) const noexcept {
+		return m_handle != T{};
 	}
 
 #define DECL_COMPARISON(Op, Friend) \

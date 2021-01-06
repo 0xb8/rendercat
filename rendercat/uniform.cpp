@@ -77,6 +77,11 @@ void basic_buf::flush(size_t offset, size_t size)
 		gl45core::glFlushMappedNamedBufferRange(*_buffer, offset, size);
 }
 
+rc::sync_handle basic_buf::make_fence()
+{
+	return rc::sync_handle{gl45core::glFenceSync(gl45core::GL_SYNC_GPU_COMMANDS_COMPLETE, gl45core::GL_NONE_BIT)};
+}
+
 basic_buf::operator bool() const noexcept
 {
 	return static_cast<bool>(_buffer);

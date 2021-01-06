@@ -331,6 +331,20 @@ static void renderQuad()
 	glBindVertexArray(0);
 }
 
+
+static void check_and_block_sync(rc::sync_handle sync, const char* message=nullptr) {
+	if (likely(sync != nullptr)) {
+		auto result = glClientWaitSync(*sync, GL_SYNC_FLUSH_COMMANDS_BIT, 0);
+		if (result != GL_ALREADY_SIGNALED) {
+			if (message) {
+				std::fputs(message, stderr);
+				std::fflush(stderr);
+			}
+			glClientWaitSync(*sync, GL_SYNC_FLUSH_COMMANDS_BIT, 10000000000);
+		}
+	}
+}
+
 void Renderer::set_uniforms()
 {
 	ZoneScoped;
@@ -341,7 +355,8 @@ void Renderer::set_uniforms()
 	auto proj_view = projection * view;
 	debug_draw_ctx.mvpMatrix = proj_view;
 
-	m_per_frame.next();
+	check_and_block_sync(m_per_frame.next(), "Per-frame uniform sync triggered, blocking!\n");
+
 	auto per_frame = m_per_frame.data();
 	assert(per_frame);
 	m_per_frame.bind(1);
@@ -594,7 +609,7 @@ Renderer::LightPerframeData * Renderer::begin_draw_light_shadows()
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK); // TODO: use front face culling
 
-	m_light_per_frame.next();
+	check_and_block_sync(m_light_per_frame.next(), "Light per-frame uniform sync triggered, blocking!\n");
 	auto per_frame = m_light_per_frame.data();
 	assert(per_frame);
 	m_light_per_frame.bind(2);
@@ -1079,6 +1094,9 @@ void Renderer::draw()
 		unif::b1(*m_hdr_shader, 3, do_bloom);
 		renderQuad();
 	}
+
+	m_per_frame.finish();
+	m_light_per_frame.finish();
 
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);

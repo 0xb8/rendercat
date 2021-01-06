@@ -3,39 +3,44 @@
 
 using namespace gl45core;
 
-void rc::BufferDeleter::operator()(uint32_t h) noexcept
+void rc::BufferDeleter::operator()(gl45core::GLuint h) noexcept
 {
 	glDeleteBuffers(1, &h);
 }
 
-void rc::FrameBufferDeleter::operator()(uint32_t h) noexcept
+void rc::FrameBufferDeleter::operator()(gl45core::GLuint h) noexcept
 {
 	glDeleteFramebuffers(1, &h);
 }
 
-void rc::ProgramDeleter::operator()(uint32_t h) noexcept
+void rc::ProgramDeleter::operator()(gl45core::GLuint h) noexcept
 {
 	glDeleteProgram(h);
 }
 
-void rc::QueryDeleter::operator()(uint32_t h) noexcept
+void rc::QueryDeleter::operator()(gl45core::GLuint h) noexcept
 {
 	glDeleteQueries(1, &h);
 }
 
-void rc::ShaderDeleter::operator()(uint32_t h) noexcept
+void rc::ShaderDeleter::operator()(gl45core::GLuint h) noexcept
 {
 	glDeleteShader(h);
 }
 
-void rc::TextureDeleter::operator()(uint32_t h) noexcept
+void rc::TextureDeleter::operator()(gl45core::GLuint h) noexcept
 {
 	glDeleteTextures(1, &h);
 }
 
-void rc::VertexArrayDeleter::operator()(uint32_t h) noexcept
+void rc::VertexArrayDeleter::operator()(gl45core::GLuint h) noexcept
 {
 	glDeleteVertexArrays(1, &h);
+}
+
+void rc::SyncDeleter::operator()(gl::GLsync sync) noexcept
+{
+	glDeleteSync(sync);
 }
 
 

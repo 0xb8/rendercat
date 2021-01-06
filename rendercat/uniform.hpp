@@ -66,6 +66,7 @@ protected:
 	void bind_multi(uint32_t index, size_t offset, size_t size) const;
 	void map(size_t size);
 	void flush(size_t offset, size_t size);
+	static rc::sync_handle make_fence();
 
 	rc::buffer_handle _buffer;
 	void* _data = nullptr;
@@ -95,7 +96,7 @@ struct buf : public basic_buf {
 		return data();
 	}
 
-	T* data() const noexcept {
+	[[nodiscard]] T* data() const noexcept {
 		return reinterpret_cast<T*>(_data) + _index;
 	}
 
@@ -111,14 +112,26 @@ struct buf : public basic_buf {
 		basic_buf::flush(_index * sizeof (T), sizeof (T));
 	}
 
-	void next() {
+	void finish() {
+		_sync[_index] = basic_buf::make_fence();
+	}
+
+	// advances to next chunk and returns its sync object
+	[[nodiscard]] rc::sync_handle next() {
 		static_assert (N > 1, "Only allowed for N-buffering.");
 
 		_index = (_index+1) % N;
+		return std::move(_sync[_index]);
+	}
+
+	[[nodiscard]] rc::sync_handle sync() {
+		static_assert (N == 1, "Only allowed for single-buffered.");
+		return std::move(_sync[0]);
 	}
 
 private:
 	size_t _index = 0;
+	rc::sync_handle _sync[N];
 };
 
 } // namespace unif

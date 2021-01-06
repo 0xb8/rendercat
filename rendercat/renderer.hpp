@@ -137,8 +137,8 @@ class Renderer
 		LightIndex point_shadow_indices[RC_MAX_LIGHTS];
 	};
 
-	unif::buf<PerFrameData, 2> m_per_frame;
-	unif::buf<LightPerframeData, 2> m_light_per_frame;
+	unif::buf<PerFrameData, 3> m_per_frame;
+	unif::buf<LightPerframeData, 3> m_light_per_frame;
 
 	zcm::mat4 m_shadow_matrix;
 
