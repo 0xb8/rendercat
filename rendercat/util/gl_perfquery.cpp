@@ -54,8 +54,13 @@ void PerfQuery::collect()
 		if(m_state[i] != QueryState::Ended)
 			continue;
 
+		GLint available = 0;
+		glGetQueryObjectiv(*m_query[i], GL_QUERY_RESULT_AVAILABLE, &available);
+		if (!available)
+			continue;
+
 		uint64_t time_elapsed = 0;
-		glGetQueryObjectui64v(*m_query[i], GL_QUERY_RESULT_NO_WAIT, &time_elapsed);
+		glGetQueryObjectui64v(*m_query[i], GL_QUERY_RESULT, &time_elapsed);
 		if(!time_elapsed)
 			continue;
 
