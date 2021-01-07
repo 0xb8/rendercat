@@ -35,8 +35,7 @@
 
 #include <tracy/Tracy.hpp>
 using namespace gl45core;
-#define GL_TIMESTAMP gl45core::GL_TIMESTAMP
-#include <tracy/TracyOpenGL.hpp>
+#include <TracyOpenGL.hpp>
 
 
 namespace consts {

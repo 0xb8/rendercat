@@ -13,9 +13,8 @@
 #include <glbinding/gl45core/enum.h>
 #include <glbinding/gl45core/functions.h>
 
+#include <tracy/Tracy.hpp>
 using namespace gl45core;
-
-
 using namespace rc;
 
 template<typename T, typename = std::enable_if_t<std::is_enum_v<T>>>
@@ -297,6 +296,7 @@ void Material::set_shader_flags()
 
 static ImageTexture2D try_from_cache_or_load(std::string&& path, Texture::ColorSpace space)
 {
+	ZoneScoped;
 	ImageTexture2D ret;
 	auto cached = Texture::Cache::get(path);
 	if(cached) {

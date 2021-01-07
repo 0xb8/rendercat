@@ -10,13 +10,16 @@
 #include <zcm/type_ptr.hpp>
 #include <zcm/quaternion.hpp>
 #include <glbinding-aux/Meta.h>
+#include <tracy/Tracy.hpp>
 
 using namespace rc;
 
 
 void Scene::init()
 {
+	ZoneScoped;
 	{
+		ZoneScopedN("load default material");
 		Material::set_default_diffuse("assets/materials/missing.tga");
 		materials.emplace_back(Material::create_default_material());
 	}
@@ -79,6 +82,7 @@ void Scene::init()
 
 Model* Scene::load_model_gltf(const std::string_view name, const std::string_view basedir)
 {
+	ZoneScoped;
 	model::data data;
 	if(model::load_gltf_file(data, name, basedir)) {
 		auto base_material_offset = materials.size();
@@ -936,6 +940,7 @@ void Scene::update()
 
 void Scene::load_skybox_equirectangular(std::string_view name)
 {
+	ZoneScoped;
 	cubemap.load_equirectangular(name);
 	cubemap_diffuse_irradiance = cubemap.integrate_diffuse_irradiance();
 	cubemap_specular_environment = cubemap.convolve_specular();
@@ -943,6 +948,7 @@ void Scene::load_skybox_equirectangular(std::string_view name)
 
 void Scene::load_skybox_cubemap(std::string_view path)
 {
+	ZoneScoped;
 	cubemap.load_cube(path);
 	cubemap_diffuse_irradiance = cubemap.integrate_diffuse_irradiance();
 	cubemap_specular_environment = cubemap.convolve_specular();

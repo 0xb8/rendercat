@@ -15,12 +15,15 @@
 #include <glbinding/gl45core/enum.h>
 #include <glbinding/gl45core/functions.h>
 
+#include <tracy/Tracy.hpp>
 using namespace gl45core;
+#include <TracyOpenGL.hpp>
 using namespace rc;
 
 
 static Material from_gltf_material(const fx::gltf::Material& mat)
 {
+	ZoneScoped;
 	Material material(mat.name);
 	material.set_alpha_mode([](auto mat){
 		switch (mat.alphaMode) {
@@ -89,6 +92,7 @@ static void apply_gltf_sampler(const fx::gltf::Sampler* s, ImageTexture2D& tex) 
 
 static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, const std::string_view texture_path)
 {
+	ZoneScoped;
 	fx::gltf::Material mat;
 	if (mat_idx >= 0)
 		mat = doc.materials.at(mat_idx);
@@ -316,6 +320,7 @@ static rc::model::attr_description_t load_gltf_primitive_indices(
 
 static std::vector<std::pair<model::Mesh, int>> load_gltf_mesh(const fx::gltf::Mesh& mesh, const fx::gltf::Document& doc)
 {
+	ZoneScoped;
 	std::vector<std::pair<model::Mesh, int>> res;
 
 	for (const auto& primitive : mesh.primitives) {
@@ -375,7 +380,7 @@ static void load_gltf_mesh_with_material(model::data& res,
                                          const fx::gltf::Document& doc,
                                          const node_transform& transform,
                                          size_t mesh_id) {
-
+	ZoneScoped;
 
 	const auto& mesh = doc.meshes[mesh_id];
 	auto meshes_materials = load_gltf_mesh(mesh, doc);
@@ -408,6 +413,7 @@ static void load_node_recursive(model::data& res,
                                 const node_transform& parent_transform,
                                 size_t node_idx)
 {
+	ZoneScoped;
 	const auto& node = doc.nodes.at(node_idx);
 	auto transform = parent_transform * node_transform{node};
 
@@ -433,6 +439,7 @@ static void load_node_recursive(model::data& res,
 
 bool model::load_gltf_file(data& res, const std::string_view name, const std::string_view basedir)
 {
+	ZoneScoped;
 	std::string model_path{rc::path::asset::model};
 	model_path.append(basedir);
 
@@ -444,7 +451,11 @@ bool model::load_gltf_file(data& res, const std::string_view name, const std::st
 
 	std::map<int, int> materials_cache;
 
-	fx::gltf::Document doc = fx::gltf::LoadFromText(model_path_full);
+	fx::gltf::Document doc;
+	{
+		ZoneScopedN("parse gltf file");
+		doc = fx::gltf::LoadFromText(model_path_full);
+	}
 
 	if (doc.scenes.empty()) {
 
@@ -520,7 +531,8 @@ model::Mesh::Mesh(std::string name_) : name(std::move(name_))
 
 
 void model::Mesh::upload_data(attr_description_t index, std::vector<attr_description_t> attrs) {
-
+	ZoneScoped;
+	TracyGpuZone("mesh_upload_data");
 
 	// set up GPU objects --------------------------------------------------
 	glCreateVertexArrays(1, vao.get());

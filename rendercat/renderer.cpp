@@ -26,8 +26,7 @@
 #include <zcm/type_ptr.hpp>
 
 using namespace gl45core;
-#define GL_TIMESTAMP gl45core::GL_TIMESTAMP
-#include <tracy/TracyOpenGL.hpp>
+#include <TracyOpenGL.hpp>
 
 using namespace rc;
 
@@ -94,6 +93,9 @@ Renderer::Renderer(Scene * s) : m_scene(s)
 
 void Renderer::init_shadow_resources()
 {
+	ZoneScoped;
+	TracyGpuZone("init_shadow_resources");
+	RC_DEBUG_GROUP("init_shadow_resources");
 	m_shadow_shader = m_shader_set.load_program({"shadow_mapping.vert", "shadow_mapping.frag"});
 	m_shadow_point_shader = m_shader_set.load_program({"shadow_mapping.vert", "shadow_mapping.frag"},
 	                                                   {{"POINT_LIGHT"}});
@@ -154,6 +156,10 @@ void Renderer::init_shadow_resources()
 
 void Renderer::init_brdf()
 {
+	ZoneScoped;
+	TracyGpuZone("init_brdf");
+	RC_DEBUG_GROUP("init_brdf");
+
 	m_brdf_shader = m_shader_set.load_program({"brdf_lut.comp"});
 	if (!m_brdf_shader) {
 		fmt::print(stderr, "[renderer] could not init BRDF LUT compute shader!");
@@ -162,8 +168,6 @@ void Renderer::init_brdf()
 	}
 
 	int size = 256;
-
-	RC_DEBUG_GROUP("init BRDF LUT");
 
 	glCreateTextures(GL_TEXTURE_2D, 1, m_brdf_lut_to.get());
 	rcObjectLabel(m_brdf_lut_to, "BRDF LUT");
@@ -181,6 +185,9 @@ void Renderer::init_brdf()
 
 void Renderer::init_colormap()
 {
+	ZoneScoped;
+	TracyGpuZone("init_colormap");
+	RC_DEBUG_GROUP("init_colormap");
 	glCreateTextures(GL_TEXTURE_1D, 1, m_turbo_colormap_to.get());
 	rcObjectLabel(m_turbo_colormap_to, "turbo colormap");
 	glTextureStorage1D(*m_turbo_colormap_to, 1, GL_RGB32F, 256);
@@ -196,6 +203,8 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 		return;
 
 	ZoneScoped;
+	TracyGpuZone("resize_backbuffer");
+	RC_DEBUG_GROUP("resize_backbuffer");
 
 	m_device_pixel_ratio = device_pixel_ratio;
 
@@ -312,8 +321,6 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 
 void Renderer::clear_screen()
 {
-	TracyGpuZone("clear screen");
-	RC_DEBUG_GROUP("clear screen");
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glViewport(0, 0, m_window_width, m_window_height);
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);

@@ -13,7 +13,10 @@
 #include <zcm/exponential.hpp>
 #include <zcm/type_ptr.hpp>
 
+#include <tracy/Tracy.hpp>
+
 using namespace gl45core;
+#include <TracyOpenGL.hpp>
 using namespace rc;
 
 //------------------------------------------------------------------------------
@@ -162,6 +165,7 @@ TextureStorage2D::TextureStorage2D(uint16_t width,
                                    uint16_t height,
                                    Texture::InternalFormat format)
 {
+	ZoneScoped;
 	get_max_size();
 
 	if(width <= 2
@@ -280,6 +284,8 @@ void TextureStorage2D::sub_image(uint16_t level,
 		fmt::print(stderr, "[texture2d.storage] attempted to mutate shared texture: not implemented\n");
 		return;
 	}
+	ZoneScoped;
+	TracyGpuZone("TextureStorage2D::sub_image");
 
 	auto component_format = components(m_internal_format);
 	glTextureSubImage2D(*m_handle, level, 0, 0, width, height, component_format, static_cast<GLenum>(type), pixels);
@@ -297,6 +303,8 @@ void TextureStorage2D::compressed_sub_image(uint16_t level,
 		fmt::print(stderr, "[texture2d.storage] attempted to mutate shared texture: not implemented\n");
 		return;
 	}
+	ZoneScoped;
+	TracyGpuZone("TextureStorage2D::compressed_sub_image");
 	glCompressedTextureSubImage2D(*m_handle, level, 0, 0, width, height, static_cast<GLenum>(m_internal_format), data_size, data);
 }
 
@@ -348,6 +356,7 @@ Texture::ColorSpace TextureStorage2D::color_space() const noexcept
 ImageTexture2D ImageTexture2D::fromFile(const std::string_view path,
                                         Texture::ColorSpace color_space)
 {
+	ZoneScoped;
 	using namespace Texture;
 
 

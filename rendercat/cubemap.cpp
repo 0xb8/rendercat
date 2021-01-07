@@ -24,7 +24,9 @@
 #include <glbinding-aux/Meta.h>
 #include <rendercat/util/gl_meta.hpp>
 
+#include <tracy/Tracy.hpp>
 using namespace gl45core;
+#include <TracyOpenGL.hpp>
 using namespace rc;
 
 static const std::array<std::filesystem::path, 6> face_names_hdr {
@@ -102,6 +104,7 @@ Cubemap::Cubemap()
 
 void Cubemap::load_cube(std::string_view basedir)
 {
+	ZoneScoped;
 	assert(basedir.length() > 0);
 
 	std::filesystem::path path{basedir};
@@ -117,6 +120,7 @@ void Cubemap::load_cube(std::string_view basedir)
 	int face{0};
 	int prev_face_width{0}, prev_face_height{0};
 	for(int i = 0; i < 6; ++i) {
+		ZoneScopedN("load face");
 		auto face_path = path / face_names_hdr[i];
 		auto face_path_u8 = face_path.u8string();
 
@@ -161,6 +165,7 @@ void Cubemap::load_cube(std::string_view basedir)
 
 void Cubemap::load_equirectangular(std::string_view path)
 {
+	ZoneScoped;
 	rc::texture_handle flat_texture;
 	int flat_width, flat_height, chan;
 	auto data = stbi_loadf(path.data(), &flat_width, &flat_height, &chan, 3);
@@ -177,6 +182,7 @@ void Cubemap::load_equirectangular(std::string_view path)
 
 	const unsigned face_size = (flat_height * 3) / 4;
 
+	TracyGpuZone("cubemap_load_equirectangular");
 	rc::texture_handle cubemap_to;
 	glCreateTextures(GL_TEXTURE_CUBE_MAP_ARRAY, 1, cubemap_to.get());
 	glTextureStorage3D(*cubemap_to, 1, GL_RGBA16F, face_size, face_size, 6);
@@ -212,6 +218,8 @@ void Cubemap::bind_to_unit(uint32_t unit)
 
 Cubemap Cubemap::integrate_diffuse_irradiance()
 {
+	ZoneScoped;
+	TracyGpuZone("cubemap_integrate_diffuse_irradiance");
 	Cubemap res;
 	if (m_cubemap) {
 		const unsigned irradiance_size = 32;
@@ -236,6 +244,9 @@ Cubemap Cubemap::convolve_specular()
 	if (!m_cubemap)
 		return res;
 
+	ZoneScoped;
+	TracyGpuZone("cubemap_convolve_specular");
+
 	rc::texture_handle cubemap_with_mips_to;
 	glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, cubemap_with_mips_to.get());
 
@@ -248,6 +259,7 @@ Cubemap Cubemap::convolve_specular()
 
 
 	{
+		ZoneScopedN("downsample");
 		// downsample original cubemap
 		rc::framebuffer_handle src_fbo, dst_fbo;
 		glCreateFramebuffers(1, src_fbo.get());
