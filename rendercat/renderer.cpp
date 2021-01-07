@@ -333,12 +333,13 @@ static void renderQuad()
 
 
 static void check_and_block_sync(rc::sync_handle sync, const char* message=nullptr) {
+	ZoneScoped;
 	if (likely(sync != nullptr)) {
-		auto result = glClientWaitSync(*sync, GL_SYNC_FLUSH_COMMANDS_BIT, 0);
+		auto result = glClientWaitSync(*sync, GL_NONE_BIT, 0);
 		if (result != GL_ALREADY_SIGNALED) {
+			ZoneScopedNC("block on sync", 0xff0000);
 			if (message) {
-				std::fputs(message, stderr);
-				std::fflush(stderr);
+				TracyMessageLC(message, 0xff0000);
 			}
 			glClientWaitSync(*sync, GL_SYNC_FLUSH_COMMANDS_BIT, 10000000000);
 		}
@@ -348,14 +349,19 @@ static void check_and_block_sync(rc::sync_handle sync, const char* message=nullp
 void Renderer::set_uniforms()
 {
 	ZoneScoped;
-	m_scene->main_camera.update();
 
-	auto view = make_view(m_scene->main_camera.state);
-	auto projection = make_projection(m_scene->main_camera.state);
-	auto proj_view = projection * view;
-	debug_draw_ctx.mvpMatrix = proj_view;
+	zcm::mat4 proj_view;
+	{
+		ZoneScopedN("calc camera matrices");
+		m_scene->main_camera.update();
 
-	check_and_block_sync(m_per_frame.next(), "Per-frame uniform sync triggered, blocking!\n");
+		auto view = make_view(m_scene->main_camera.state);
+		auto projection = make_projection(m_scene->main_camera.state);
+		proj_view = projection * view;
+		debug_draw_ctx.mvpMatrix = proj_view;
+	}
+
+	check_and_block_sync(m_per_frame.next(), "Per-frame uniform sync triggered, blocking!");
 
 	auto per_frame = m_per_frame.data();
 	assert(per_frame);
@@ -609,7 +615,7 @@ Renderer::LightPerframeData * Renderer::begin_draw_light_shadows()
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK); // TODO: use front face culling
 
-	check_and_block_sync(m_light_per_frame.next(), "Light per-frame uniform sync triggered, blocking!\n");
+	check_and_block_sync(m_light_per_frame.next(), "Light per-frame uniform sync triggered, blocking!");
 	auto per_frame = m_light_per_frame.data();
 	assert(per_frame);
 	m_light_per_frame.bind(2);
@@ -1033,6 +1039,7 @@ void Renderer::draw()
 	{
 		RC_DEBUG_GROUP("opaque meshes");
 		TracyGpuZoneC("draw_opaque", 0xaaaaaa);
+		ZoneScopedN("draw_opaque");
 		for(const auto& idx : m_opaque_meshes) {
 			render_mesh_by_index(idx, dd::colors::White);
 		}
@@ -1048,6 +1055,7 @@ void Renderer::draw()
 	{
 		RC_DEBUG_GROUP("masked meshes");
 		TracyGpuZoneC("draw_masked", 0xaa4444);
+		ZoneScopedN("draw_masked");
 		for(const auto& idx : m_masked_meshes) {
 			render_mesh_by_index(idx, dd::colors::Red);
 
@@ -1107,7 +1115,7 @@ void Renderer::draw()
 	m_perfquery.end();
 }
 
-void Renderer::draw_gui()
+void Renderer::draw_gui(Renderer::RenderParams& params)
 {
 	ZoneScoped;
 #if 0
@@ -1166,6 +1174,16 @@ void Renderer::draw_gui()
 	ImGui::Combo("MSAA", &desired_msaa_level, labels, std::size(labels));
 	//show_help_tooltip("Multi-Sample Antialiasing\n\nValues > 4x may be unsupported on some setups.");
 	ImGui::SliderFloat("Resolution scale", &desired_render_scale, 0.1f, 2.0f, "%.1f");
+
+	ImGui::Spacing();
+	ImGui::Checkbox("VSYNC", &params.vsync);
+	ImGui::SameLine();
+	ImGui::Checkbox("Allow tearing", &params.vsync_tearing);
+	ImGui::PushStyleVar(ImGuiStyleVar_Alpha, !params.vsync ? 1.0f : 0.3f);
+	ImGui::Checkbox("Lock FPS", params.lock_fps);
+	ImGui::SameLine();
+	ImGui::SliderFloat("Target FPS", params.target_fps, 1.0f, 240.0f);
+	ImGui::PopStyleVar();
 
 	ImGui::Spacing();
 	ImGui::Checkbox("Bloom", &do_bloom);

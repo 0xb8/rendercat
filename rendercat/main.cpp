@@ -50,6 +50,8 @@ namespace consts {
 namespace globals {
 
 	static float glfw_target_fps = 60.0f;
+	static bool  glfw_vsync_enabled = false;
+	static bool  glfw_lock_fps = true;
 	static bool glfw_framebuffer_resized = false;
 	static int  glfw_framebuffer_width = 1280;
 	static int  glfw_framebuffer_height = 720;
@@ -59,6 +61,8 @@ namespace globals {
 
 	static float delta_time = 1.0f / glfw_target_fps;
 	static float last_frame_time = 0.0f;
+
+	static bool glfw_swap_control_tear_supported = false;
 }
 
 namespace input {
@@ -394,6 +398,9 @@ static void set_glfw_window_params(GLFWwindow* window)
 
 	glfwMakeContextCurrent(window);
 
+	globals::glfw_swap_control_tear_supported = glfwExtensionSupported("GLX_EXT_swap_control_tear") || glfwExtensionSupported("WGL_EXT_swap_control_tear");
+	TracyMessageL(globals::glfw_swap_control_tear_supported ? "GLX_EXT_swap_control_tear supported" : "GLX_EXT_swap_control_tear not supported");
+
 	if (consts::window_maximized) {
 		glfwMaximizeWindow(window);
 		glfwGetWindowSize(window, &globals::glfw_framebuffer_width, &globals::glfw_framebuffer_height);
@@ -421,10 +428,10 @@ static void set_glfw_window_params(GLFWwindow* window)
 	} else {
 		// get actual window size (for Hi-DPI).
 		glfwGetWindowSize(window, &globals::glfw_framebuffer_width, &globals::glfw_framebuffer_height);
-		float xscale = 1.0f, yscale = 1.0f;
-		glfwGetWindowContentScale(window, &xscale, &yscale);
-		set_window_scale(xscale, yscale);
 	}
+	float xscale = 1.0f, yscale = 1.0f;
+	glfwGetWindowContentScale(window, &xscale, &yscale);
+	set_window_scale(xscale, yscale);
 }
 
 
@@ -540,9 +547,14 @@ int main(int argc, char *argv[]) try
 	glfwSwapBuffers(window);
 	init_glfw_callbacks(window);
 	scene.init();
-
-
 	globals::last_frame_time = glfwGetTime();
+	TracyGpuCollect;
+	FrameMark;
+
+	rc::Renderer::RenderParams params;
+	params.target_fps = &globals::glfw_target_fps;
+	params.lock_fps = &globals::glfw_lock_fps;
+	params.vsync = globals::glfw_vsync_enabled;
 
 	while(!glfwWindowShouldClose(window))
 	{
@@ -574,7 +586,7 @@ int main(int argc, char *argv[]) try
 		scene.update();
 
 		renderer.draw();
-		renderer.draw_gui();
+		renderer.draw_gui(params);
 
 		{
 			ZoneNamedN(imgui_render, "ImGui Render", true);
@@ -598,14 +610,24 @@ int main(int argc, char *argv[]) try
 		process_screenshot(renderer);
 
 		glfwSwapBuffers(window);
-		FrameMark;
 		TracyGpuCollect;
+		FrameMark;
 
 		auto end_time = glfwGetTime();
 		globals::delta_time = end_time - globals::last_frame_time;
 		globals::last_frame_time = end_time;
-		auto st = std::max((1.0f / globals::glfw_target_fps) - globals::delta_time, 0.0f);
-		std::this_thread::sleep_for(std::chrono::duration<float>(st));
+
+		if (params.vsync != globals::glfw_vsync_enabled) {
+			globals::glfw_vsync_enabled = params.vsync;
+			const int value = globals::glfw_swap_control_tear_supported && params.vsync_tearing ? -1 : 1;
+			glfwSwapInterval(params.vsync ? value : 0);
+			TracyMessageL(params.vsync ? "enabled vsync" : "disabled vsync");
+		}
+		if (!globals::glfw_vsync_enabled && globals::glfw_lock_fps) {
+			ZoneScopedN("main loop sleep");
+			auto st = std::max((1.0f / globals::glfw_target_fps) - globals::delta_time, 0.0f);
+			std::this_thread::sleep_for(std::chrono::duration<float>(st));
+		}
 	}
 
 	ImGui_ImplOpenGL3_Shutdown();

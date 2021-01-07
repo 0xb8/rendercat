@@ -191,7 +191,16 @@ public:
 	void resize(uint32_t width, uint32_t height, float device_pixel_ratio, bool force = false);
 	void clear_screen();
 	void draw();
-	void draw_gui();
+
+	struct RenderParams {
+		float *target_fps;
+		bool *lock_fps;
+		bool vsync = false;
+		bool vsync_tearing = false;
+
+	};
+
+	void draw_gui(RenderParams& params);
 	void save_hdr_backbuffer(std::string_view path);
 };
 
