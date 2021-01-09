@@ -16,6 +16,8 @@ A simple OpenGL 4.5 renderer used to teach myself various realtime graphics tech
 * Normal mapping
 * Directional light shadows
 * Spot light shadows
+* Omnidirectional point light shadows
+* Bloom effect
 * Using modern OpenGL 4.5 API
 * Simple FPS controls and GUI using ImGui library
 
@@ -24,6 +26,6 @@ A simple OpenGL 4.5 renderer used to teach myself various realtime graphics tech
 * Mesh LOD
 * Precomputed GI lighting
 * Procedural sky/sun
-* Bloom/dof effect
+* DOF effect
 * Animated textures
 * Water reflection/refraction
