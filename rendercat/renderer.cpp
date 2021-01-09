@@ -40,10 +40,8 @@ static GLint max_framebuffer_height;
 static GLint max_uniform_locations;
 static GLenum frag_derivative_quality_hint;
 
-Renderer::Renderer(Scene * s) : m_scene(s)
+Renderer::Renderer(Scene& s, ShaderSet& shader_set) : m_shader_set(shader_set), m_scene(&s)
 {
-	assert(s != nullptr);
-
 	m_shader = m_shader_set.load_program({"generic.vert", "generic.frag"});
 	m_hdr_shader = m_shader_set.load_program({"fullscreen_quad.vert", "hdr.frag"});
 	m_bloom_downscale_shader = m_shader_set.load_program({"downscale_bloom_luma.comp"});
@@ -342,7 +340,7 @@ static void renderQuad()
 static void check_and_block_sync(rc::sync_handle sync, const char* message=nullptr) {
 	ZoneScoped;
 	if (likely(sync != nullptr)) {
-		auto result = glClientWaitSync(*sync, GL_NONE_BIT, 0);
+		auto result = glClientWaitSync(*sync, gl::GL_NONE_BIT, 0);
 		if (result != GL_ALREADY_SIGNALED) {
 			ZoneScopedNC("block on sync", 0xff0000);
 			if (message) {

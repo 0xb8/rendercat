@@ -51,6 +51,7 @@ namespace globals {
 	static float glfw_target_fps = 60.0f;
 	static bool  glfw_vsync_enabled = false;
 	static bool  glfw_lock_fps = true;
+
 	static bool glfw_framebuffer_resized = false;
 	static int  glfw_framebuffer_width = 1280;
 	static int  glfw_framebuffer_height = 720;
@@ -161,6 +162,7 @@ static void glfw_mouse_motion_callback(GLFWwindow* window, double dx, double dy)
 static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 static void glfw_scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 static void glfw_framebuffer_resized_callback(GLFWwindow* window, int width, int height);
+static void main_loop(GLFWwindow* window);
 
 
 static void rc_set_input_captured(GLFWwindow* window, bool value)
@@ -477,6 +479,9 @@ void run_tests(int argc, char *argv[])
 	int res = context.run();
 	if (context.shouldExit())
 		std::exit(res);
+#else
+	static_cast<void>(argc);
+	static_cast<void>(argv);
 #endif
 }
 
@@ -518,8 +523,6 @@ int main(int argc, char *argv[]) try
 	enable_gl_debug_callback();
 	enable_gl_clip_control();
 
-	TracyGpuContext;
-
 	{
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
@@ -529,15 +532,38 @@ int main(int argc, char *argv[]) try
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 		io.ConfigFlags |= ImGuiConfigFlags_IsSRGB;
 		io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;           // Enable Docking
-		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;         // Enable Multi-Viewport / Platform Windows
+		//io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;         // Enable Multi-Viewport / Platform Windows
 		globals::glfw_device_pixel_ratio_changed = true;
 
 		ImGui_ImplGlfw_InitForOpenGL(window, false);
 		ImGui_ImplOpenGL3_Init("#version 430 core");
 	}
 
+	// enter main loop
+	main_loop(window);
+
+	ImGui_ImplOpenGL3_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
+	glfwTerminate();
+	return 0;
+
+} catch(const fmt::format_error& e) {
+	glfwTerminate();
+	fmt::print("fmt::format_error exception: {}\n", e.what());
+	return -1;
+} catch(const std::exception& e) {
+	glfwTerminate();
+	fmt::print(stderr, "exception in main(): {}\n", e.what());
+	return -1;
+}
+
+static void main_loop(GLFWwindow* window) {
+	TracyGpuContext;
+	rc::ShaderSet shader_set;
+	rc::Cubemap::compile_shaders(shader_set);
 	rc::Scene scene;
-	rc::Renderer renderer(&scene);
+	rc::Renderer renderer(scene, shader_set);
 	renderer.resize(globals::glfw_framebuffer_width,
 	                globals::glfw_framebuffer_height,
 	                globals::glfw_device_pixel_ratio);
@@ -580,7 +606,6 @@ int main(int argc, char *argv[]) try
 			ImGui::NewFrame();
 			ImGuizmo::BeginFrame();
 		}
-
 
 		scene.update();
 
@@ -628,19 +653,4 @@ int main(int argc, char *argv[]) try
 			std::this_thread::sleep_for(std::chrono::duration<float>(st));
 		}
 	}
-
-	ImGui_ImplOpenGL3_Shutdown();
-	ImGui_ImplGlfw_Shutdown();
-	ImGui::DestroyContext();
-	glfwTerminate();
-	return 0;
-
-} catch(const fmt::format_error& e) {
-	glfwTerminate();
-	fmt::print("fmt::format_error exception: {}\n", e.what());
-	return -1;
-} catch(const std::exception& e) {
-	glfwTerminate();
-	fmt::print(stderr, "exception in main(): {}\n", e.what());
-	return -1;
 }

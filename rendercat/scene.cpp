@@ -15,6 +15,11 @@
 using namespace rc;
 
 
+Scene::~Scene()
+{
+	Material::delete_default_diffuse();
+}
+
 void Scene::init()
 {
 	ZoneScoped;

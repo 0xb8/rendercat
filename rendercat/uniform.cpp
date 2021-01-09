@@ -79,7 +79,7 @@ void basic_buf::flush(size_t offset, size_t size)
 
 rc::sync_handle basic_buf::make_fence()
 {
-	return rc::sync_handle{gl45core::glFenceSync(gl45core::GL_SYNC_GPU_COMMANDS_COMPLETE, gl45core::GL_NONE_BIT)};
+	return rc::sync_handle{gl45core::glFenceSync(gl45core::GL_SYNC_GPU_COMMANDS_COMPLETE, 0)};
 }
 
 basic_buf::operator bool() const noexcept

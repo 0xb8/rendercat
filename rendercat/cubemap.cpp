@@ -41,7 +41,6 @@ static const std::array<std::filesystem::path, 6> face_names_hdr {
 static GLint max_texture_size;                       // spec requires 16384+, but some cards can only 8192
 static GLboolean has_seamless_filtering;             // GL_ARB_seamless_cube_map is widely supported
 static GLboolean has_seamless_filtering_per_texture; // requires GL_ARB_seamless_cubemap_per_texture, checked below
-static rc::ShaderSet shader_set;
 static GLuint cubemap_vao;
 static uint32_t *cubemap_draw_shader;
 static uint32_t *cubemap_load_shader;
@@ -58,6 +57,8 @@ static void set_tex_params(uint32_t tex, bool mips=false)
 	if (has_seamless_filtering_per_texture)
 		glTextureParameteri(tex, GL_TEXTURE_CUBE_MAP_SEAMLESS, GL_TRUE);
 }
+
+
 
 Cubemap::Cubemap()
 {
@@ -83,22 +84,6 @@ Cubemap::Cubemap()
 		glCreateVertexArrays(1, &cubemap_vao);
 		rcObjectLabel(GL_VERTEX_ARRAY, cubemap_vao, "cubemap vao");
 		assert(cubemap_vao);
-	}
-	if (!cubemap_draw_shader) {
-		cubemap_draw_shader = shader_set.load_program({"cubemap.vert", "cubemap.frag"});
-		assert(cubemap_draw_shader);
-	}
-	if (!cubemap_load_shader) {
-		cubemap_load_shader = shader_set.load_program({"cubemap_from_equirectangular.comp"});
-		assert(cubemap_load_shader);
-	}
-	if (!compute_diffuse_irradiance_shader) {
-		compute_diffuse_irradiance_shader = shader_set.load_program({"cubemap_diffuse_irradiance.comp"});
-		assert(compute_diffuse_irradiance_shader);
-	}
-	if (!compute_specular_env_map_shader) {
-		compute_specular_env_map_shader = shader_set.load_program({"cubemap_specular_envmap.comp"});
-		assert(compute_specular_env_map_shader);
 	}
 }
 
@@ -165,6 +150,7 @@ void Cubemap::load_cube(std::string_view basedir)
 
 void Cubemap::load_equirectangular(std::string_view path)
 {
+	assert(cubemap_load_shader);
 	ZoneScoped;
 	rc::texture_handle flat_texture;
 	int flat_width, flat_height, chan;
@@ -199,6 +185,7 @@ void Cubemap::load_equirectangular(std::string_view path)
 
 void Cubemap::draw(const zcm::mat4 & view, const zcm::mat4 & projection, int mip_level) noexcept
 {
+	assert(cubemap_draw_shader);
 	// remove translation part from view matrix
 	unif::m4(*cubemap_draw_shader, 0, projection * zcm::mat4{zcm::mat3{view}});
 	unif::i1(*cubemap_draw_shader, 1, mip_level);
@@ -218,6 +205,7 @@ void Cubemap::bind_to_unit(uint32_t unit)
 
 Cubemap Cubemap::integrate_diffuse_irradiance()
 {
+	assert(compute_diffuse_irradiance_shader);
 	ZoneScoped;
 	TracyGpuZone("cubemap_integrate_diffuse_irradiance");
 	Cubemap res;
@@ -240,6 +228,7 @@ Cubemap Cubemap::integrate_diffuse_irradiance()
 
 Cubemap Cubemap::convolve_specular()
 {
+	assert(compute_specular_env_map_shader);
 	Cubemap res;
 	if (!m_cubemap)
 		return res;
@@ -303,4 +292,12 @@ Cubemap Cubemap::convolve_specular()
 
 	res.m_cubemap = std::move(specular_cube_to);
 	return res;
+}
+
+void Cubemap::compile_shaders(ShaderSet& shader_set)
+{
+	cubemap_draw_shader = shader_set.load_program({"cubemap.vert", "cubemap.frag"});
+	cubemap_load_shader = shader_set.load_program({"cubemap_from_equirectangular.comp"});
+	compute_diffuse_irradiance_shader = shader_set.load_program({"cubemap_diffuse_irradiance.comp"});
+	compute_specular_env_map_shader = shader_set.load_program({"cubemap_specular_envmap.comp"});
 }

@@ -307,7 +307,14 @@ public:
 };
 
 
-ShaderSet::ShaderSet(std::string_view directory) : m_directory(directory) { }
+ShaderSet::ShaderSet(std::string_view directory) : m_directory(directory)
+{
+	static int instance_count = 0;
+	if (++instance_count > 1)
+		throw std::runtime_error("ShaderSet: only single instance allowed. "
+		                         "Make sure no static/global ShaderSet instances exist. "
+		                         "Create one instance somewhere in main() and pass it by reference.");
+}
 
 ShaderSet::~ShaderSet()
 {

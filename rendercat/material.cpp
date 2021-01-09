@@ -75,6 +75,11 @@ void Material::set_default_diffuse(const std::string_view path) noexcept
 	_default_diffuse.set_anisotropy(1);
 }
 
+void Material::delete_default_diffuse() noexcept
+{
+	_default_diffuse.reset();
+}
+
 Material Material::create_default_material()
 {
 	assert(_default_diffuse.valid() && "default diffuse not yet set or invalid");

@@ -27,6 +27,7 @@ class ShaderSet
 {
 public:
 
+	// Only single instance is allowed. MUST NOT be static or global instance.
 	explicit ShaderSet(std::string_view directory = path::shader);
 	~ShaderSet();
 

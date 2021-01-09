@@ -20,6 +20,19 @@ if (NOT RENDERCAT_IS_IPO_SUPPORTED)
 	message(STATUS "LTO not supported for this compiler")
 endif()
 
+option(RENDERCAT_WITHOUT_LTO "Do not use LTO in release" OFF)
+if (NOT RENDERCAT_WITHOUT_LTO)
+	set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+	set(CMAKE_DISABLE_PRECOMPILE_HEADERS ON)
+	if (CMAKE_BUILD_TYPE MATCHES Release)
+		message(STATUS "Using LTO in release build")
+		if (CMAKE_CXX_COMPILER_ID MATCHES GNU)
+			message(STATUS "Cannot use GCC LTO with LLD or LLVM-AR; disabling both.")
+			set(RENDERCAT_WITHOUT_LLVM_AR ON)
+			set(RENDERCAT_WITHOUT_LLD ON)
+		endif()
+	endif()
+endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES Clang|GNU AND NOT CMAKE_CXX_SIMULATE_ID)
 	# use thin archives for speed, don't update index (ranlib will do it afterwards)
@@ -30,11 +43,6 @@ if(CMAKE_CXX_COMPILER_ID MATCHES Clang|GNU AND NOT CMAKE_CXX_SIMULATE_ID)
 
 	option(RENDERCAT_WITHOUT_LLD "Do not use LLD linker" OFF)
 	option(RENDERCAT_WITHOUT_LLVM_AR "Do not use LLVM-AR archiver" OFF)
-	if (CMAKE_BUILD_TYPE MATCHES Release AND CMAKE_CXX_COMPILER_ID MATCHES GNU)
-		message(STATUS "Cannot use GCC LTO with LLD or LLVM-AR; disabling both.")
-		set(RENDERCAT_WITHOUT_LLVM_AR ON)
-		set(RENDERCAT_WITHOUT_LLD ON)
-	endif()
 
 	if (CMAKE_CXX_COMPILER_ID MATCHES GNU AND CMAKE_SYSTEM_NAME MATCHES Windows)
 		# on windows GNU ar(1) and ranlib(1) are very slow,
@@ -66,10 +74,6 @@ if(CMAKE_CXX_COMPILER_ID MATCHES Clang|GNU AND NOT CMAKE_CXX_SIMULATE_ID)
 		set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fuse-ld=lld")
 		set(RENDERCAT_WITH_LLD TRUE)
 	endif()
-
-	# use LTO in release
-	set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -flto")
-	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -flto")
 endif()
 
 # clang on mingw has problems with TLS destructors etc.
@@ -79,7 +83,7 @@ if (MINGW AND CMAKE_CXX_COMPILER_ID MATCHES Clang)
 endif()
 
 find_package(OpenGL REQUIRED)
-option(USE_SYSTEM_GLBINDING "Use installed glbinding instead of subproject" ON)
+option(USE_SYSTEM_GLBINDING "Use installed glbinding instead of subproject" OFF)
 if (USE_SYSTEM_GLBINDING)
 	find_package(glbinding REQUIRED)
 endif()

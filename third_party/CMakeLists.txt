@@ -2,6 +2,7 @@ add_subdirectory(fmt EXCLUDE_FROM_ALL)
 add_subdirectory(mikktspace EXCLUDE_FROM_ALL)
 add_subdirectory(stb_integration EXCLUDE_FROM_ALL)
 
+set(DOCTEST_WITH_MAIN_IN_STATIC_LIB OFF)
 add_subdirectory(doctest EXCLUDE_FROM_ALL)
 
 set(GLFW_BUILD_EXAMPLES OFF)

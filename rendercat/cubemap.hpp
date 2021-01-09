@@ -6,6 +6,8 @@
 
 namespace rc {
 
+class ShaderSet;
+
 class Cubemap
 {
 public:
@@ -20,6 +22,7 @@ public:
 	void load_equirectangular(std::string_view path);
 	Cubemap integrate_diffuse_irradiance();
 	Cubemap convolve_specular();
+	static void compile_shaders(ShaderSet & shader_set);
 
 	void draw(const zcm::mat4& view, const zcm::mat4& projection, int mip_level = 0) noexcept;
 	void bind_to_unit(uint32_t unit);

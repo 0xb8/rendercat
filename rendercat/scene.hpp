@@ -110,6 +110,7 @@ struct Model
 struct Scene
 {
 	Scene() = default;
+	~Scene();
 
 	static constexpr size_t missing_material_idx = 0u;
 

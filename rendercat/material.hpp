@@ -18,6 +18,7 @@ struct Material
 	Material& operator=(Material&&) noexcept;
 
 	static void set_default_diffuse(const std::string_view path) noexcept;
+	static void delete_default_diffuse() noexcept;
 	static Material create_default_material();
 	static ImageTexture2D load_image_texture(std::string_view basedir, std::string_view path, Texture::ColorSpace colorspace);
 

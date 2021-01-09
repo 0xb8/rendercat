@@ -16,7 +16,7 @@ struct Scene;
 
 class Renderer
 {
-	ShaderSet m_shader_set;
+	ShaderSet& m_shader_set;
 	PerfQuery m_perfquery;
 	Scene*  m_scene;
 
@@ -185,7 +185,7 @@ public:
 	static constexpr int MaxLights = RC_MAX_LIGHTS;
 	static constexpr unsigned NumMipsBloomDownscale = 3u;
 
-	explicit Renderer(Scene* s);
+	explicit Renderer(Scene & s, ShaderSet& shader_set);
 	~Renderer() = default;
 
 	void resize(uint32_t width, uint32_t height, float device_pixel_ratio, bool force = false);
