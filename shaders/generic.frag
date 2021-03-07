@@ -32,8 +32,8 @@ struct DirectionalLight {
 };
 
 struct ExponentialDirectionalFog {
-	vec4 dir_inscattering_color;
 	vec4 inscattering_color;
+	vec4 dir_inscattering_color;
 	vec4 direction; // .xyz - direction, .w - exponent
 	float inscattering_density;
 	float extinction_density;
