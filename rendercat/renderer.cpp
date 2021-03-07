@@ -483,8 +483,8 @@ static int process_spot_lights(const std::vector<SpotLight>& spot_lights,
 	return spot_light_count;
 }
 
-template<int NInstances = 1>
-static void submit_draw_call(const model::Mesh& submesh)
+template<bool instanced=false>
+static void submit_draw_call(const model::Mesh& submesh, int num_instances=1)
 {
 	glBindVertexArray(*submesh.vao);
 
@@ -494,7 +494,7 @@ static void submit_draw_call(const model::Mesh& submesh)
 		       || submesh.index_type == GL_UNSIGNED_SHORT
 		       || submesh.index_type == GL_UNSIGNED_BYTE);
 
-		if constexpr(NInstances == 1) {
+		if constexpr(!instanced) {
 
 			if (likely(submesh.index_max > submesh.index_min)) {
 
@@ -518,14 +518,14 @@ static void submit_draw_call(const model::Mesh& submesh)
 			                        submesh.numverts,
 			                        GLenum(submesh.index_type),
 			                        nullptr,
-			                        NInstances);
+			                        num_instances);
 
 		}
 	} else {
-		if constexpr(NInstances == 1) {
+		if constexpr(!instanced) {
 			glDrawArrays((GLenum)submesh.draw_mode, 0, submesh.numverts);
 		} else {
-			glDrawArraysInstanced((GLenum)submesh.draw_mode, 0, submesh.numverts, NInstances);
+			glDrawArraysInstanced((GLenum)submesh.draw_mode, 0, submesh.numverts, num_instances);
 		}
 	}
 }
@@ -660,8 +660,8 @@ void Renderer::draw_point_shadow(Renderer::LightPerframeData *per_frame)
 
 		per_frame->point_near_plane = near;
 
-		zcm::mat4 proj = zcm::perspectiveRH_ZO(zcm::radians(90.0f), 1, near, light.radius());
-		std::array<zcm::mat4, 6> shadowTransforms {
+		const zcm::mat4 proj = zcm::perspectiveRH_ZO(zcm::radians(90.0f), 1, near, light.radius());
+		const std::array<zcm::mat4, 6> shadowTransforms {
 			proj * zcm::lookAtRH(light.position(), light.position() + zcm::vec3( 1.0, 0.0, 0.0), zcm::vec3(0.0,-1.0, 0.0)),
 			proj * zcm::lookAtRH(light.position(), light.position() + zcm::vec3(-1.0, 0.0, 0.0), zcm::vec3(0.0,-1.0, 0.0)),
 			proj * zcm::lookAtRH(light.position(), light.position() + zcm::vec3( 0.0, 1.0, 0.0), zcm::vec3(0.0, 0.0, 1.0)),
@@ -670,9 +670,19 @@ void Renderer::draw_point_shadow(Renderer::LightPerframeData *per_frame)
 			proj * zcm::lookAtRH(light.position(), light.position() + zcm::vec3( 0.0, 0.0,-1.0), zcm::vec3(0.0,-1.0, 0.0))
 		};
 
+		const std::array<ShadowFrustum, 6> shadowFrusta {
+			ShadowFrustum{light.position(), zcm::vec3( 1.0, 0.0, 0.0), zcm::vec3(0.0,-1.0, 0.0), near, light.radius()},
+			ShadowFrustum{light.position(), zcm::vec3(-1.0, 0.0, 0.0), zcm::vec3(0.0,-1.0, 0.0), near, light.radius()},
+			ShadowFrustum{light.position(), zcm::vec3( 0.0, 1.0, 0.0), zcm::vec3(0.0, 0.0, 1.0), near, light.radius()},
+			ShadowFrustum{light.position(), zcm::vec3( 0.0,-1.0, 0.0), zcm::vec3(0.0, 0.0,-1.0), near, light.radius()},
+			ShadowFrustum{light.position(), zcm::vec3( 0.0, 0.0, 1.0), zcm::vec3(0.0,-1.0, 0.0), near, light.radius()},
+			ShadowFrustum{light.position(), zcm::vec3( 0.0, 0.0,-1.0), zcm::vec3(0.0,-1.0, 0.0), near, light.radius()}
+		};
+
 		for (int i = 0; i < 6; ++i) {
 			unif::m4(*m_shadow_point_shader, 4 + i, shadowTransforms[i]);
 		}
+
 		unif::b1(*m_shadow_point_shader, 0, false); // alpha-masked
 		unif::i1(*m_shadow_point_shader, 2, point_shadowmap_layer_index);
 
@@ -680,6 +690,10 @@ void Renderer::draw_point_shadow(Renderer::LightPerframeData *per_frame)
 			return bbox3::intersects_sphere(bbox,
 			                              light.position(),
 			                              light.radius()) == Intersection::Outside;
+		};
+
+		auto face_culled = [&shadowFrusta](const auto& bbox, int index) {
+			return shadowFrusta[index].bbox_culled(bbox);
 		};
 
 		{
@@ -690,11 +704,21 @@ void Renderer::draw_point_shadow(Renderer::LightPerframeData *per_frame)
 				if (light_culled(transform.transformed_bbox, light))
 					continue;
 
+				int num_faces = 0;
+				for (int i = 0; i < 6; ++i) {
+					if (!face_culled(transform.transformed_bbox, i)) {
+						unif::i1(*m_shadow_point_shader, 11+num_faces, i);
+						++num_faces;
+					}
+				}
+
+				assert(num_faces > 0);
+
 				const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
 				const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
 
 				unif::m4(*m_shadow_point_shader, 1, transform.mat);
-				submit_draw_call<6>(submesh);
+				submit_draw_call<true>(submesh, num_faces);
 			}
 		}
 
@@ -708,13 +732,23 @@ void Renderer::draw_point_shadow(Renderer::LightPerframeData *per_frame)
 				if (light_culled(transform.transformed_bbox, light))
 					continue;
 
+				int num_faces = 0;
+				for (int i = 0; i < 6; ++i) {
+					if (!face_culled(transform.transformed_bbox, i)) {
+						unif::i1(*m_shadow_point_shader, 11+num_faces, i);
+						++num_faces;
+					}
+				}
+
+				assert(num_faces > 0);
+
 				const auto& shaded_mesh = m_scene->shaded_meshes[idx.submesh_idx];
 				const model::Mesh& submesh = m_scene->submeshes[shaded_mesh.mesh];
 				const auto& material = m_scene->materials[shaded_mesh.material];
 
 				unif::m4(*m_shadow_point_shader, 1, transform.mat);
 				material.bind(*m_shadow_point_shader);
-				submit_draw_call<6>(submesh);
+				submit_draw_call<true>(submesh, num_faces);
 			}
 		}
 

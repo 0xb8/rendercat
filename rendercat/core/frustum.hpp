@@ -35,11 +35,18 @@ struct Frustum
 	unsigned char state = NoState;
 
 	void update(const CameraState& state) noexcept;
+	void update(const zcm::vec3& pos, const zcm::vec3& forward, const zcm::vec3& up, const zcm::vec3& right, float fov, float aspect, float znear, float zfar);
 
 	void draw_debug() const noexcept;
 
 	bool sphere_culled(const zcm::vec3& pos, float r) const noexcept;
 	bool bbox_culled(const bbox3& box) const noexcept;
+};
+
+struct ShadowFrustum : public Frustum {
+
+	ShadowFrustum(const zcm::vec3& pos, const zcm::vec3& forward, const zcm::vec3& up, float near, float radius);
+
 };
 
 }

@@ -4,6 +4,7 @@
 #include <zcm/geometric.hpp>
 #include <zcm/angle_and_trigonometry.hpp>
 #include <zcm/common.hpp>
+#include <zcm/constants.hpp>
 #include <cassert>
 
 using namespace rc;
@@ -52,17 +53,24 @@ void Frustum::update(const CameraState& cam_state) noexcept
 	auto up      = cam_state.get_up();
 	auto right   = cam_state.get_right();
 
+	update(cam_state.position, forward, up, right, cam_state.fov, cam_state.aspect, cam_state.znear, cam_state.zfar);
+
+
+}
+
+void Frustum::update(const zcm::vec3 & position, const zcm::vec3 & forward, const zcm::vec3 & up, const zcm::vec3 & right, float fov,  float aspect, float znear, float zfar)
+{
 	assert(zcm::abs(zcm::length2(forward) - 1.0f) < 1e-6f); // check if camera quat was properly normalized
 	assert(zcm::abs(zcm::length2(up) - 1.0f) < 1e-6f);
 	assert(zcm::abs(zcm::length2(right) - 1.0f) < 1e-6f);
 
-	near_center = cam_state.position + forward * cam_state.znear;
-	far_center  = cam_state.position + forward * cam_state.zfar;
+	near_center = position + forward * znear;
+	far_center  = position + forward * zfar;
 
-	auto near_height  = 2.0f * zcm::tan(cam_state.fov * 0.5f) * cam_state.znear;
-	auto near_width = near_height * cam_state.aspect;
-	auto far_height   = 2.0f * zcm::tan(cam_state.fov * 0.5f) * cam_state.zfar;
-	auto far_width  = far_height * cam_state.aspect;
+	auto near_height  = 2.0f * zcm::tan(fov * 0.5f) * znear;
+	auto near_width = near_height * aspect;
+	auto far_height   = 2.0f * zcm::tan(fov * 0.5f) * zfar;
+	auto far_width  = far_height * aspect;
 
 	far_width *= 0.5f;
 	far_height *= 0.5f;
@@ -156,4 +164,9 @@ bool Frustum::bbox_culled(const bbox3 & box) const noexcept
 	//		out=0; for(int i = 0; i < 8; i++) out += ((points[i].z < box.min().z)?1:0); if(out == 8) return true;
 
 	return false;
+}
+
+ShadowFrustum::ShadowFrustum(const zcm::vec3 & pos, const zcm::vec3 & forward, const zcm::vec3 & up, float near, float radius)
+{
+	update(pos, forward, up, zcm::cross(forward, up), zcm::half_pi(), 1.0f, near, radius);
 }
