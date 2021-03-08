@@ -410,7 +410,8 @@ void Renderer::set_uniforms()
 
 	uint32_t flags = 0;
 	if (do_shadow_mapping) {
-		flags |= enable_directional_shadows ? SHADOWS_DIRECTIONAL : 0;
+		bool do_directional = enable_directional_shadows && m_scene->directional_light.color_intensity.w > 0.0f;
+		flags |= do_directional ? SHADOWS_DIRECTIONAL : 0;
 		flags |= enable_point_shadows       ? SHADOWS_POINT : 0;
 		flags |= enable_spot_shadows        ? SHADOWS_SPOT : 0;
 	}
@@ -1011,7 +1012,7 @@ void Renderer::draw()
 	m_perfquery.begin();
 
 	if (do_shadow_mapping) {
-		if (enable_directional_shadows)
+		if (enable_directional_shadows && m_scene->directional_light.color_intensity.w > 0.0f)
 			draw_directional_shadow();
 
 		if (enable_point_shadows || enable_spot_shadows) {

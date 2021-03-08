@@ -22,7 +22,9 @@ namespace rc {
 
 struct DirectionalLight
 {
+	/// .rgb - color, .a - intensity
 	zcm::vec4 color_intensity;
+
 	zcm::vec3 direction;
 };
 
@@ -39,9 +41,7 @@ struct ExponentialDirectionalFog
 	float extinction_density   = 0.005f;
 
 	/// size of directional inscattering cone
-	float dir_exponent = 8.0f;
-
-	float start_distance = 0.0f;
+	float dir_exponent = 16.0f;
 
 	enum State {
 		NoState,
@@ -135,17 +135,8 @@ struct Scene
 
 	rc::Camera main_camera;
 
-	DirectionalLight directional_light
-	{
-		zcm::vec4(1.00f, 0.94f, 0.8f, 10.0f), // intensity
-		zcm::vec3(-0.705f, 0.703f, 0.094f), // dir
-	};
-
-	ExponentialDirectionalFog fog
-	{
-		zcm::vec4(0.029f, 0.034f, 0.081f, 1.0f), // ins
-		zcm::vec4(0.109f, 0.071f, 0.042f, 1.0f)  // dir ins
-	};
+	DirectionalLight directional_light;
+	ExponentialDirectionalFog fog;
 
 	std::string current_cubemap;
 	Cubemap cubemap;

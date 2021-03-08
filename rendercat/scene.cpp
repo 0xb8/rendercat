@@ -29,54 +29,134 @@ void Scene::init()
 		materials.emplace_back(Material::create_default_material());
 	}
 
-	current_cubemap = "assets/cubemaps/courtyard.hdr";
-	load_skybox_equirectangular(current_cubemap);
+	current_cubemap = "assets/cubemaps/field_evening_late";
+	load_skybox_cubemap(current_cubemap);
 
-	main_camera.state.position = {0.0f, 1.4f, 1};
+	main_camera.state.position = {0.0f, 1.7f, 1};
 	//main_camera.state.orientation = {0, 0, 1, 0};
-	directional_light.direction = zcm::normalize(directional_light.direction);
+	directional_light.direction = zcm::normalize(zcm::vec3{-0.990, 0.137, 0.018});
+	directional_light.color_intensity = zcm::vec4{1.00, 0.675, 0.404, 30.0};
+
+	fog.inscattering_color = zcm::vec4{0.029f, 0.034f, 0.081f, 1.0f};
+	fog.dir_inscattering_color = zcm::vec4(1.00, 0.675, 0.404, 1.0f);
 
 	PointLight pl;
-	pl.set_position({4.0f, 1.0f, 1.0f});
+	pl.set_position({4.0456166, 1.2134154, 1.4490192});
 	pl.set_color({1.0f, 0.2f, 0.1f});
-	pl.set_radius(4.5f);
-	pl.set_flux(175.0f);
+	pl.set_radius(5.0f);
+	pl.set_flux(200.0f);
 
 	point_lights.push_back(pl);
 
-	pl.set_position({4.0f, 1.0f, -1.5f});
+	pl.set_position({4.0399876, 1.1741302, -1.5256181});
 	point_lights.push_back(pl);
 
-	pl.set_position({-5.0f, 1.0f, -1.5f});
+	pl.set_position({-5.1185966, 1.1978881, -1.4758949});
 	point_lights.push_back(pl);
 
-	pl.set_position({-5.0f, 1.0f, 1.0f});
+	pl.set_position({-5.1236506, 1.1966785, 1.4444633});
 	point_lights.push_back(pl);
 
-	pl.set_position({1.0f, 1.0f, 1.0f});
+	pl.set_position({1, 2, 0.6603798});
+	pl.set_radius(5);
+	pl.set_color({0.9999999, 0.40850836, 0.10151122});
+	pl.set_flux(300);
 	point_lights.push_back(pl);
 
-	pl.set_position({1.0f, 1.5f, -1.0f});
-	pl.set_color({0.1f, 0.2f, 1.0f});
+	pl.set_position({0.41778356, 1.6590002, -1.1758192});
+	pl.set_radius(5);
+	pl.set_color({0, 0.22318292, 1});
+	pl.set_flux(186);
 	point_lights.push_back(pl);
 
-	SpotLight sp;
-	sp.set_color({0.9f, 0.86f, 0.88f});
-	sp.set_orientation({0.0f, 0.0f, 0.714f, 0.7f});
-	sp.set_radius(6.0f);
-	sp.set_flux(160.0f);
+	pl.set_position({-2.695215, 1.9737453, 3.507128});
+	pl.set_radius(5.2);
+	pl.set_color({0.9999999, 0.6574341, 0.41041234});
+	pl.set_flux(272);
+	point_lights.push_back(pl);
 
-	sp.set_position({-10.0f, 3.3f, -3.8f});
-	spot_lights.push_back(sp);
+	pl.set_position({-6.3189254, 2.0678706, -3.7080016});
+	pl.set_radius(5);
+	pl.set_color({0.9999999, 0.58833313, 0.30886215});
+	pl.set_flux(309);
+	point_lights.push_back(pl);
 
-	sp.set_position({-10.0f, 3.3f, 3.4f});
-	spot_lights.push_back(sp);
+	pl.set_position({5.5017176, 6.0245194, 3.4676418});
+	pl.set_radius(12.3);
+	pl.set_color({0.9999999, 0.48068285, 0.17443053});
+	pl.set_flux(3680.999);
+	point_lights.push_back(pl);
 
-	sp.set_position({9.3f, 3.3f, -3.8f});
-	spot_lights.push_back(sp);
+	pl.set_position({-6.402336, 6.1419916, -3.7815819});
+	pl.set_radius(10.5);
+	pl.set_color({0.9999999, 0.35502282, 0.05776373});
+	pl.set_flux(2109);
+	point_lights.push_back(pl);
 
-	sp.set_position({9.3f, 3.3f, 3.4f});
-	spot_lights.push_back(sp);
+	SpotLight spot;
+	spot.set_position({-10.335639, 2.697124, -1.3429887});
+	spot.set_radius(6);
+	spot.set_orientation({-0.32663208, 0.108409435, -0.8911168, -0.29575282});
+	spot.set_angle_outer(0.62831855);
+	spot.set_angle_inner(0.36651915);
+	spot.set_color({0.9999999, 0.8278238, 0.71452236});
+	spot.set_flux(600);
+	spot_lights.push_back(spot);
+
+	spot.set_position({-1.1204133, 0.3240182, 0.97298086});
+	spot.set_radius(6);
+	spot.set_orientation({0.90255666, 0.20256084, -0.37072715, 0.08319855});
+	spot.set_angle_outer(0.6632251);
+	spot.set_angle_inner(0.22689281);
+	spot.set_color({0.9999999, 0.8404229, 0.7403612});
+	spot.set_flux(400);
+	spot_lights.push_back(spot);
+
+	spot.set_position({9.3226595, 2.7431679, -1.8163612});
+	spot.set_radius(6);
+	spot.set_orientation({-0.27721047, 0.07438496, 0.92519474, 0.24826607});
+	spot.set_angle_outer(0.57595867);
+	spot.set_angle_inner(0.20943952);
+	spot.set_color({0.9999999, 0.8815654, 0.82837105});
+	spot.set_flux(600);
+	spot_lights.push_back(spot);
+
+	spot.set_position({9.359149, 6.8434515, -0.045962736});
+	spot.set_radius(6);
+	spot.set_orientation({0.6055771, -0.32512623, -0.63993937, -0.34357953});
+	spot.set_angle_outer(0.5235988);
+	spot.set_angle_inner(0.34906587);
+	spot.set_color({0.9, 0.86, 0.88});
+	spot.set_flux(256);
+	spot_lights.push_back(spot);
+
+
+	spot.set_position({-9.810236, 7.0966115, 0.04068963});
+	spot.set_radius(5.7);
+	spot.set_orientation({0.6642561, -0.2798437, 0.63877475, 0.2691062});
+	spot.set_angle_outer(0.5061455);
+	spot.set_angle_inner(0.36651915);
+	spot.set_color({1, 1, 1});
+	spot.set_flux(400);
+	spot_lights.push_back(spot);
+
+	spot.set_position({1.3185989, 0.53405356, 1.1138073});
+	spot.set_radius(5);
+	spot.set_orientation({-0.88422865, -0.17345929, -0.42553875, 0.0834769});
+	spot.set_angle_outer(0.41887903);
+	spot.set_angle_inner(0.296706);
+	spot.set_color({1, 0.41377962, 0.99006295});
+	spot.set_flux(400);
+	spot_lights.push_back(spot);
+
+	spot.set_position({-0.25851816, 2.5280287, -2.0052888});
+	spot.set_radius(6.2);
+	spot.set_orientation({0.058905452, -0.017316595, -0.9576025, -0.28147426});
+	spot.set_angle_outer(0.27925268);
+	spot.set_angle_inner(0.19198623);
+	spot.set_color({1, 1, 1});
+	spot.set_flux(600);
+	spot_lights.push_back(spot);
 
 	load_model_gltf("sponzahr.gltf", "sponza/");
 	load_model_gltf("2b_feather.gltf", "2b_v6/");
