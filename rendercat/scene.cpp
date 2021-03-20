@@ -228,7 +228,7 @@ static void show_flux_help()
 
 static bool edit_transform(RigidTransform& transform, int id, const CameraState& camera_state)
 {
-	const auto& main_viewport = ImGui::GetPlatformIO().MainViewport;
+	const auto& main_viewport = ImGui::GetMainViewport();
 	ImGuizmo::SetRect(main_viewport->Pos.x, main_viewport->Pos.y,
 	                  main_viewport->Size.x, main_viewport->Size.y);
 
@@ -337,7 +337,7 @@ static bool edit_transform(RigidTransform& transform, int id, const CameraState&
 template<typename T>
 static bool edit_light(T& light, int id, Camera& camera) noexcept
 {
-	const auto& main_viewport = ImGui::GetPlatformIO().MainViewport;
+	const auto& main_viewport = ImGui::GetMainViewport();
 	ImGuizmo::SetRect(main_viewport->Pos.x, main_viewport->Pos.y,
 	                  main_viewport->Size.x, main_viewport->Size.y);
 	ImGuizmo::SetID(id | (1 << 29));
