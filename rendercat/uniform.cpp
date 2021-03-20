@@ -35,6 +35,7 @@ basic_buf & basic_buf::operator=(basic_buf && other) noexcept
 void basic_buf::unmap()
 {
 	if (_buffer && _data) {
+		ASAN_POISON_MEMORY_REGION(_data, map_size());
 		gl45core::glUnmapNamedBuffer(*_buffer);
 	}
 	_data = nullptr;
@@ -63,12 +64,26 @@ void basic_buf::map(size_t size)
 	if (_data) return; // already mapped
 
 	if (_buffer) {
-		auto map = glMapNamedBufferRange(*_buffer, 0, size, map_flags | gl45core::GL_MAP_FLUSH_EXPLICIT_BIT);
+#ifndef NDEBUG
+		gl45core::GLint buf_size = 0;
+		gl45core::glGetNamedBufferParameteriv(*_buffer, gl45core::GL_BUFFER_SIZE, &buf_size);
+		assert(size <= static_cast<size_t>(buf_size));
+#endif
+		auto map = gl45core::glMapNamedBufferRange(*_buffer, 0, size, map_flags | gl45core::GL_MAP_FLUSH_EXPLICIT_BIT);
 		assert(map);
 		_data = map;
+		ASAN_UNPOISON_MEMORY_REGION(_data, size);
 	} else {
 		_data = nullptr;
 	}
+}
+
+size_t basic_buf::map_size() const
+{
+	assert(_buffer);
+	gl45core::GLint map_size = 0;
+	gl45core::glGetNamedBufferParameteriv(*_buffer, gl45core::GL_BUFFER_MAP_LENGTH, &map_size);
+	return static_cast<size_t>(map_size);
 }
 
 void basic_buf::flush(size_t offset, size_t size)

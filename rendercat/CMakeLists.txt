@@ -29,6 +29,7 @@ add_executable(${PROJECT_NAME}
 	common.hpp
 	core/frustum.cpp
 	core/frustum.hpp
+	util/asan_interface.hpp
 	util/color_temperature.cpp
 	util/color_temperature.hpp
 	util/gl_debug.hpp

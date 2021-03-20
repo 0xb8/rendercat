@@ -1,5 +1,6 @@
 #pragma once
 #include <rendercat/common.hpp>
+#include <rendercat/util/asan_interface.hpp>
 #include <rendercat/util/gl_unique_handle.hpp>
 #include <zcm/vec2.hpp>
 #include <zcm/vec3.hpp>
@@ -65,6 +66,7 @@ protected:
 	void bind_single(uint32_t index) const;
 	void bind_multi(uint32_t index, size_t offset, size_t size) const;
 	void map(size_t size);
+	size_t map_size() const;
 	void flush(size_t offset, size_t size);
 	static rc::sync_handle make_fence();
 
@@ -120,7 +122,14 @@ struct buf : public basic_buf {
 	[[nodiscard]] rc::sync_handle next() {
 		static_assert (N > 1, "Only allowed for N-buffering.");
 
+		// poison previous chunk
+		ASAN_POISON_MEMORY_REGION(data(), sizeof (T));
+
+		// advance chunk
 		_index = (_index+1) % N;
+
+		// unpoison current chunk
+		ASAN_UNPOISON_MEMORY_REGION(data(), sizeof (T));
 		return std::move(_sync[_index]);
 	}
 
