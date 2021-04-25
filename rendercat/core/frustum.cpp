@@ -155,13 +155,13 @@ bool Frustum::bbox_culled(const bbox3 & box) const noexcept
 
 	// check frustum outside/inside box
 	// requires far plane for now
-	//		int out;
-	//		out=0; for(int i = 0; i < 8; i++) out += ((points[i].x > box.max().x)?1:0); if(out == 8) return true;
-	//		out=0; for(int i = 0; i < 8; i++) out += ((points[i].x < box.min().x)?1:0); if(out == 8) return true;
-	//		out=0; for(int i = 0; i < 8; i++) out += ((points[i].y > box.max().y)?1:0); if(out == 8) return true;
-	//		out=0; for(int i = 0; i < 8; i++) out += ((points[i].y < box.min().y)?1:0); if(out == 8) return true;
-	//		out=0; for(int i = 0; i < 8; i++) out += ((points[i].z > box.max().z)?1:0); if(out == 8) return true;
-	//		out=0; for(int i = 0; i < 8; i++) out += ((points[i].z < box.min().z)?1:0); if(out == 8) return true;
+	int out;
+	out=0; for(int i = 0; i < 8; i++) out += ((points[i].x > box.max().x)?1:0); if(out == 8) return true;
+	out=0; for(int i = 0; i < 8; i++) out += ((points[i].x < box.min().x)?1:0); if(out == 8) return true;
+	out=0; for(int i = 0; i < 8; i++) out += ((points[i].y > box.max().y)?1:0); if(out == 8) return true;
+	out=0; for(int i = 0; i < 8; i++) out += ((points[i].y < box.min().y)?1:0); if(out == 8) return true;
+	out=0; for(int i = 0; i < 8; i++) out += ((points[i].z > box.max().z)?1:0); if(out == 8) return true;
+	out=0; for(int i = 0; i < 8; i++) out += ((points[i].z < box.min().z)?1:0); if(out == 8) return true;
 
 	return false;
 }

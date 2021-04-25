@@ -7,6 +7,7 @@
 #include <zcm/mat3.hpp>
 #include <zcm/mat4.hpp>
 #include <string_view>
+#include <new>
 
 namespace rc {
 namespace unif {
@@ -94,7 +95,7 @@ struct buf : public basic_buf {
 	T* map(bool init) {
 		basic_buf::map(_internal_size);
 		if (init && _data)
-			new(_data) T[N]{};
+			_data = new(_data) T[N]{};
 		return data();
 	}
 

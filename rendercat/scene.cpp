@@ -675,7 +675,8 @@ static void show_material_ui(rc::Material& material)
 	display_map(material.textures.emission_map, Texture::Kind::Emission);
 	ImGui::Spacing();
 
-	if (material.data) {
+	auto material_data = material.data();
+	if (material_data) {
 
 		if (ImGui::Button("Unmap")) {
 			ImGui::OpenPopup("RemovePopup");
@@ -683,20 +684,20 @@ static void show_material_ui(rc::Material& material)
 
 		ImGui::TextUnformatted("Diffuse color");
 		bool changed = false;
-		changed |= ImGui::ColorEdit4("##matdiffcolor", zcm::value_ptr(material.data->base_color_factor),
+		changed |= ImGui::ColorEdit4("##matdiffcolor", zcm::value_ptr(material_data->base_color_factor),
 			ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 
 		ImGui::TextUnformatted("Emissive color");
-		changed |= ImGui::ColorEdit3("##matemissivecolor", zcm::value_ptr(material.data->emissive_factor),
+		changed |= ImGui::ColorEdit3("##matemissivecolor", zcm::value_ptr(material_data->emissive_factor),
 			ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 
 		if (material.has_texture_kind(Texture::Kind::Normal)) {
-			changed |= ImGui::SliderFloat("Normal Scale", &(material.data->normal_scale), -10.0f, 10.0f);
+			changed |= ImGui::SliderFloat("Normal Scale", &(material_data->normal_scale), -10.0f, 10.0f);
 		}
-		changed |= ImGui::SliderFloat("Roughness", &(material.data->roughness_factor), 0.0f, 1.0f);
-		changed |= ImGui::SliderFloat("Metallic",  &(material.data->metallic_factor),  0.0f, 1.0f);
+		changed |= ImGui::SliderFloat("Roughness", &(material_data->roughness_factor), 0.0f, 1.0f);
+		changed |= ImGui::SliderFloat("Metallic",  &(material_data->metallic_factor),  0.0f, 1.0f);
 		if (material.has_texture_kind(Texture::Kind::Occlusion)) {
-			changed |= ImGui::SliderFloat("Occlusion Strength", &(material.data->occlusion_strength), 0.0f, 1.0f);
+			changed |= ImGui::SliderFloat("Occlusion Strength", &(material_data->occlusion_strength), 0.0f, 1.0f);
 		}
 		if (changed)
 			material.flush();

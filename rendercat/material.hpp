@@ -24,7 +24,7 @@ struct Material
 
 	bool valid() const;
 	void flush();
-	void map(bool init=false);
+	void map();
 	void unmap();
 	void bind(uint32_t s) const noexcept;
 
@@ -83,10 +83,7 @@ private:
 
 public:
 
-	UniformData *data = nullptr; // pointer to mapped params UBO
-
-
-
+	UniformData *data() const; // pointer to mapped params UBO
 
 };
 

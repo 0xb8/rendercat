@@ -22,7 +22,7 @@ struct CameraState
 	float     fov = 1.5707963268f; // 90 degrees
 	float     aspect = 1.0f;
 	float     znear = 0.01f;
-	float     zfar  = 10.0f; // not needed with reverse-z, kept for frustum far plane
+	float     zfar  = 100000.0f; // not needed with reverse-z, kept for frustum far plane
 
 	static constexpr float znear_min = 0.001f;
 

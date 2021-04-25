@@ -38,7 +38,6 @@ static ImageTexture2D  _default_diffuse;
 
 
 Material::Material(const std::string_view name_) : name(name_) {
-	map(true);
 	m_unif_data.set_label(fmt::format("material: {}", name));
 }
 
@@ -52,7 +51,6 @@ Material::~Material()
 	name = std::move(o.name);                                              \
 	textures = std::move(o.textures);                                      \
 	m_unif_data = std::move(o.m_unif_data);                                \
-	data = std::exchange(o.data, nullptr);                                 \
 	m_double_sided = o.m_double_sided;                                     \
 	m_alpha_mode = o.m_alpha_mode;                                         \
 	m_flags = o.m_flags;                                                   \
@@ -106,15 +104,14 @@ void Material::flush()
 	m_unif_data.flush();
 }
 
-void Material::map(bool init)
+void Material::map()
 {
-	data = m_unif_data.map(init);
+	m_unif_data.map(false);
 }
 
 void Material::unmap()
 {
 	m_unif_data.unmap();
-	data = nullptr;
 }
 
 
@@ -161,56 +158,56 @@ bool Material::double_sided() const noexcept
 
 void Material::set_base_color_factor(zcm::vec4 f) noexcept
 {
-	assert(data);
-	data->base_color_factor = f;
+	assert(data());
+	data()->base_color_factor = f;
 }
 
 void Material::set_emissive_factor(zcm::vec3 f) noexcept
 {
-	assert(data);
-	data->emissive_factor = f;
+	assert(data());
+	data()->emissive_factor = f;
 }
 
 void Material::set_normal_scale(float f) noexcept
 {
-	assert(data);
-	data->normal_scale = f;
+	assert(data());
+	data()->normal_scale = f;
 }
 
 void Material::set_roughness_factor(float f) noexcept
 {
-	assert(data);
-	data->roughness_factor = f;
+	assert(data());
+	data()->roughness_factor = f;
 }
 
 void Material::set_metallic_factor(float f) noexcept
 {
-	assert(data);
-	data->metallic_factor = f;
+	assert(data());
+	data()->metallic_factor = f;
 }
 
 void Material::set_occlusion_strength(float s) noexcept
 {
-	assert(data);
-	data->occlusion_strength = s;
+	assert(data());
+	data()->occlusion_strength = s;
 }
 
 void Material::set_alpha_cutoff(float c) noexcept
 {
-	assert(data);
-	data->alpha_cutoff = c;
+	assert(data());
+	data()->alpha_cutoff = c;
 }
 
 void Material::set_alpha_mode(Texture::AlphaMode m) noexcept
 {
-	assert(data);
+	assert(data());
 	m_alpha_mode = m;
 	set_shader_flags();
 }
 
 void Material::set_double_sided(bool d) noexcept
 {
-	assert(data);
+	assert(data());
 	m_double_sided = d;
 }
 
@@ -288,7 +285,7 @@ void Material::cleanup(uint32_t prev_flags, uint32_t new_flags) noexcept
 
 void Material::set_shader_flags()
 {
-	assert(data);
+	assert(data());
 	auto flags = m_flags;
 	if(m_alpha_mode == Texture::AlphaMode::Mask) {
 		flags |= RC_SHADER_TEXTURE_ALPHA_MASK;
@@ -296,7 +293,12 @@ void Material::set_shader_flags()
 	if(m_alpha_mode == Texture::AlphaMode::Blend) {
 		flags |= RC_SHADER_TEXTURE_BLEND;
 	}
-	data->type = flags;
+	data()->type = flags;
+}
+
+Material::UniformData * Material::data() const
+{
+	return m_unif_data.data();
 }
 
 static ImageTexture2D try_from_cache_or_load(std::string&& path, Texture::ColorSpace space)

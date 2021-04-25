@@ -115,7 +115,7 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 			auto map = Material::load_image_texture(texture_path, normal_path, Texture::ColorSpace::Linear);
 			if (map.valid()) {
 				material.set_normal_map(std::move(map));
-				material.data->normal_scale = mat.normalTexture.scale;
+				material.data()->normal_scale = mat.normalTexture.scale;
 				apply_gltf_sampler(get_gltf_sampler(doc, mat.normalTexture),
 				                   material.textures.normal_map);
 			}
@@ -157,7 +157,7 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 				material.set_texture_kind(Texture::Kind::OcclusionSeparate, false);
 				material.set_texture_kind(Texture::Kind::Occlusion, true);
 			}
-			material.data->occlusion_strength = mat.occlusionTexture.strength;
+			material.data()->occlusion_strength = mat.occlusionTexture.strength;
 		}
 	}
 
