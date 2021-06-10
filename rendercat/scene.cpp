@@ -1028,16 +1028,16 @@ void Scene::load_skybox_equirectangular(std::string_view name)
 {
 	ZoneScoped;
 	cubemap.load_equirectangular(name);
-	cubemap_diffuse_irradiance = cubemap.integrate_diffuse_irradiance();
-	cubemap_specular_environment = cubemap.convolve_specular();
+	cubemap_diffuse_irradiance = Cubemap::integrate_diffuse_irradiance(cubemap);
+	cubemap_specular_environment = Cubemap::convolve_specular(cubemap);
 }
 
 void Scene::load_skybox_cubemap(std::string_view path)
 {
 	ZoneScoped;
 	cubemap.load_cube(path);
-	cubemap_diffuse_irradiance = cubemap.integrate_diffuse_irradiance();
-	cubemap_specular_environment = cubemap.convolve_specular();
+	cubemap_diffuse_irradiance = Cubemap::integrate_diffuse_irradiance(cubemap);
+	cubemap_specular_environment = Cubemap::convolve_specular(cubemap);
 }
 
 void Scene::skyboxes_list()

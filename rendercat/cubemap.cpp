@@ -183,33 +183,32 @@ void Cubemap::load_equirectangular(std::string_view path)
 	rcObjectLabel(m_cubemap, fmt::format("cubemap: {} ({}x{})", path, face_size, face_size));
 }
 
-void Cubemap::draw(const zcm::mat4 & view, const zcm::mat4 & projection, int mip_level) noexcept
+void Cubemap::draw(const Cubemap & cubemap, const zcm::mat4 & view, const zcm::mat4 & projection, int mip_level) noexcept
 {
 	assert(cubemap_draw_shader);
-	// remove translation part from view matrix
-	unif::m4(*cubemap_draw_shader, 0, projection * zcm::mat4{zcm::mat3{view}});
-	unif::i1(*cubemap_draw_shader, 1, mip_level);
+	if (Texture::bind_to_unit(cubemap, 0)) {
+		// remove translation part from view matrix
+		unif::m4(*cubemap_draw_shader, 0, projection * zcm::mat4{zcm::mat3{view}});
+		unif::i1(*cubemap_draw_shader, 1, mip_level);
 
-	glUseProgram(*cubemap_draw_shader);
-	glBindVertexArray(cubemap_vao);
-	glBindTextureUnit(0, *m_cubemap);
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 14); // see cubemap.vert
-	glBindVertexArray(0);
+		glUseProgram(*cubemap_draw_shader);
+		glBindVertexArray(cubemap_vao);
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, 14); // see cubemap.vert
+		glBindVertexArray(0);
+	} else {
+		fmt::print(stderr, "[cubemap] attempted to draw invalid cubemap!\n");
+		std::fflush(stderr);
+	}
 }
 
-void Cubemap::bind_to_unit(uint32_t unit)
-{
-	glBindTextureUnit(unit, *m_cubemap);
-}
 
-
-Cubemap Cubemap::integrate_diffuse_irradiance()
+Cubemap Cubemap::integrate_diffuse_irradiance(const Cubemap & source)
 {
 	assert(compute_diffuse_irradiance_shader);
 	ZoneScoped;
 	TracyGpuZone("cubemap_integrate_diffuse_irradiance");
 	Cubemap res;
-	if (m_cubemap) {
+	if (source.m_cubemap) {
 		const unsigned irradiance_size = 32;
 		rc::texture_handle irradiance_cube_to;
 		glCreateTextures(GL_TEXTURE_CUBE_MAP_ARRAY, 1, irradiance_cube_to.get());
@@ -217,7 +216,7 @@ Cubemap Cubemap::integrate_diffuse_irradiance()
 		set_tex_params(*irradiance_cube_to);
 
 		glUseProgram(*compute_diffuse_irradiance_shader);
-		glBindTextureUnit(0, *m_cubemap);
+		glBindTextureUnit(0, *source.m_cubemap);
 		glBindImageTexture(0, *irradiance_cube_to, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA16F);
 		glDispatchCompute(irradiance_size/16, irradiance_size/16, 6);
 
@@ -226,11 +225,11 @@ Cubemap Cubemap::integrate_diffuse_irradiance()
 	return res;
 }
 
-Cubemap Cubemap::convolve_specular()
+Cubemap Cubemap::convolve_specular(const Cubemap & source)
 {
 	assert(compute_specular_env_map_shader);
 	Cubemap res;
-	if (!m_cubemap)
+	if (!source.m_cubemap)
 		return res;
 
 	ZoneScoped;
@@ -240,7 +239,7 @@ Cubemap Cubemap::convolve_specular()
 	glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, cubemap_with_mips_to.get());
 
 	GLint src_size, dst_size;
-	glGetTextureLevelParameteriv(*m_cubemap, 0, GL_TEXTURE_WIDTH, &src_size);
+	glGetTextureLevelParameteriv(*source.m_cubemap, 0, GL_TEXTURE_WIDTH, &src_size);
 	dst_size = std::min(src_size / 4, 256);
 	int dst_numlevels = rc::math::num_mipmap_levels(dst_size, dst_size);
 	glTextureStorage2D(*cubemap_with_mips_to, dst_numlevels, GL_RGBA16F, dst_size, dst_size);
@@ -255,7 +254,7 @@ Cubemap Cubemap::convolve_specular()
 		glCreateFramebuffers(1, dst_fbo.get());
 
 		for (int i = 0; i < 6; ++i) {
-			glNamedFramebufferTextureLayer(*src_fbo, GL_COLOR_ATTACHMENT0, *m_cubemap, 0, i);
+			glNamedFramebufferTextureLayer(*src_fbo, GL_COLOR_ATTACHMENT0, *source.m_cubemap, 0, i);
 			glNamedFramebufferTextureLayer(*dst_fbo, GL_COLOR_ATTACHMENT0, *cubemap_with_mips_to, 0, i);
 			glBlitNamedFramebuffer(*src_fbo, *dst_fbo,
 					       0, 0, src_size, src_size,
@@ -300,4 +299,13 @@ void Cubemap::compile_shaders(ShaderSet& shader_set)
 	cubemap_load_shader = shader_set.load_program({"cubemap_from_equirectangular.comp"});
 	compute_diffuse_irradiance_shader = shader_set.load_program({"cubemap_diffuse_irradiance.comp"});
 	compute_specular_env_map_shader = shader_set.load_program({"cubemap_specular_envmap.comp"});
+}
+
+bool Texture::bind_to_unit(const Cubemap & cubemap, uint32_t unit) noexcept
+{
+	if (!cubemap.m_cubemap)
+		return false;
+
+	glBindTextureUnit(unit, *cubemap.m_cubemap);
+	return true;
 }

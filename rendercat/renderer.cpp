@@ -1280,13 +1280,13 @@ void Renderer::draw_skybox()
 
 	switch (selected_cubemap) {
 	case 0:
-		m_scene->cubemap.draw(view, projection, level);
+		Cubemap::draw(m_scene->cubemap, view, projection, level);
 		break;
 	case 1:
-		m_scene->cubemap_diffuse_irradiance.draw(view, projection, level);
+		Cubemap::draw(m_scene->cubemap_diffuse_irradiance, view, projection, level);
 		break;
 	case 2:
-		m_scene->cubemap_specular_environment.draw(view, projection, level);
+		Cubemap::draw(m_scene->cubemap_specular_environment, view, projection, level);
 		break;
 	default:
 		assert(false);

@@ -7,6 +7,11 @@
 namespace rc {
 
 class ShaderSet;
+class Cubemap;
+
+namespace Texture {
+	bool bind_to_unit(const Cubemap& cubemap, uint32_t unit) noexcept;
+}
 
 class Cubemap
 {
@@ -20,15 +25,18 @@ public:
 
 	void load_cube(std::string_view basedir);
 	void load_equirectangular(std::string_view path);
-	Cubemap integrate_diffuse_irradiance();
-	Cubemap convolve_specular();
-	static void compile_shaders(ShaderSet & shader_set);
 
-	void draw(const zcm::mat4& view, const zcm::mat4& projection, int mip_level = 0) noexcept;
-	void bind_to_unit(uint32_t unit);
+	[[nodiscard]] static Cubemap integrate_diffuse_irradiance(const Cubemap& source);
+	[[nodiscard]] static Cubemap convolve_specular(const Cubemap& source);
+
+	static void compile_shaders(ShaderSet& shader_set);
+	static void draw(const Cubemap& cubemap, const zcm::mat4& view, const zcm::mat4& projection, int mip_level = 0) noexcept;
 
 private:
+	friend bool Texture::bind_to_unit(const Cubemap& cubemap, uint32_t unit) noexcept;
 	texture_handle m_cubemap;
 };
+
+
 
 } // namespace rc
