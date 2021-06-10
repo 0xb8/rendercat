@@ -262,17 +262,17 @@ public:
 		fmt::memory_buffer buf;
 		for (auto& shader : m_shaders) {
 			auto sp = shader.filepath.filename().string();
-			fmt::format_to(buf, "{} ", sp);
+			fmt::format_to(fmt::appender(buf), "{} ", sp);
 		}
-		fmt::format_to(buf, " (");
+		fmt::format_to(fmt::appender(buf), " (");
 		for (auto& defines : m_macros) {
 			if (defines.value().empty()) {
-				fmt::format_to(buf, "-D{} ", defines.name());
+				fmt::format_to(fmt::appender(buf), "-D{} ", defines.name());
 			} else {
-				fmt::format_to(buf, "-D{}={} ", defines.name(), defines.value());
+				fmt::format_to(fmt::appender(buf), "-D{}={} ", defines.name(), defines.value());
 			}
 		}
-		fmt::format_to(buf, ")");
+		fmt::format_to(fmt::appender(buf), ")");
 		glObjectLabel(GL_PROGRAM, *new_handle, buf.size(), buf.data());
 
 		if(Program::link(new_handle)) {
@@ -410,12 +410,12 @@ std::string ShaderMacro::get_define_string() const
 	return make_definition(m_name, m_value);
 }
 
-const std::string & ShaderMacro::name() const
+const std::string& ShaderMacro::name() const
 {
 	return m_name;
 }
 
-const std::string & ShaderMacro::value() const
+const std::string& ShaderMacro::value() const
 {
 	return m_value;
 }

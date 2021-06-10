@@ -106,40 +106,40 @@ void GLAPIENTRY gl_debug_callback(GLenum source,
 
 	fmt::memory_buffer buf;
 
-	fmt::format_to(buf, "\n[GL] ");
+	fmt::format_to(fmt::appender(buf), "\n[GL] ");
 	switch (source)
 	{
-		case GL_DEBUG_SOURCE_API:             fmt::format_to(buf, "OpenGL API "); break;
-		case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   fmt::format_to(buf, "Window System "); break;
-		case GL_DEBUG_SOURCE_SHADER_COMPILER: fmt::format_to(buf, "Shader Compiler "); break;
-		case GL_DEBUG_SOURCE_THIRD_PARTY:     fmt::format_to(buf, "Third Party "); break;
-		case GL_DEBUG_SOURCE_APPLICATION:     fmt::format_to(buf, "Application "); break;
-		case GL_DEBUG_SOURCE_OTHER:           fmt::format_to(buf, "Other "); break;
+		case GL_DEBUG_SOURCE_API:             fmt::format_to(fmt::appender(buf), "OpenGL API "); break;
+		case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   fmt::format_to(fmt::appender(buf), "Window System "); break;
+		case GL_DEBUG_SOURCE_SHADER_COMPILER: fmt::format_to(fmt::appender(buf), "Shader Compiler "); break;
+		case GL_DEBUG_SOURCE_THIRD_PARTY:     fmt::format_to(fmt::appender(buf), "Third Party "); break;
+		case GL_DEBUG_SOURCE_APPLICATION:     fmt::format_to(fmt::appender(buf), "Application "); break;
+		case GL_DEBUG_SOURCE_OTHER:           fmt::format_to(fmt::appender(buf), "Other "); break;
 		default: break;
 	}
 
 	switch (type)
 	{
-		case GL_DEBUG_TYPE_ERROR:               fmt::format_to(buf, "Error "); break;
-		case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: fmt::format_to(buf, "Deprecated Behavior"); break;
-		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  fmt::format_to(buf, "Undefined Behavior"); break;
-		case GL_DEBUG_TYPE_PORTABILITY:         fmt::format_to(buf, "Portability "); break;
-		case GL_DEBUG_TYPE_PERFORMANCE:         fmt::format_to(buf, "Performance "); break;
-		case GL_DEBUG_TYPE_MARKER:              fmt::format_to(buf, "Marker "); break;
-		case GL_DEBUG_TYPE_OTHER:               fmt::format_to(buf, "Other "); break;
+		case GL_DEBUG_TYPE_ERROR:               fmt::format_to(fmt::appender(buf), "Error "); break;
+		case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: fmt::format_to(fmt::appender(buf), "Deprecated Behavior"); break;
+		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  fmt::format_to(fmt::appender(buf), "Undefined Behavior"); break;
+		case GL_DEBUG_TYPE_PORTABILITY:         fmt::format_to(fmt::appender(buf), "Portability "); break;
+		case GL_DEBUG_TYPE_PERFORMANCE:         fmt::format_to(fmt::appender(buf), "Performance "); break;
+		case GL_DEBUG_TYPE_MARKER:              fmt::format_to(fmt::appender(buf), "Marker "); break;
+		case GL_DEBUG_TYPE_OTHER:               fmt::format_to(fmt::appender(buf), "Other "); break;
 		default: break;
 	}
 
 	switch (severity)
 	{
-		case GL_DEBUG_SEVERITY_HIGH:         fmt::format_to(buf, "(high) "); break;
-		case GL_DEBUG_SEVERITY_MEDIUM:       fmt::format_to(buf, "(med)  "); break;
-		case GL_DEBUG_SEVERITY_LOW:          fmt::format_to(buf, "(low)  "); break;
-		case GL_DEBUG_SEVERITY_NOTIFICATION: fmt::format_to(buf, "(info) "); break;
+		case GL_DEBUG_SEVERITY_HIGH:         fmt::format_to(fmt::appender(buf), "(high) "); break;
+		case GL_DEBUG_SEVERITY_MEDIUM:       fmt::format_to(fmt::appender(buf), "(med)  "); break;
+		case GL_DEBUG_SEVERITY_LOW:          fmt::format_to(fmt::appender(buf), "(low)  "); break;
+		case GL_DEBUG_SEVERITY_NOTIFICATION: fmt::format_to(fmt::appender(buf), "(info) "); break;
 		default: break;
 	}
 
-	fmt::format_to(buf, "[{}]\n\t{}\n", id, message);
+	fmt::format_to(fmt::appender(buf), "[{}]\n\t{}\n", id, message);
 	std::fwrite(buf.data(), sizeof(decltype(buf)::value_type), buf.size(), stderr);
 	std::fflush(stderr);
 }
