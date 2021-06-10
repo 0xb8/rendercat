@@ -31,9 +31,9 @@ void main()
 	gl_Position = proj_view * vec4(vs_out.FragPos, 1.0);
 	vs_out.TexCoords = aTexCoords;
 
-	vs_out.Normal = normal_matrix * aNormal;
+	vs_out.Normal = normalize(normal_matrix * aNormal);
 	if (has_tangents) {
-		vs_out.Tangent = normal_matrix * aTangent.xyz;
+		vs_out.Tangent = normalize(normal_matrix * aTangent.xyz);
 		vs_out.BitangentSign = aTangent.w;
 	}
 }
