@@ -570,81 +570,216 @@ static void show_material_ui(rc::Material& material)
 
 	ImGui::TextUnformatted("Texture maps: ");
 
-	auto display_map_info = [](const auto& map)
+	auto display_map_info = [](auto& map)
 	{
 		auto& storage = map.storage();
-		ImGui::Columns(2, "material_ui", false);
+		if (ImGui::BeginTable("material ui", 2)) {
+			ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthFixed, 200);
+			ImGui::TableSetupColumn("Value");
 
-		ImGui::TextUnformatted("Dimensions:"); ImGui::NextColumn();
-		ImGui::Text("%d x %d (%d mips)",
-			    map.width(),
-			    map.height(),
-			    map.levels()); ImGui::NextColumn();
 
-		ImGui::TextUnformatted("Color space:"); ImGui::NextColumn();
-		ImGui::TextUnformatted(Texture::enum_value_str(storage.color_space())); ImGui::NextColumn();
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("Dimensions:");
+			ImGui::TableNextColumn();
+			ImGui::Text("%d x %d (%d mips)",
+				    map.width(),
+				    map.height(),
+				    map.levels());
 
-		ImGui::TextUnformatted("Channels:"); ImGui::NextColumn();
-		ImGui::Text("%d", storage.channels()); ImGui::NextColumn();
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("Color space:");
 
-		ImGui::TextUnformatted("Internal format:"); ImGui::NextColumn();
-		ImGui::Text("%s", Texture::enum_value_str(storage.format())); ImGui::NextColumn();
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted(Texture::enum_value_str(storage.color_space()));
 
-		ImGui::TextUnformatted("Min Filter:"); ImGui::NextColumn();
-		ImGui::Text("%s", Texture::enum_value_str(map.min_filter())); ImGui::NextColumn();
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("Channels:");
+			ImGui::TableNextColumn();
+			ImGui::Text("%d", storage.channels());
 
-		ImGui::TextUnformatted("Mag Filter:"); ImGui::NextColumn();
-		ImGui::Text("%s", Texture::enum_value_str(map.mag_filter())); ImGui::NextColumn();
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("Internal format:");
+			ImGui::TableNextColumn();
+			ImGui::Text("%s", Texture::enum_value_str(storage.format()));
 
-		ImGui::TextUnformatted("Aniso Samples:"); ImGui::NextColumn();
-		ImGui::Text("%d", map.anisotropy()); ImGui::NextColumn();
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("Min Filter:");
+			ImGui::TableNextColumn();
 
-		ImGui::TextUnformatted("Swizzle Mask:"); ImGui::NextColumn();
 
-		auto print_swizzle_channel = [](auto component) {
-
-			ImVec4 col;
-			switch (component) {
-			case Texture::ChannelValue::Red:
-				col = {1.0f, 0.0f, 0.0f, 1.0f};
-				break;
-			case Texture::ChannelValue::Green:
-				col = {0.0f, 1.0f, 0.0f, 1.0f};
-				break;
-			case Texture::ChannelValue::Blue:
-				col = {0.0f, 0.0f, 1.0f, 1.0f};
-				break;
-			case Texture::ChannelValue::Alpha:
-				col = {1.0f, 0.0f, 1.0f, 1.0f};
-				break;
-			case Texture::ChannelValue::Zero:
-				col = {0.5f, 0.5f, 0.5f, 1.0f};
-				break;
-			case Texture::ChannelValue::One:
-				col = {1.0f, 1.0f, 1.0f, 1.0f};
-				break;
+			const std::array<Texture::MinFilter, 6> min_filters = {
+				Texture::MinFilter::Nearest,
+				Texture::MinFilter::Linear,
+				Texture::MinFilter::LinearMipMapNearest,
+				Texture::MinFilter::LinearMipMapLinear,
+				Texture::MinFilter::NearestMipMapNearest,
+				Texture::MinFilter::NearestMipMapLinear,
 			};
 
-			ImGui::TextColored(col, "%s", Texture::enum_value_str(component));
-		};
+			ImGui::PushItemWidth(-1.0f);
+			if (ImGui::BeginCombo("##minfiltercombo", Texture::enum_value_str(map.min_filter()))) {
+				for (auto& filter : min_filters) {
 
-		print_swizzle_channel(map.swizzle_mask().red); ImGui::SameLine();
-		print_swizzle_channel(map.swizzle_mask().green); ImGui::SameLine();
-		print_swizzle_channel(map.swizzle_mask().blue); ImGui::SameLine();
-		print_swizzle_channel(map.swizzle_mask().alpha); ImGui::SameLine();
-		ImGui::NextColumn();
+					bool is_selected = (filter == map.min_filter());
+					auto filter_str = Texture::enum_value_str(filter);
 
-		ImGui::TextUnformatted("GL Handle:"); ImGui::NextColumn();
-		ImGui::Text("%d", storage.texture_handle()); ImGui::NextColumn();
+					if (ImGui::Selectable(filter_str, is_selected))
+						map.set_filtering(filter, map.mag_filter());
+					if (is_selected)
+						ImGui::SetItemDefaultFocus();
+				}
+				ImGui::EndCombo();
+			}
+			ImGui::PopItemWidth();
 
-		if(storage.shared()) {
-			ImGui::TextUnformatted("Shared:"); ImGui::NextColumn();
-			ImGui::Text("%d", storage.ref_count()); ImGui::NextColumn();
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("Mag Filter:");
+			ImGui::TableNextColumn();
+			const std::array<Texture::MagFilter, 2> mag_filters = {
+				Texture::MagFilter::Nearest,
+				Texture::MagFilter::Linear
+			};
+
+			ImGui::PushItemWidth(-1.0f);
+			if (ImGui::BeginCombo("##magfiltercombo", Texture::enum_value_str(map.mag_filter()))) {
+				for (auto& filter : mag_filters) {
+
+					bool is_selected = (filter == map.mag_filter());
+					auto filter_str = Texture::enum_value_str(filter);
+
+					if (ImGui::Selectable(filter_str, is_selected))
+						map.set_filtering(map.min_filter(), filter);
+					if (is_selected)
+						ImGui::SetItemDefaultFocus();
+				}
+				ImGui::EndCombo();
+			}
+			ImGui::PopItemWidth();
+
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("Aniso Samples:");
+			ImGui::TableNextColumn();
+			float aniso = map.anisotropy();
+			ImGui::PushItemWidth(-1.0f);
+			if (ImGui::SliderFloat("##anisosamples", &aniso, 1.0f, 16.0f)) {
+				map.set_anisotropy(aniso);
+			}
+			ImGui::PopItemWidth();
+
+
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("Swizzle Mask:");
+			ImGui::TableNextColumn();
+			float width = ImGui::GetContentRegionAvail().x - 5.0f;
+
+			auto print_swizzle_channel = [](auto& component, float width) {
+
+				auto get_color = [](auto component){
+					ImVec4 col;
+					switch (component) {
+					case Texture::ChannelValue::Red:
+						col = {1.0f, 0.0f, 0.0f, 1.0f};
+						break;
+					case Texture::ChannelValue::Green:
+						col = {0.0f, 1.0f, 0.0f, 1.0f};
+						break;
+					case Texture::ChannelValue::Blue:
+						col = {0.0f, 0.0f, 1.0f, 1.0f};
+						break;
+					case Texture::ChannelValue::Alpha:
+						col = {1.0f, 0.0f, 1.0f, 1.0f};
+						break;
+					case Texture::ChannelValue::Zero:
+						col = {0.5f, 0.5f, 0.5f, 1.0f};
+						break;
+					case Texture::ChannelValue::One:
+						col = {1.0f, 1.0f, 1.0f, 1.0f};
+						break;
+					};
+					return col;
+				};
+
+				const std::array<Texture::ChannelValue, 6> channels {
+					Texture::ChannelValue::Red,
+					Texture::ChannelValue::Green,
+					Texture::ChannelValue::Blue,
+					Texture::ChannelValue::Alpha,
+					Texture::ChannelValue::Zero,
+					Texture::ChannelValue::One
+				};
+
+				bool changed = false;
+				ImGui::PushItemWidth(width);
+				ImGui::PushID(&component);
+				ImGui::PushStyleColor(ImGuiCol_Text, get_color(component));
+				if (ImGui::BeginCombo("##swizzlecombo", Texture::enum_value_str(component))) {
+					for (auto& channel : channels) {
+
+						bool is_selected = (channel == component);
+						auto channel_str = Texture::enum_value_str(channel);
+
+						ImGui::PushStyleColor(ImGuiCol_Text, get_color(channel));
+						if (ImGui::Selectable(channel_str, is_selected)) {
+							component = channel;
+							changed = true;
+						}
+						if (is_selected)
+							ImGui::SetItemDefaultFocus();
+						ImGui::PopStyleColor();
+					}
+					ImGui::EndCombo();
+				}
+				ImGui::PopStyleColor();
+				ImGui::PopID();
+				ImGui::PopItemWidth();
+
+				return changed;
+			};
+
+			auto mask = map.swizzle_mask();
+
+			bool changed = false;
+			changed |= print_swizzle_channel(mask.red, width * 0.25f - 10.0f); ImGui::SameLine();
+			changed |= print_swizzle_channel(mask.green, width * 0.25f - 10.0f); ImGui::SameLine();
+			changed |= print_swizzle_channel(mask.blue, width * 0.25f - 10.0f); ImGui::SameLine();
+			changed |= print_swizzle_channel(mask.alpha, width * 0.25f - 10.0f); ImGui::SameLine();
+			if (changed) {
+				map.set_swizzle_mask(mask);
+			}
+
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("GL Handle:");
+			ImGui::TableNextColumn();
+			ImGui::Text("%d", storage.texture_handle());
+
+			if(storage.shared()) {
+				ImGui::TableNextRow();
+				ImGui::TableNextColumn();
+				ImGui::TextUnformatted("Shared:");
+				ImGui::TableNextColumn();
+				ImGui::Text("%s  (refcount: %d)", storage.ref_count() > 1 ? "True" : "False", storage.ref_count());
+			}
+			ImGui::EndTable();
 		}
-		ImGui::Columns(1);
 
 		if(!storage.valid())
 			return;
+
+		if (map.levels() > 1) {
+			float bias = map.mip_bias();
+			if (ImGui::SliderFloat("MIP bias", &bias, 0, map.levels()-1)) {
+				map.set_mip_bias(bias);
+			}
+		}
 
 		// NOTE: imgui assumes direct3d convention, custom UVs for OpenGL are below
 		const auto uv0 = ImVec2(0.0f, 1.0f);
@@ -657,7 +792,7 @@ static void show_material_ui(rc::Material& material)
 		ImGui::Image(reinterpret_cast<ImTextureID>(handle), ImVec2(width, height), uv0, uv1);
 	};
 
-	auto display_map = [&material,&display_map_info](const auto& map, auto kind)
+	auto display_map = [&material,&display_map_info](auto& map, auto kind)
 	{
 		ImGui::PushID(Texture::enum_value_str(kind));
 		if(material.has_texture_kind(kind) && ImGui::TreeNode("##mapparams", "%s Map", Texture::enum_value_str(kind))) {
@@ -666,6 +801,24 @@ static void show_material_ui(rc::Material& material)
 		}
 		ImGui::PopID();
 	};
+
+	float mat_bias = material.textures.base_color_map.mip_bias();
+	auto max_levels = std::max(material.textures.base_color_map.levels(), material.textures.occlusion_roughness_metallic_map.levels());
+	max_levels = std::max(max_levels, material.textures.occlusion_map.levels());
+	max_levels = std::max(max_levels, material.textures.normal_map.levels());
+	max_levels = std::max(max_levels, material.textures.emission_map.levels());
+	if (ImGui::SliderFloat("Material MIP bias", &mat_bias, 0.0f, max_levels-1)) {
+		auto set_bias = [](auto& map, float bias) {
+			if (map.valid()) {
+				map.set_mip_bias(bias);
+			}
+		};
+		set_bias(material.textures.base_color_map, mat_bias);
+		set_bias(material.textures.normal_map, mat_bias);
+		set_bias(material.textures.occlusion_roughness_metallic_map, mat_bias);
+		set_bias(material.textures.occlusion_map, mat_bias);
+		set_bias(material.textures.emission_map, mat_bias);
+	}
 
 	display_map(material.textures.base_color_map,  Texture::Kind::BaseColor);
 	display_map(material.textures.normal_map,   Texture::Kind::Normal);
@@ -720,31 +873,53 @@ static void show_material_ui(rc::Material& material)
 static void show_mesh_ui(rc::model::Mesh& submesh, rc::Material& material)
 {
 
-	ImGui::Columns(2, "mesh_ui", false);
+	if (ImGui::BeginTable("mesh_ui", 2)) {
+		ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthFixed, 200);
+		ImGui::TableSetupColumn("Value");
 
-	ImGui::TextUnformatted("Vertices / unique:"); ImGui::NextColumn();
-	ImGui::Text("%u / %u (%u%%)",
-	            submesh.numverts,
-	            submesh.numverts_unique,
-	            rc::math::percent(submesh.numverts_unique, submesh.numverts)); ImGui::NextColumn();
+		ImGui::TableNextRow();
+		ImGui::TableNextColumn();
+		ImGui::TextUnformatted("Vertices / unique:");
+		ImGui::TableNextColumn();
+		ImGui::Text("%u / %u (%u%%)",
+			    submesh.numverts,
+			    submesh.numverts_unique,
+			    rc::math::percent(submesh.numverts_unique, submesh.numverts));
 
-	ImGui::TextUnformatted("Touched lights:"); ImGui::NextColumn();
-	ImGui::Text("%u", submesh.touched_lights); ImGui::NextColumn();
+		ImGui::TableNextRow();
+		ImGui::TableNextColumn();
+		ImGui::TextUnformatted("Touched lights:");
+		ImGui::TableNextColumn();
+		ImGui::Text("%u", submesh.touched_lights);
 
-	ImGui::TextUnformatted("Index Range:"); ImGui::NextColumn();
-	ImGui::Text("%u - %u", submesh.index_min, submesh.index_max); ImGui::NextColumn();
+		ImGui::TableNextRow();
+		ImGui::TableNextColumn();
+		ImGui::TextUnformatted("Index Range:");
+		ImGui::TableNextColumn();
+		ImGui::Text("%u - %u", submesh.index_min, submesh.index_max);
 
-	auto index_type = glbinding::aux::Meta::getString(static_cast<gl::GLenum>(submesh.index_type));
-	ImGui::TextUnformatted("Index Type:"); ImGui::NextColumn();
-	ImGui::Text("%s", index_type.data()); ImGui::NextColumn();
+		ImGui::TableNextRow();
+		ImGui::TableNextColumn();
+		auto index_type = glbinding::aux::Meta::getString(static_cast<gl::GLenum>(submesh.index_type));
+		ImGui::TextUnformatted("Index Type:");
+		ImGui::TableNextColumn();
+		ImGui::Text("%s", index_type.data());
 
-	auto draw_mode = glbinding::aux::Meta::getString(static_cast<gl::GLenum>(submesh.draw_mode));
-	ImGui::TextUnformatted("Draw Mode:"); ImGui::NextColumn();
-	ImGui::Text("%s", draw_mode.data()); ImGui::NextColumn();
+		ImGui::TableNextRow();
+		ImGui::TableNextColumn();
+		auto draw_mode = glbinding::aux::Meta::getString(static_cast<gl::GLenum>(submesh.draw_mode));
+		ImGui::TextUnformatted("Draw Mode:");
+		ImGui::TableNextColumn();
+		ImGui::Text("%s", draw_mode.data());
 
-	ImGui::TextUnformatted("Tangents:"); ImGui::NextColumn();
-	ImGui::Text("%s", (submesh.has_tangents ? "Baked" : "Shader")); ImGui::NextColumn();
-	ImGui::Columns(1);
+
+		ImGui::TableNextRow();
+		ImGui::TableNextColumn();
+		ImGui::TextUnformatted("Tangents:");
+		ImGui::TableNextColumn();
+		ImGui::Text("%s", (submesh.has_tangents ? "Baked" : "Shader"));
+		ImGui::EndTable();
+	}
 
 	auto bbox_min = submesh.bbox.min();
 	auto bbox_max = submesh.bbox.max();
