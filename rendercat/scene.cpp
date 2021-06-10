@@ -37,7 +37,7 @@ void Scene::init()
 	directional_light.direction = zcm::normalize(zcm::vec3{-0.990, 0.137, 0.018});
 	directional_light.color_intensity = zcm::vec4{1.00, 0.675, 0.404, 30.0};
 
-	fog.inscattering_color = zcm::vec4{0.029f, 0.034f, 0.081f, 1.0f};
+	fog.inscattering_environment_opacity = 1.0f;
 	fog.dir_inscattering_color = zcm::vec4(1.00, 0.675, 0.404, 1.0f);
 
 	PointLight pl;
@@ -874,10 +874,7 @@ void Scene::update()
 		if(ImGui::TreeNode("Fog")) {
 			bool enabled = fog.state & ExponentialDirectionalFog::Enabled;
 			ImGui::Checkbox("Enabled", &enabled);
-			ImGui::TextUnformatted("Inscattering color");
 			ImGui::PushItemWidth(-1.0f);
-			ImGui::ColorEdit4("##inscatteringcolor", zcm::value_ptr(fog.inscattering_color),
-			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
 			ImGui::TextUnformatted("Directional inscattering color");
 			ImGui::ColorEdit4("##directionalinscatteringcolor", zcm::value_ptr(fog.dir_inscattering_color),
 			                  ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel);
@@ -890,6 +887,8 @@ void Scene::update()
 
 			ImGui::TextUnformatted("Directional Exponent");
 			ImGui::SliderFloat("##directionalexponent", &fog.dir_exponent, 1.0f, 64.0f);
+			ImGui::TextUnformatted("Inscattering opacity");
+			ImGui::SliderFloat("##inscatteringopacity", &fog.inscattering_environment_opacity, 0.0f, 1.0f);
 			ImGui::TextUnformatted("Inscattering density");
 			ImGui::SliderFloat("##inscatteringdensity", &fog.inscattering_density, 0.0f, 1.0f);
 			ImGui::TextUnformatted("Extinction density");

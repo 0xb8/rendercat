@@ -96,13 +96,12 @@ class Renderer
 		DirectionalLight dir_light[1];
 
 		struct DirectionalFog {
-			zcm::vec4 inscattering_color;
 			zcm::vec4 dir_inscattering_color;
 			zcm::vec4 direction_exponent;
+			float inscattering_opacity;
 			float inscattering_density;
 			float extinction_density;
 			bool enabled;
-			uint32_t _padding1;
 		};
 		DirectionalFog dir_fog;
 

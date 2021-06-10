@@ -381,7 +381,7 @@ void Renderer::set_uniforms()
 	per_frame->dir_light[0].color_intensity = m_scene->directional_light.color_intensity;
 	per_frame->dir_light[0].direction       = m_scene->directional_light.direction;
 
-	per_frame->dir_fog.inscattering_color     = m_scene->fog.inscattering_color;
+	per_frame->dir_fog.inscattering_opacity     = m_scene->fog.inscattering_environment_opacity;
 	per_frame->dir_fog.dir_inscattering_color = m_scene->fog.dir_inscattering_color;
 	per_frame->dir_fog.direction_exponent     = zcm::vec4{-m_scene->directional_light.direction, m_scene->fog.dir_exponent};
 	per_frame->dir_fog.inscattering_density   = m_scene->fog.inscattering_density;

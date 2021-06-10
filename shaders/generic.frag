@@ -32,9 +32,9 @@ struct DirectionalLight {
 };
 
 struct ExponentialDirectionalFog {
-	vec4 inscattering_color;
 	vec4 dir_inscattering_color;
 	vec4 direction; // .xyz - direction, .w - exponent
+	float inscattering_opacity;
 	float inscattering_density;
 	float extinction_density;
 	bool enabled;
@@ -347,23 +347,31 @@ vec3 getNormal()
 	}
 }
 
+float remap(float value, float low1, float high1, float low2, float high2) {
+    return low2 + (value - low1) * (high2 - low2) / (high1 - low1);
+}
+
+float remap01(float value, float low2, float high2) {
+    return low2 + value * (high2 - low2);
+}
+
+
 vec3 calcFog(const in ExponentialDirectionalFog fog,
              const in vec3 fragColor,
              const in float fragDistance,
              const in vec3 viewDir)
 {
-	vec3 fogColor;
-	if(fog.dir_inscattering_color.a > 0.0) {
-		float directional_amount = max(dot(viewDir, fog.direction.xyz), 0.0);
-		directional_amount *= fog.dir_inscattering_color.a;
-		fogColor = mix(fog.inscattering_color.rgb, fog.dir_inscattering_color.rgb, pow(directional_amount, fog.direction.w));
-	} else {
-		fogColor = fog.inscattering_color.rgb;
-	}
+	vec3 fogColor = textureLod(uReflection,
+	                           vec4(-viewDir, 0),
+	                           remap01(fog.inscattering_density, 3.0, 5.0)).rgb * fog.inscattering_opacity;
+
+	float directional_amount = max(dot(viewDir, fog.direction.xyz), 0.0);
+	directional_amount *= fog.dir_inscattering_color.a;
+	fogColor = mix(fogColor, fog.dir_inscattering_color.rgb, pow(directional_amount, fog.direction.w));
+
 	float extinctionAmount   = 1.0 - exp2(-fragDistance * fog.extinction_density);
 	float inscatteringAmount = 1.0 - exp2(-fragDistance * fog.inscattering_density);
-	inscatteringAmount *= fog.inscattering_color.a;
-	extinctionAmount *= fog.inscattering_color.a;
+
 	return fragColor * (1.0 - extinctionAmount) + fogColor * inscatteringAmount;
 }
 

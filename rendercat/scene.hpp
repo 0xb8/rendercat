@@ -31,8 +31,10 @@ struct DirectionalLight
 struct ExponentialDirectionalFog
 {
 	/// .rgb - color, .a - max opacity
-	zcm::vec4 inscattering_color;
 	zcm::vec4 dir_inscattering_color;
+
+	/// environment (cubemap) fog opacity factor.
+	float inscattering_environment_opacity = 1.0f;
 
 	/// amount of light scattered by fog
 	float inscattering_density = 0.01f;
