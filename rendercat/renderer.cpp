@@ -43,7 +43,7 @@ static GLenum frag_derivative_quality_hint;
 Renderer::Renderer(Scene& s, ShaderSet& shader_set) : m_shader_set(shader_set), m_scene(&s)
 {
 	m_shader = m_shader_set.load_program({"generic.vert", "generic.frag"});
-	m_hdr_shader = m_shader_set.load_program({"fullscreen_quad.vert", "hdr.frag"});
+	m_hdr_shader = m_shader_set.load_program({"fullscreen_triangle.vert", "hdr.frag"});
 	m_bloom_downscale_shader = m_shader_set.load_program({"downscale_bloom_luma.comp"});
 
 	glEnable(GL_FRAMEBUFFER_SRGB);
@@ -324,15 +324,15 @@ void Renderer::clear_screen()
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 }
 
-static void renderQuad()
+static void drawFullscreenTriangle()
 {
 	static GLuint vao;
 	if (unlikely(vao == 0)) {
 		glCreateVertexArrays(1, &vao);
-		rcObjectLabel(GL_VERTEX_ARRAY, vao, "single quad VAO");
+		rcObjectLabel(GL_VERTEX_ARRAY, vao, "single triangle VAO");
 	}
 	glBindVertexArray(vao);
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	glDrawArrays(GL_TRIANGLES, 0, 3);
 	glBindVertexArray(0);
 }
 
@@ -1140,7 +1140,7 @@ void Renderer::draw()
 		unif::i1(*m_hdr_shader, 1, MSAASampleCount);
 		unif::f1(*m_hdr_shader, 2, bloom_strength);
 		unif::b1(*m_hdr_shader, 3, do_bloom);
-		renderQuad();
+		drawFullscreenTriangle();
 	}
 
 	m_per_frame.finish();

@@ -3,7 +3,7 @@ project(rendercat_shaders VERSION 0.1)
 set(VERTEX_SHADER_SOURCES
 	generic.vert
 	cubemap.vert
-	fullscreen_quad.vert
+	fullscreen_triangle.vert
 	shadow_mapping.vert
 )
 
