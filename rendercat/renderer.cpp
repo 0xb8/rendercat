@@ -421,8 +421,8 @@ void Renderer::set_uniforms()
 
 	// ------
 
-	m_scene->cubemap_diffuse_irradiance.bind_to_unit(34);
-	m_scene->cubemap_specular_environment.bind_to_unit(33);
+	Texture::bind_to_unit(m_scene->cubemap_diffuse_irradiance, 34);
+	Texture::bind_to_unit(m_scene->cubemap_specular_environment, 33);
 	glBindTextureUnit(30, *m_turbo_colormap_to);
 	glBindTextureUnit(31, *m_brdf_lut_to);
 }

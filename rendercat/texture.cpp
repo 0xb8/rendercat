@@ -67,6 +67,22 @@ const char* rc::Texture::enum_value_str(InternalFormat f) noexcept
 		return "Compressed_SRGB_ALPHA_DXT3";
 	case InternalFormat::Compressed_SRGB_ALPHA_DXT5:
 		return "Compressed_SRGB_ALPHA_DXT5";
+	case InternalFormat::Compressed_RED_RGTC1:
+		return "Compressed_RED_RGTC1";
+	case InternalFormat::Compressed_SIGNED_RED_RGTC1:
+		return "Compressed_SIGNED_RED_RGTC1";
+	case InternalFormat::Compressed_RG_RGTC2:
+		return "Compressed_RG_RGTC2";
+	case InternalFormat::Compressed_SIGNED_RG_RGTC2:
+		return "Compressed_SIGNED_RG_RGTC2";
+	case InternalFormat::Compressed_RGBA_BPTC_UNORM:
+		return "Compressed_RGBA_BPTC_UNORM";
+	case InternalFormat::Compressed_SRGB_ALPHA_BPTC_UNORM:
+		return "Compressed_SRGB_ALPHA_BPTC_UNORM";
+	case InternalFormat::Compressed_RGB_BPTC_SIGNED_FLOAT:
+		return "Compressed_RGB_BPTC_SIGNED_FLOAT";
+	case InternalFormat::Compressed_RGB_BPTC_UNSIGNED_FLOAT:
+		return "Compressed_RGB_BPTC_UNSIGNED_FLOAT";
 	}
 	unreachable();
 }

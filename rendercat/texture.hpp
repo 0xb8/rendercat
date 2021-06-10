@@ -60,7 +60,18 @@ namespace Texture {
 		Compressed_SRGB_DXT1       = 0x8C4C,
 		Compressed_SRGB_ALPHA_DXT1 = 0x8C4D,
 		Compressed_SRGB_ALPHA_DXT3 = 0x8C4E,
-		Compressed_SRGB_ALPHA_DXT5 = 0x8C4F
+		Compressed_SRGB_ALPHA_DXT5 = 0x8C4F,
+
+		// -- RGTC
+		Compressed_RED_RGTC1 = 0x8DBB,
+		Compressed_SIGNED_RED_RGTC1 = 0x8DBC,
+		Compressed_RG_RGTC2 = 0x8DBD,
+		Compressed_SIGNED_RG_RGTC2 = 0x8DBE,
+		// -- BPTC (BC7)
+		Compressed_RGBA_BPTC_UNORM = 0x8E8C,
+		Compressed_SRGB_ALPHA_BPTC_UNORM = 0x8E8D,
+		Compressed_RGB_BPTC_SIGNED_FLOAT = 0x8E8E,
+		Compressed_RGB_BPTC_UNSIGNED_FLOAT = 0x8E8F,
 	};
 
 	enum class TexelDataType : std::uint16_t

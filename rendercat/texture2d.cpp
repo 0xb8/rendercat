@@ -30,11 +30,15 @@ static GLenum components(Texture::InternalFormat format)
 	case InternalFormat::R_16:
 	case InternalFormat::R_16F:
 	case InternalFormat::R_32F:
+	case InternalFormat::Compressed_RED_RGTC1:
+	case InternalFormat::Compressed_SIGNED_RED_RGTC1:
 		return GL_RED;
 
 	case InternalFormat::RG_8:
 	case InternalFormat::RG_16:
 	case InternalFormat::RG_16F:
+	case InternalFormat::Compressed_RG_RGTC2:
+	case InternalFormat::Compressed_SIGNED_RG_RGTC2:
 		return GL_RG;
 
 	case InternalFormat::RGB_8:
@@ -44,6 +48,8 @@ static GLenum components(Texture::InternalFormat format)
 	case InternalFormat::R_11F_G11F_B10F:
 	case InternalFormat::Compressed_RGB_DXT1:
 	case InternalFormat::Compressed_SRGB_DXT1:
+	case InternalFormat::Compressed_RGB_BPTC_SIGNED_FLOAT:
+	case InternalFormat::Compressed_RGB_BPTC_UNSIGNED_FLOAT:
 		return GL_RGB;
 
 	case InternalFormat::RGBA_8:
@@ -52,9 +58,11 @@ static GLenum components(Texture::InternalFormat format)
 	case InternalFormat::Compressed_RGBA_DXT1:
 	case InternalFormat::Compressed_RGBA_DXT3:
 	case InternalFormat::Compressed_RGBA_DXT5:
+	case InternalFormat::Compressed_RGBA_BPTC_UNORM:
 	case InternalFormat::Compressed_SRGB_ALPHA_DXT1:
 	case InternalFormat::Compressed_SRGB_ALPHA_DXT3:
 	case InternalFormat::Compressed_SRGB_ALPHA_DXT5:
+	case InternalFormat::Compressed_SRGB_ALPHA_BPTC_UNORM:
 		return GL_RGBA;
 
 	case InternalFormat::InvalidFormat:
@@ -92,6 +100,7 @@ static Texture::ColorSpace fmt_color_space(Texture::InternalFormat format) noexc
 	case InternalFormat::Compressed_SRGB_ALPHA_DXT1:
 	case InternalFormat::Compressed_SRGB_ALPHA_DXT3:
 	case InternalFormat::Compressed_SRGB_ALPHA_DXT5:
+	case InternalFormat::Compressed_SRGB_ALPHA_BPTC_UNORM:
 		return ColorSpace::sRGB;
 
 	default:
@@ -117,6 +126,14 @@ static bool is_internal_format_compressed(Texture::InternalFormat format) noexce
 	case Texture::InternalFormat::Compressed_SRGB_ALPHA_DXT1:
 	case Texture::InternalFormat::Compressed_SRGB_ALPHA_DXT3:
 	case Texture::InternalFormat::Compressed_SRGB_ALPHA_DXT5:
+	case Texture::InternalFormat::Compressed_RED_RGTC1:
+	case Texture::InternalFormat::Compressed_SIGNED_RED_RGTC1:
+	case Texture::InternalFormat::Compressed_RG_RGTC2:
+	case Texture::InternalFormat::Compressed_SIGNED_RG_RGTC2:
+	case Texture::InternalFormat::Compressed_RGBA_BPTC_UNORM:
+	case Texture::InternalFormat::Compressed_SRGB_ALPHA_BPTC_UNORM:
+	case Texture::InternalFormat::Compressed_RGB_BPTC_SIGNED_FLOAT:
+	case Texture::InternalFormat::Compressed_RGB_BPTC_UNSIGNED_FLOAT:
 		return true;
 	default:
 		break;
@@ -163,7 +180,8 @@ static void get_max_size()
 
 TextureStorage2D::TextureStorage2D(uint16_t width,
                                    uint16_t height,
-                                   Texture::InternalFormat format)
+                                   Texture::InternalFormat format,
+                                   int16_t levels)
 {
 	ZoneScoped;
 	get_max_size();
@@ -175,7 +193,7 @@ TextureStorage2D::TextureStorage2D(uint16_t width,
 	   || is_internal_format_invalid(format))
 		return;
 
-	m_mip_levels = static_cast<std::uint8_t>(rc::math::num_mipmap_levels(width, height));
+	m_mip_levels = levels == -1 ? static_cast<std::uint8_t>(rc::math::num_mipmap_levels(width, height)) : levels;
 	m_width = width;
 	m_height = height;
 	m_internal_format = format;
@@ -511,12 +529,9 @@ zcm::vec4 ImageTexture2D::border_color() const noexcept
 	return m_border_color;
 }
 
-
-bool ImageTexture2D::bind_to_unit(uint32_t unit) const noexcept
+float ImageTexture2D::mip_bias() const noexcept
 {
-	if(!valid()) return false;
-	glBindTextureUnit(unit, m_storage.texture_handle());
-	return true;
+	return m_bias;
 }
 
 
@@ -578,6 +593,15 @@ void ImageTexture2D::set_border_color(const zcm::vec4& c) noexcept
 	glTextureParameterfv(m_storage.texture_handle(), GL_TEXTURE_BORDER_COLOR, zcm::value_ptr(m_border_color));
 }
 
+static const GLenum swizzle_values[] =
+{
+	GL_ZERO,
+	GL_ONE,
+	GL_RED,
+	GL_GREEN,
+	GL_BLUE,
+	GL_ALPHA,
+};
 
 void ImageTexture2D::set_swizzle_mask(const Texture::SwizzleMask& m) noexcept
 {
@@ -586,21 +610,19 @@ void ImageTexture2D::set_swizzle_mask(const Texture::SwizzleMask& m) noexcept
 
 	auto repr = [](Texture::ChannelValue v)
 	{
-		static const GLenum apival[] =
-		{
-			GL_ZERO,
-			GL_ONE,
-			GL_RED,
-			GL_GREEN,
-			GL_BLUE,
-			GL_ALPHA,
-		};
-		return apival[static_cast<uint8_t>(v)];
+		return swizzle_values[static_cast<uint8_t>(v)];
 	};
 
 	const GLenum swizzleMask[] = {repr(m.red), repr(m.green), repr(m.blue), repr(m.alpha)};
 	glTextureParameteriv(m_storage.texture_handle(), GL_TEXTURE_SWIZZLE_RGBA, swizzleMask);
 }
+
+void ImageTexture2D::set_mip_bias(float bias) noexcept
+{
+	m_bias = bias;
+	glTextureParameterfv(m_storage.texture_handle(), GL_TEXTURE_LOD_BIAS, &m_bias);
+}
+
 
 void ImageTexture2D::set_default_params()
 {
@@ -611,6 +633,15 @@ void ImageTexture2D::set_default_params()
 	set_anisotropy(m_anisotropic_samples);
 	set_border_color(m_border_color);
 	set_swizzle_mask(m_swizzle_mask);
+	set_mip_bias(0.0f);
 }
 
 
+
+bool Texture::bind_to_unit(const ImageTexture2D& texture, uint32_t unit) noexcept
+{
+	if(!texture.valid())
+		return false;
+	glBindTextureUnit(unit, texture.texture_handle());
+	return true;
+}

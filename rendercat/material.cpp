@@ -122,26 +122,26 @@ void Material::bind(uint32_t) const noexcept
 	m_unif_data.bind(0);
 
 	if(has_texture_kind(Kind::BaseColor)) {
-		if(!textures.base_color_map.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_DIFFUSE)) {
-			_default_diffuse.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_DIFFUSE);
+		if(!bind_to_unit(textures.base_color_map, RC_FRAGMENT_SHADER_TEXTURE_BINDING_DIFFUSE)) {
+			bind_to_unit(_default_diffuse, RC_FRAGMENT_SHADER_TEXTURE_BINDING_DIFFUSE);
 		}
 	}
 	if(has_texture_kind(Kind::Normal)) {
-		textures.normal_map.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_NORMAL);
+		bind_to_unit(textures.normal_map, RC_FRAGMENT_SHADER_TEXTURE_BINDING_NORMAL);
 	}
 
 	if (has_texture_kind(Kind::OcclusionSeparate)) {
-		textures.occlusion_map.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_OCCLUSION);
+		bind_to_unit(textures.occlusion_map, RC_FRAGMENT_SHADER_TEXTURE_BINDING_OCCLUSION);
 	} else if (has_texture_kind(Kind::Occlusion)) {
-		textures.occlusion_roughness_metallic_map.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_OCCLUSION);
+		bind_to_unit(textures.occlusion_roughness_metallic_map, RC_FRAGMENT_SHADER_TEXTURE_BINDING_OCCLUSION);
 	}
 
 	if (has_texture_kind(Kind::RoughnessMetallic)) {
-		textures.occlusion_roughness_metallic_map.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_ROUGHNESS_METALLIC);
+		bind_to_unit(textures.occlusion_roughness_metallic_map, RC_FRAGMENT_SHADER_TEXTURE_BINDING_ROUGHNESS_METALLIC);
 	}
 
 	if (has_texture_kind(Kind::Emission)) {
-		textures.emission_map.bind_to_unit(RC_FRAGMENT_SHADER_TEXTURE_BINDING_EMISSION);
+		bind_to_unit(textures.emission_map, RC_FRAGMENT_SHADER_TEXTURE_BINDING_EMISSION);
 	}
 }
 
