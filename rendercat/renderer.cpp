@@ -1200,10 +1200,24 @@ void Renderer::draw_gui(Renderer::RenderParams& params)
 	ImGui::PlotLines("", m_perfquery.times, std::size(m_perfquery.times), 0, avgbuf, 0.0f, 20.0f, ImVec2(0, 3 * ImGui::GetFontSize()));
 	ImGui::PopStyleColor();
 
+	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.00f, 0.00f, 0.00f, 0.50f));
+	if (ImGui::Button("Renderer")) {
+		window_shown = !window_shown;
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Scene")) {
+		m_scene->window_shown = !m_scene->window_shown;
+	}
+	ImGui::PopStyleColor();
+
 	ImGui::PopItemWidth();
 	ImGui::End();
 	ImGui::PopStyleVar(2);
 	ImGui::PopStyleColor();
+
+	if (!window_shown) {
+		return;
+	}
 
 	if(!ImGui::Begin("Renderer", &window_shown)) {
 		ImGui::End();

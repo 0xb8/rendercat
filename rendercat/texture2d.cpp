@@ -291,6 +291,11 @@ void TextureStorage2D::set_label(std::string_view label)
 	rcObjectLabel(m_handle, label);
 }
 
+std::string TextureStorage2D::label() const
+{
+	return rcGetObjectLabel(m_handle);
+}
+
 void TextureStorage2D::sub_image(uint16_t level,
                                  uint16_t width,
                                   uint16_t height,
@@ -386,15 +391,12 @@ ImageTexture2D ImageTexture2D::fromFile(const std::string_view path,
 	}
 
 	TextureStorage2D storage;
-	SwizzleMask mask;
 
 	switch (nrChannels) {
 	case 1:
 	{
 		storage = TextureStorage2D(width, height, InternalFormat::R_8);
 		storage.sub_image(0, width, height, TexelDataType::UnsignedByte, data);
-
-		mask = SwizzleMask{ChannelValue::Red, ChannelValue::Red, ChannelValue::Red, ChannelValue::One};
 		break;
 	}
 	case 3:
@@ -417,7 +419,6 @@ ImageTexture2D ImageTexture2D::fromFile(const std::string_view path,
 
 	ImageTexture2D ret;
 	ret.m_storage = std::move(storage);
-	ret.set_swizzle_mask(mask);
 
 	stbi_image_free(data);
 	if(ret.m_storage.valid()) {

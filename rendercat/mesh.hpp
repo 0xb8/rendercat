@@ -23,7 +23,6 @@ namespace model {
 		uint32_t numverts_unique = 0;
 		uint32_t index_min = 0xFFFFFFFF;
 		uint32_t index_max = 0;
-		uint32_t touched_lights = 0;
 		uint32_t index_type{};
 		uint32_t draw_mode{};
 		bbox3 bbox;

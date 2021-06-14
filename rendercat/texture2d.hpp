@@ -27,6 +27,7 @@ struct TextureStorage2D
 
 	void reset() noexcept;
 	void set_label(std::string_view label);
+	std::string label() const;
 
 	void sub_image(uint16_t level,
 	               uint16_t width,

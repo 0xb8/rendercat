@@ -320,6 +320,10 @@ vec3 getNormal()
 {
 	if((material.type & MATERIAL_NORMAL_MAP) != 0) {
 		vec3 sampled_normal = texture(material_normal, fs_in.TexCoords).rgb * 2.0 - 1.0;
+		if ((material.type & MATERIAL_NORMAL_WITHOUT_Z) != 0) {
+			sampled_normal.z = sqrt(1 - sampled_normal.x*sampled_normal.x - sampled_normal.y*sampled_normal.y);
+		}
+
 		vec3 normal = normalize(sampled_normal * vec3(material.normal_scale, material.normal_scale, 1.0));
 
 		mat3 TBN;

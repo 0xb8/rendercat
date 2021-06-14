@@ -114,10 +114,14 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 		if (!normal_path.empty()) {
 			auto map = Material::load_image_texture(texture_path, normal_path, Texture::ColorSpace::Linear);
 			if (map.valid()) {
-				material.set_normal_map(std::move(map));
-				material.data()->normal_scale = mat.normalTexture.scale;
-				apply_gltf_sampler(get_gltf_sampler(doc, mat.normalTexture),
-				                   material.textures.normal_map);
+				if (map.channels() < 2) {
+					fmt::print(stderr, "Normal map has less than 2 channels: {}\n", normal_path);
+				} else {
+					material.set_normal_map(std::move(map));
+					material.data()->normal_scale = mat.normalTexture.scale;
+					apply_gltf_sampler(get_gltf_sampler(doc, mat.normalTexture),
+							   material.textures.normal_map);
+				}
 			}
 		}
 	}
@@ -126,9 +130,13 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 		if (!emission_path.empty()) {
 			auto map = Material::load_image_texture(texture_path, emission_path, Texture::ColorSpace::Linear);
 			if (map.valid()) {
-				material.set_emission_map(std::move(map));
-				apply_gltf_sampler(get_gltf_sampler(doc, mat.emissiveTexture),
-				                   material.textures.emission_map);
+				if (map.channels() < 3) {
+					fmt::print(stderr, "Emission map has less than 3 channels: {}\n", emission_path);
+				} else {
+					material.set_emission_map(std::move(map));
+					apply_gltf_sampler(get_gltf_sampler(doc, mat.emissiveTexture),
+							   material.textures.emission_map);
+				}
 			}
 		}
 	}
@@ -137,6 +145,37 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 		if (!roughness_path.empty()) {
 			auto map = Material::load_image_texture(texture_path, roughness_path, Texture::ColorSpace::Linear);
 			if (map.valid()) {
+				if (map.channels() == 1) {
+					std::transform(roughness_path.begin(), roughness_path.end(), roughness_path.begin(), [](auto ch)
+					{
+						return std::tolower(ch);
+					});
+					if (roughness_path.find("roughness") != std::string::npos) {
+						map.set_swizzle_mask(Texture::SwizzleMask{
+						                             Texture::ChannelValue::One,
+						                             Texture::ChannelValue::Red,
+						                             Texture::ChannelValue::One,
+						                             Texture::ChannelValue::One,
+						                     });
+					} else if (roughness_path.find("metallic") != std::string::npos) {
+						map.set_swizzle_mask(Texture::SwizzleMask{
+						                             Texture::ChannelValue::One,
+						                             Texture::ChannelValue::One,
+						                             Texture::ChannelValue::Red,
+						                             Texture::ChannelValue::One,
+						                     });
+					} else if (roughness_path.find("occlusion") != std::string::npos) {
+						map.set_swizzle_mask(Texture::SwizzleMask{
+						                             Texture::ChannelValue::Red,
+						                             Texture::ChannelValue::One,
+						                             Texture::ChannelValue::One,
+						                             Texture::ChannelValue::One,
+						                     });
+					} else {
+						fmt::print(stderr, "Cannot determine single-channel map kind: {}\n", roughness_path);
+					}
+
+				}
 				material.textures.occlusion_roughness_metallic_map = std::move(map);
 				apply_gltf_sampler(get_gltf_sampler(doc, mat.pbrMetallicRoughness.metallicRoughnessTexture),
 				                   material.textures.occlusion_roughness_metallic_map);

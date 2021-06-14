@@ -293,6 +293,13 @@ void Material::set_shader_flags()
 	if(m_alpha_mode == Texture::AlphaMode::Blend) {
 		flags |= RC_SHADER_TEXTURE_BLEND;
 	}
+	if (has_texture_kind(Texture::Kind::Normal)) {
+		if (textures.normal_map.channels() == 2) {
+			flags |= RC_SHADER_TEXTURE_NORMAL_WITHOUT_Z;
+		} else if (textures.normal_map.channels() == 3) {
+			flags = clear_mask(flags, RC_SHADER_TEXTURE_NORMAL_WITHOUT_Z);
+		}
+	}
 	data()->type = flags;
 }
 

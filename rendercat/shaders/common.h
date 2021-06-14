@@ -4,6 +4,7 @@
 #define RC_SHADER_TEXTURE_KIND_OCCLUSION           1 << 4
 #define RC_SHADER_TEXTURE_KIND_EMISSION            1 << 5
 
+#define RC_SHADER_TEXTURE_NORMAL_WITHOUT_Z         1 << 12
 #define RC_SHADER_TEXTURE_SEPARATE_OCCLUSION       1 << 13
 #define RC_SHADER_TEXTURE_BLEND                    1 << 14
 #define RC_SHADER_TEXTURE_ALPHA_MASK               1 << 15

@@ -577,6 +577,15 @@ static void show_material_ui(rc::Material& material)
 			ImGui::TableSetupColumn("Property", ImGuiTableColumnFlags_WidthFixed, 200);
 			ImGui::TableSetupColumn("Value");
 
+			if (auto label = storage.label(); !label.empty()) {
+				ImGui::TableNextRow();
+				ImGui::TableNextColumn();
+				ImGui::TextUnformatted("Label:");
+				ImGui::TableNextColumn();
+				ImGui::TextWrapped("%s", label.data());
+
+				ImGui::Spacing();
+			}
 
 			ImGui::TableNextRow();
 			ImGui::TableNextColumn();
@@ -830,9 +839,9 @@ static void show_material_ui(rc::Material& material)
 
 	auto material_data = material.data();
 	if (material_data) {
-
 		if (ImGui::Button("Unmap")) {
-			ImGui::OpenPopup("RemovePopup");
+			material.unmap();
+			return;
 		}
 
 		ImGui::TextUnformatted("Diffuse color");
@@ -852,6 +861,27 @@ static void show_material_ui(rc::Material& material)
 		if (material.has_texture_kind(Texture::Kind::Occlusion)) {
 			changed |= ImGui::SliderFloat("Occlusion Strength", &(material_data->occlusion_strength), 0.0f, 1.0f);
 		}
+
+		ImGui::TextUnformatted("Flags:");
+
+		bool has_alpha_mask = material.alpha_mode() == Texture::AlphaMode::Mask;
+		if (ImGui::Checkbox("Alpha Mask", &has_alpha_mask)) {
+			if (has_alpha_mask)
+				material.set_alpha_mode(Texture::AlphaMode::Mask);
+			else
+				material.set_alpha_mode(Texture::AlphaMode::Opaque);
+			changed = true;
+		}
+
+		bool has_normal_without_z = material_data->type & (RC_SHADER_TEXTURE_NORMAL_WITHOUT_Z);
+		if (ImGui::Checkbox("Normal map without Z component", &has_normal_without_z)) {
+			if (has_normal_without_z)
+				material_data->type |= (RC_SHADER_TEXTURE_NORMAL_WITHOUT_Z);
+			else
+				material_data->type &= ~(RC_SHADER_TEXTURE_NORMAL_WITHOUT_Z);
+			changed = true;
+		}
+
 		if (changed)
 			material.flush();
 	} else {
@@ -859,15 +889,6 @@ static void show_material_ui(rc::Material& material)
 			material.map();
 		}
 	}
-
-	if (ImGui::BeginPopup("RemovePopup")) {
-		if(ImGui::Button("Confirm")) {
-			material.unmap();
-			ImGui::CloseCurrentPopup();
-		}
-		ImGui::EndPopup();
-	}
-
 }
 
 static void show_mesh_ui(rc::model::Mesh& submesh, rc::Material& material)
@@ -888,15 +909,13 @@ static void show_mesh_ui(rc::model::Mesh& submesh, rc::Material& material)
 
 		ImGui::TableNextRow();
 		ImGui::TableNextColumn();
-		ImGui::TextUnformatted("Touched lights:");
-		ImGui::TableNextColumn();
-		ImGui::Text("%u", submesh.touched_lights);
-
-		ImGui::TableNextRow();
-		ImGui::TableNextColumn();
 		ImGui::TextUnformatted("Index Range:");
 		ImGui::TableNextColumn();
-		ImGui::Text("%u - %u", submesh.index_min, submesh.index_max);
+		if (submesh.index_min > submesh.index_max) {
+			ImGui::TextUnformatted("Unset");
+		} else {
+			ImGui::Text("%u - %u", submesh.index_min, submesh.index_max);
+		}
 
 		ImGui::TableNextRow();
 		ImGui::TableNextColumn();
@@ -948,6 +967,10 @@ void Scene::update()
 			sl.set_orientation(zcm::conjugate(main_camera.state.orientation));
 			sl.set_position(main_camera.state.position);
 		}
+	}
+
+	if (!window_shown) {
+		return;
 	}
 
 	if(!ImGui::Begin("Scene", &window_shown)) {
