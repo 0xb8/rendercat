@@ -75,9 +75,6 @@ layout(std140, binding=2) uniform PerFrameLight_frag {
 	int num_visible_point_lights;
 	int num_visible_spot_lights;
 	float point_near;
-
-	int spot_shadowmap_indices[MAX_DYNAMIC_LIGHTS];
-	int point_shadowmap_indices[MAX_DYNAMIC_LIGHTS];
 };
 
 
@@ -232,9 +229,7 @@ float calcDirectionalShadow(vec4 fragPosLightSpace, float NdotL)
 
 float calcSpotShadow(int light_index, float NdotL)
 {
-	int tex_index = spot_shadowmap_indices[light_index];
-	if (tex_index < 0)
-		return 0.0;
+	int tex_index = light_index;
 
 	vec4 fragPosLightSpace = spot_light_matrices[light_index] * vec4(fs_in.FragPos, 1.0);
 	// perform perspective divide
@@ -261,10 +256,9 @@ float calcSpotShadow(int light_index, float NdotL)
 	return shadow;
 }
 
-float calcPointShadow(int light_index, float NdotL, float radius, vec3 L) {
-	int tex_index = point_shadowmap_indices[light_index];
-	if (tex_index < 0)
-		return 0.0;
+float calcPointShadow(int light_index, float NdotL, float radius, vec3 L)
+{
+	int tex_index = light_index;
 
 	vec3 absL = abs(L);
 	float Zcomp = max(absL.x, max(absL.y, absL.z));

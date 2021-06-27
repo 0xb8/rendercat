@@ -27,6 +27,8 @@ class Renderer
 	uint32_t* m_brdf_shader = nullptr;
 	uint32_t* m_bloom_downscale_shader = nullptr;
 
+	uint64_t m_frame_number = 0;
+
 	uint32_t m_backbuffer_width  = 0;
 	uint32_t m_backbuffer_height = 0;
 	uint32_t m_window_width  = 0;
@@ -126,15 +128,13 @@ class Renderer
 		int num_visible_point_lights;
 		int num_visible_spot_lights;
 		float point_near_plane;
-
-		// std140 array alignment
-		struct alignas(16) LightIndex {
-			int index;
-		};
-
-		LightIndex spot_shadow_indices[RC_MAX_LIGHTS];
-		LightIndex point_shadow_indices[RC_MAX_LIGHTS];
 	};
+
+	size_t m_point_light_hashes[RC_MAX_LIGHTS] = {};
+	size_t m_spot_light_hashes[RC_MAX_LIGHTS] = {};
+
+	rc::framebuffer_handle m_spot_layer_fbos[RC_MAX_LIGHTS];
+	rc::framebuffer_handle m_point_layer_fbos[RC_MAX_LIGHTS * 6];
 
 	unif::buf<PerFrameData, 3> m_per_frame;
 	unif::buf<LightPerframeData, 3> m_light_per_frame;
@@ -179,6 +179,7 @@ public:
 	bool enable_directional_shadows = true;
 	bool enable_point_shadows = true;
 	bool enable_spot_shadows = true;
+	bool enable_shadow_caching = true;
 	bool window_shown = true;
 
 	static constexpr int MaxLights = RC_MAX_LIGHTS;
