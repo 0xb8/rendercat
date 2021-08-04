@@ -176,6 +176,7 @@ static void rc_set_input_captured(GLFWwindow* window, bool value)
 		glfwSetCharCallback(window, nullptr);
 		glfwSetMouseButtonCallback(window, nullptr);
 		glfwSetScrollCallback(window, glfw_scroll_callback);
+		glfwSetCursorEnterCallback(window, nullptr);
 		io.ConfigFlags |= ImGuiConfigFlags_NoMouse;
 		io.ConfigFlags |= ImGuiConfigFlags_NavNoCaptureKeyboard;
 	} else {
@@ -184,6 +185,7 @@ static void rc_set_input_captured(GLFWwindow* window, bool value)
 		glfwSetCursorDeltaCallback(window, nullptr);
 		glfwSetMouseButtonCallback(window, ImGui_ImplGlfw_MouseButtonCallback);
 		glfwSetScrollCallback(window, ImGui_ImplGlfw_ScrollCallback);
+		glfwSetCursorEnterCallback(window, ImGui_ImplGlfw_CursorEnterCallback);
 		io.ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
 		io.ConfigFlags &= ~ImGuiConfigFlags_NavNoCaptureKeyboard;
 	}

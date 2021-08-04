@@ -1238,7 +1238,8 @@ void Renderer::draw_gui(Renderer::RenderParams& params)
 		|ImGuiWindowFlags_NoSavedSettings
 		|ImGuiWindowFlags_NoTitleBar
 		|ImGuiWindowFlags_NoScrollbar
-		|ImGuiWindowFlags_NoCollapse);
+		|ImGuiWindowFlags_NoCollapse
+		|ImGuiWindowFlags_NoDocking);
 
 	ImGui::PushItemWidth(-1.0f);
 
