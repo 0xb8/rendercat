@@ -7,6 +7,7 @@
 #include <rendercat/util/turbo_colormap.hpp>
 #include <fmt/core.h>
 #include <string>
+#include <stdexcept>
 #include <imgui.h>
 
 #include <glbinding/gl45core/boolean.h>
@@ -184,7 +185,7 @@ void Renderer::init_brdf()
 
 	m_brdf_shader = m_shader_set.load_program({"brdf_lut.comp"});
 	if (!m_brdf_shader) {
-		fmt::print(stderr, "[renderer] could not init BRDF LUT compute shader!");
+		fmt::print(stderr, "[renderer] could not init BRDF LUT compute shader!\n");
 		std::fflush(stderr);
 		return;
 	}

@@ -36,7 +36,7 @@
 	branch = develop
 [submodule "third_party/doctest"]
 	path = third_party/doctest
-	url = https://github.com/onqtam/doctest.git
+	url = https://github.com/0xb8/doctest.git
 [submodule "third_party/imgui_integration/imguizmo"]
 	path = third_party/imgui_integration/imguizmo
 	url = https://github.com/CedricGuillemet/ImGuizmo.git

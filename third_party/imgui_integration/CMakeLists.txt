@@ -35,12 +35,6 @@ set_target_properties(imgui PROPERTIES
 	CXX_STANDARD_REQUIRED ON
 	CXX_EXTENSIONS OFF)
 
-target_compile_definitions(imgui
-	PRIVATE
-		IMGUI_IMPL_OPENGL_LOADER_GLBINDING3
-		GL_VERSION_3_2
-)
-
 target_include_directories(imgui
 	PUBLIC
 		"${PROJECT_SOURCE_DIR}"
