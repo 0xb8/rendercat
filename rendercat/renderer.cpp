@@ -89,6 +89,7 @@ Renderer::Renderer(Scene& s, ShaderSet& shader_set) : m_shader_set(shader_set), 
 	init_shadow_resources();
 	init_brdf();
 	init_colormap();
+	init_fsr();
 }
 
 void Renderer::init_shadow_resources()
@@ -217,6 +218,23 @@ void Renderer::init_colormap()
 	glTextureSubImage1D(*m_turbo_colormap_to, 0, 0, 256, GL_RGB, GL_FLOAT, &rc::util::turbo_srgb_floats);
 }
 
+void Renderer::init_fsr()
+{
+	ZoneScoped;
+	m_fsr_easu_shader = m_shader_set.load_program({"fsr_pass1_easu.comp"});
+	if (unlikely(!m_fsr_easu_shader)) {
+		fmt::print(stderr, "[renderer] could not init FSR EASU compute shader!\n");
+		std::fflush(stderr);
+		return;
+	}
+	m_fsr_rcas_shader = m_shader_set.load_program({"fsr_pass2_rcas.comp"});
+	if (unlikely(!m_fsr_rcas_shader)) {
+		fmt::print(stderr, "[renderer] could not init FSR RCAS compute shader!\n");
+		std::fflush(stderr);
+		return;
+	}
+}
+
 void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio, bool force)
 {
 	if(!force && (width == m_window_width && height == m_window_height))
@@ -320,6 +338,44 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 	glTextureParameteri(*resolve_downscale_to, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTextureParameteri(*resolve_downscale_to, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 
+	// ------------
+
+	rc::texture_handle ldr_tonemapped_to;
+	glCreateTextures(GL_TEXTURE_2D, 1, ldr_tonemapped_to.get());
+	rcObjectLabel(ldr_tonemapped_to, fmt::format("LDR tonemapped ({}x{})", backbuffer_width, backbuffer_height));
+	glTextureStorage2D(*ldr_tonemapped_to, 1, GL_RGBA8, backbuffer_width, backbuffer_height);
+
+
+	rc::framebuffer_handle ldr_tonemap_fbo;
+	glCreateFramebuffers(1, ldr_tonemap_fbo.get());
+	rcObjectLabel(ldr_tonemap_fbo, "LDR tonemap FBO");
+	glNamedFramebufferTexture(*ldr_tonemap_fbo, GL_COLOR_ATTACHMENT0, *ldr_tonemapped_to, 0);
+	if (glCheckNamedFramebufferStatus(*ldr_tonemap_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+		fmt::print(stderr, "[renderer] could not resize LDR tonemap backbuffer!");
+		std::fflush(stderr);
+		return;
+	}
+
+	rc::texture_handle fsr_pass1_easu_to;
+	glCreateTextures(GL_TEXTURE_2D, 1, fsr_pass1_easu_to.get());
+	rcObjectLabel(fsr_pass1_easu_to, fmt::format("FSR pass1 easu ({}x{})", width, height));
+	glTextureStorage2D(*fsr_pass1_easu_to, 1, GL_RGBA8, width, height);
+
+	rc::texture_handle fsr_pass2_rcas_to;
+	glCreateTextures(GL_TEXTURE_2D, 1, fsr_pass2_rcas_to.get());
+	rcObjectLabel(fsr_pass2_rcas_to, fmt::format("FSR pass2 rcas ({}x{})", width, height));
+	glTextureStorage2D(*fsr_pass2_rcas_to, 1, GL_RGBA8, width, height);
+
+	rc::framebuffer_handle fsr_pass2_rcas_fbo;
+	glCreateFramebuffers(1, fsr_pass2_rcas_fbo.get());
+	rcObjectLabel(fsr_pass2_rcas_fbo, "FSR pass1 easu FBO");
+	glNamedFramebufferTexture(*fsr_pass2_rcas_fbo, GL_COLOR_ATTACHMENT0, *fsr_pass2_rcas_to, 0);
+	if (glCheckNamedFramebufferStatus(*fsr_pass2_rcas_fbo, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+		fmt::print(stderr, "[renderer] could not resize FSR pass1 easu backbuffer!");
+		std::fflush(stderr);
+		return;
+	}
+
 	assert(glGetError() == GL_NO_ERROR);
 
 	m_backbuffer_fbo = std::move(fbo);
@@ -328,6 +384,12 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 	m_backbuffer_resolve_fbo = std::move(resolve_fbo);
 	m_backbuffer_resolve_color_to = std::move(resolve_to);
 	m_bloom_color_to = std::move(resolve_downscale_to);
+	m_ldr_tonemapped_to = std::move(ldr_tonemapped_to);
+	m_ldr_tonemap_fbo = std::move(ldr_tonemap_fbo);
+	m_fsr_pass1_easu_to = std::move(fsr_pass1_easu_to);
+	m_fsr_pass2_rcas_to = std::move(fsr_pass2_rcas_to);
+	m_fsr_pass2_rcas_fbo = std::move(fsr_pass2_rcas_fbo);
+
 	m_backbuffer_scale = desired_render_scale;
 	msaa_level = desired_msaa_level;
 	MSAASampleCount = samples;
@@ -1011,6 +1073,57 @@ void Renderer::bloom_pass()
 	}
 }
 
+void Renderer::tonemap_pass()
+{
+	TracyGpuNamedZone(rresolve, "resolve and tonemap", true);
+	RC_DEBUG_GROUP("resolve and tonemap");
+
+	glUseProgram(*m_hdr_shader);
+	glBindTextureUnit(0, *m_backbuffer_color_to);
+	glBindTextureUnit(1, *m_bloom_color_to);
+	unif::f1(*m_hdr_shader, 0, m_scene->main_camera.state.exposure);
+	unif::i1(*m_hdr_shader, 1, MSAASampleCount);
+	unif::f1(*m_hdr_shader, 2, bloom_strength);
+	unif::i2(*m_hdr_shader, 3, do_bloom, selected_fsr_preset != 0);
+	drawFullscreenTriangle();
+}
+
+void Renderer::upscale_pass()
+{
+	{
+		TracyGpuNamedZone(fsr_pass1, "FSR pass1 EASU", true);
+		RC_DEBUG_GROUP("FSR pass1 EASU");
+
+		glUseProgram(*m_fsr_easu_shader);
+		glBindTextureUnit(0, *m_ldr_tonemapped_to);
+		glBindImageTexture(0, *m_fsr_pass1_easu_to, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
+
+		unif::v2(*m_fsr_easu_shader, 0, zcm::vec2(m_backbuffer_width, m_backbuffer_height)); // source size
+		unif::v2(*m_fsr_easu_shader, 1, zcm::vec2(m_window_width, m_window_height));  // dest size
+		glDispatchCompute(1 + m_window_width / 8,
+				  1 + m_window_height / 8,
+				  1);
+
+		glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT|GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+	}
+
+	{
+		TracyGpuNamedZone(fsr_pass1, "FSR pass2 RCAS & filmgrain", true);
+		RC_DEBUG_GROUP("FSR pass2 EASU & filmgrain");
+		glUseProgram(*m_fsr_rcas_shader);
+		glBindTextureUnit(0, *m_fsr_pass1_easu_to);
+		glBindImageTexture(0, *m_fsr_pass2_rcas_to, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
+
+		unif::v2(*m_fsr_rcas_shader, 0, zcm::vec2(fsr_sharpening, fsr_filmgrain)); // sharpening, filmgain
+		unif::i2(*m_fsr_rcas_shader, 1, m_frame_number, 0); // frame num for noise
+		glDispatchCompute(1 + m_window_width / 8,
+				  1 + m_window_height / 8,
+				  1);
+
+		glMemoryBarrier(GL_FRAMEBUFFER_BARRIER_BIT|GL_TEXTURE_FETCH_BARRIER_BIT);
+	}
+}
+
 void Renderer::draw()
 {
 	if(unlikely(!m_shader)) return;
@@ -1187,22 +1300,29 @@ void Renderer::draw()
 		bloom_pass();
 	}
 
-	{
-		TracyGpuNamedZone(rresolve, "resolve and tonemap", true);
-		RC_DEBUG_GROUP("resolve and tonemap");
-
+	if (selected_fsr_preset != 0) {
+		glBindFramebuffer(GL_FRAMEBUFFER, *m_ldr_tonemap_fbo);
+		glViewport(0, 0, m_backbuffer_width, m_backbuffer_height);
+	} else {
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glViewport(0, 0, m_window_width, m_window_height);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		glUseProgram(*m_hdr_shader);
-		glBindTextureUnit(0, *m_backbuffer_color_to);
-		glBindTextureUnit(1, *m_bloom_color_to);
-		unif::f1(*m_hdr_shader, 0, m_scene->main_camera.state.exposure);
-		unif::i1(*m_hdr_shader, 1, MSAASampleCount);
-		unif::f1(*m_hdr_shader, 2, bloom_strength);
-		unif::b1(*m_hdr_shader, 3, do_bloom);
-		drawFullscreenTriangle();
 	}
+
+	tonemap_pass();
+
+	if (selected_fsr_preset != 0) {
+		upscale_pass();
+		glBlitNamedFramebuffer(*m_fsr_pass2_rcas_fbo, 0,
+				       0, 0,
+				       m_window_width, m_window_width,
+				       0, 0,
+				       m_window_width, m_window_width,
+				       GL_COLOR_BUFFER_BIT, GL_NEAREST);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	}
+
+
 
 	m_per_frame.finish();
 	m_light_per_frame.finish();
@@ -1289,9 +1409,37 @@ void Renderer::draw_gui(Renderer::RenderParams& params)
 
 	ImGui::Combo("MSAA", &desired_msaa_level, labels, std::size(labels));
 	//show_help_tooltip("Multi-Sample Antialiasing\n\nValues > 4x may be unsupported on some setups.");
-	ImGui::SliderFloat("Resolution scale", &desired_render_scale, 0.1f, 2.0f, "%.1f");
 
-	ImGui::Spacing();
+	const char* labels_fsr[] = {"Off", "Ultra Quality", "Quality", "Balanced", "Performance"};
+	if (ImGui::Combo("FSR", &selected_fsr_preset, labels_fsr, std::size(labels_fsr))) {
+		switch (selected_fsr_preset) {
+			case 0: desired_render_scale = 1.0f; break;
+			case 1: desired_render_scale = 0.77f; break;
+			case 2: desired_render_scale = 0.67f; break;
+			case 3: desired_render_scale = 0.59f; break;
+			case 4: desired_render_scale = 0.50; break;
+		}
+	}
+
+	if (selected_fsr_preset != 0) {
+		ImGui::SliderFloat("FSR sharpening", &fsr_sharpening, 0.0f, 1.0f);
+		ImGui::SliderFloat("FSR filmgrain", &fsr_filmgrain, 0.0f, 1.0f);
+	}
+
+	ImGui::BeginDisabled(selected_fsr_preset != 0);
+	ImGui::SliderFloat("Resolution scale", &desired_render_scale, 0.1f, 1.0f, "%.1f");
+	ImGui::EndDisabled();
+
+
+	ImGui::Separator();
+	int width = m_backbuffer_width, height = m_backbuffer_height;
+	ImGui::Text("render:  %d x %d", width, height);
+	ImGui::Text("display: %d x %d", m_window_width, m_window_height);
+
+
+	ImGui::Separator();
+
+
 	ImGui::Checkbox("VSYNC", &params.vsync);
 	ImGui::SameLine();
 	ImGui::Checkbox("Allow tearing", &params.vsync_tearing);

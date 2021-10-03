@@ -1,0 +1,39 @@
+#version 450 core
+
+layout(binding=0) uniform sampler2D Source;
+layout(binding=0, rgba8) restrict writeonly uniform image2D outputTexture;
+
+layout(location = 0) uniform vec2 SourceSize;
+layout(location = 1) uniform vec2 OutputSize;
+#define A_GPU 1
+#define A_GLSL 1
+#include "ffx_a.h"
+
+#define FSR_EASU_F 1
+
+AF4 FsrEasuRF(AF2 p) {
+    return textureGather(Source, p, 0);
+}
+AF4 FsrEasuGF(AF2 p) {
+    return textureGather(Source, p, 1);
+}
+AF4 FsrEasuBF(AF2 p) {
+    return textureGather(Source, p, 2);
+}
+
+#include "ffx_fsr1.h"
+AU4 con0, con1, con2, con3;
+
+layout(local_size_x=8, local_size_y=8, local_size_z=1) in;
+void main() {
+    FsrEasuCon(con0, con1, con2, con3,
+        SourceSize.x, SourceSize.y,  // Viewport size (top left aligned) in the input image which is to be scaled.
+        SourceSize.x, SourceSize.y,  // The size of the input image.
+        OutputSize.x, OutputSize.y); // The output resolution.
+
+    AU2 gxy = AU2(gl_GlobalInvocationID); // Integer pixel position in output.
+    AF3 Gamma2Color = AF3(0, 0, 0);
+    FsrEasuF(Gamma2Color, gxy, con0, con1, con2, con3);
+
+    imageStore(outputTexture, ivec2(gl_GlobalInvocationID), vec4(Gamma2Color, 1.0));
+}

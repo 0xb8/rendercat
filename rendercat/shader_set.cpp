@@ -35,8 +35,10 @@ constexpr shader_ext_type types[] {
 
 
 std::string_view get_include(std::string_view s) {
+	auto comment_pos = s.find("//");
 	auto pos = s.find("#include");
-	if (pos != s.npos) {
+	if (pos != s.npos && (comment_pos == s.npos || comment_pos > pos)) {
+
 		pos = s.find_first_of("\"<", pos);
 		if (pos != s.npos) {
 			auto end = s.find_first_of("\">", pos+1);
@@ -102,6 +104,8 @@ std::string load_and_process_shader(
 
 		if (line.find("#include") != line.npos) {
 			auto path = get_include(line);
+			if (path.empty())
+				continue;
 			auto p = root_dir / path;
 			auto source = load_and_process_shader(root_dir, p, depth+1);
 			if (source.empty()) {

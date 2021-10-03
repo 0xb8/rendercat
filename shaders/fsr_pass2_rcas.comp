@@ -1,0 +1,90 @@
+#version 450 core
+
+layout(binding=0) uniform sampler2D Source;
+layout(binding=0, rgba8) restrict writeonly uniform image2D outputTexture;
+
+layout(location = 0) uniform vec2 fsr_params;
+layout(location = 1) uniform ivec2 frame_params;
+
+#define A_GPU 1
+#define A_GLSL 1
+#include "ffx_a.h"
+
+#define FSR_RCAS_F 1
+
+// Converts a color from linear light gamma to sRGB gamma
+vec3 fromLinear(vec3 linearRGB)
+{
+    bvec3 cutoff = lessThan(linearRGB, vec3(0.0031308));
+    vec3 higher = vec3(1.055)*pow(linearRGB, vec3(1.0/2.4)) - vec3(0.055);
+    vec3 lower = linearRGB * vec3(12.92);
+
+    return mix(higher, lower, cutoff);
+}
+
+// Converts a color from sRGB gamma to linear light gamma
+vec3 toLinear(vec3 sRGB)
+{
+    bvec3 cutoff = lessThan(sRGB, vec3(0.04045));
+    vec3 higher = pow((sRGB + vec3(0.055))/vec3(1.055), vec3(2.4));
+    vec3 lower = sRGB/vec3(12.92);
+
+    return mix(higher, lower, cutoff);
+}
+
+uint pcg(uint v) {
+	uint state = v * uint(747796405) + uint(2891336453);
+	uint word = ((state >> ((state >> uint(28)) + uint(4))) ^ state) * uint(277803737);
+	return (word >> uint(22)) ^ word;
+}
+
+
+float prng(vec2 uv, float time) {
+    return fract(sin(dot(uv + fract(time), vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+// pdf: [-0.5;0.5[
+// Removes noise modulation effect by reshaping the uniform/rectangular noise
+// distribution (RPDF) into a Triangular (TPDF) or Gaussian Probability Density
+// Function (GPDF).
+// shape = 1.0: Rectangular
+// shape = 0.5: Triangular
+// shape < 0.5: Gaussian (0.2~0.4)
+float pdf(float noise, float shape) {
+    float orig = noise * 2.0 - 1.0;
+    noise = pow(abs(orig), shape);
+    noise *= sign(orig);
+    noise -= sign(orig);
+    return noise * 0.5;
+}
+
+
+
+AF4 FsrRcasLoadF(ASU2 p) {
+    AF4 c = texelFetch(Source, ASU2(p), 0);
+    return AF4(fromLinear(c.rgb), c.a);
+}
+void FsrRcasInputF(inout AF1 r, inout AF1 g, inout AF1 b) {}
+
+#include "ffx_fsr1.h"
+AU4 con0;
+
+
+
+layout(local_size_x=8, local_size_y=8, local_size_z=1) in;
+void main() {
+    FsrRcasCon(con0, fsr_params[0]);
+
+    AU2 gxy = AU2(gl_GlobalInvocationID); // Integer pixel position in output.
+    AF3 Gamma2Color = AF3(0, 0, 0);
+    FsrRcasF(Gamma2Color.r, Gamma2Color.g, Gamma2Color.b, gxy, con0);
+
+    vec2 uv = vec2(gl_GlobalInvocationID.xy) / textureSize(Source, 0);
+    const float PDF = 0.3;
+    vec3 rgbNoise = vec3(pdf(prng(uv, frame_params[0] * 0.11), PDF),
+                         pdf(prng(uv, frame_params[0] * 0.13), PDF),
+                         pdf(prng(uv, frame_params[0] * 0.17), PDF));
+    FsrLfgaF(Gamma2Color, rgbNoise, fsr_params[1]);
+
+    imageStore(outputTexture, ivec2(gl_GlobalInvocationID), vec4(toLinear(Gamma2Color) , 1.0));
+}

@@ -26,6 +26,8 @@ class Renderer
 	uint32_t* m_shadow_point_shader = nullptr;
 	uint32_t* m_brdf_shader = nullptr;
 	uint32_t* m_bloom_downscale_shader = nullptr;
+	uint32_t* m_fsr_easu_shader = nullptr;
+	uint32_t* m_fsr_rcas_shader = nullptr;
 
 	uint64_t m_frame_number = 0;
 
@@ -56,9 +58,18 @@ class Renderer
 	rc::texture_handle     m_backbuffer_resolve_color_to;
 	rc::texture_handle     m_bloom_color_to;
 
+	rc::framebuffer_handle m_ldr_tonemap_fbo;
+	rc::texture_handle     m_ldr_tonemapped_to;
+
+	rc::texture_handle     m_fsr_pass1_easu_to;
+	rc::texture_handle     m_fsr_pass2_rcas_to;
+	rc::framebuffer_handle m_fsr_pass2_rcas_fbo;
+
 	void init_shadow_resources();
 	void init_brdf();
 	void init_colormap();
+	void init_blue_noise();
+	void init_fsr();
 
 	DDRenderInterfaceCoreGL debug_draw_ctx;
 
@@ -152,6 +163,8 @@ class Renderer
 	void end_draw_light_shadows();
 
 	void bloom_pass();
+	void tonemap_pass();
+	void upscale_pass();
 
 public:
 	static const unsigned int PointShadowWidth = 512;
@@ -170,6 +183,10 @@ public:
 	int cubemap_mip_level = 0;
 
 	float desired_render_scale = 1.0f;
+	float fsr_sharpening = 0.3f;
+	float fsr_filmgrain = 0.1f;
+	int   selected_fsr_preset = 0;
+
 	bool do_bloom = true;
 	float bloom_threshold = 3.0f;
 	float bloom_strength = 0.15f;
@@ -181,6 +198,7 @@ public:
 	bool enable_spot_shadows = true;
 	bool enable_shadow_caching = true;
 	bool window_shown = true;
+
 
 	static constexpr int MaxLights = RC_MAX_LIGHTS;
 	static constexpr unsigned NumMipsBloomDownscale = 3u;

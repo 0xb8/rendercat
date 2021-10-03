@@ -9,7 +9,7 @@ layout(binding=1) uniform sampler2D bloomBuffer;
 layout(location=0) uniform float exposure;
 layout(location=1) uniform int   sample_count;
 layout(location=2) uniform float bloom_strength;
-layout(location=3) uniform bool  do_bloom;
+layout(location=3) uniform ivec2  do_bloom_srgb;
 
 vec4 textureMultisample(sampler2DMS sampler, vec2 TexCoords, int i)
 {
@@ -38,13 +38,17 @@ vec3 ACESFilm(vec3 x)
 	return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
 }
 
+vec3 toSrgb(vec3 color) {
+    return max(1.055 * pow(color, vec3(0.416666667)) - 0.055, 0);
+}
+
 void main()
 {
 	vec3 W = Uncharted2Tonemap(vec3(11.2)); // white point
 	vec3 res;
 
 	vec3 bloom = vec3(0);
-	if (do_bloom) {
+	if (bool(do_bloom_srgb[0])) {
 		vec3 color = textureLod(bloomBuffer, TexCoords, 0).rgb;
 		color *= bloom_strength;
 		bloom = color;
@@ -56,6 +60,10 @@ void main()
 		res += Uncharted2Tonemap(color * exposure * 2);
 	}
 	res /= sample_count * W;
+
+    if (bool(do_bloom_srgb[1])) {
+        res = toSrgb(res);
+    }
 
 	//vec3 tonemapped_color = Uncharted2Tonemap(color * exposure * 2.0);
 	FragColor = vec4(res, 1.0);
