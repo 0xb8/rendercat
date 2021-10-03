@@ -982,6 +982,25 @@ void Scene::update()
 	if(ImGui::CollapsingHeader("Camera")) {
 		ImGui::InputFloat3("Position", zcm::value_ptr(main_camera.state.position));
 		ImGui::SliderFloat4("Orientation", zcm::value_ptr(main_camera.state.orientation), -1.f, 1.f);
+		if (ImGui::Button("Pos1")) {
+			main_camera.state.position = {-2.266f, 1.7f, -0.566f};
+			main_camera.state.orientation = zcm::quat::wxyz(0.603f, 0.054f, 0.793f, 0.071f);
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Pos2")) {
+			main_camera.state.position = {8.5f, 1.7f, 0.0f};
+			main_camera.state.orientation = zcm::quat::wxyz(0.705f, 0.006f, -0.709f, -0.006f);
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Pos3")) {
+			main_camera.state.position = {-7.905f, 5.647f, 1.588f};
+			main_camera.state.orientation = zcm::quat::wxyz(0.854f, 0.179f, 0.478f, 0.1f);
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Pos4")) {
+			main_camera.state.position = {10.f, 20.f, 30.f};
+			main_camera.state.orientation = zcm::quat::wxyz(-0.213f, 0.031f, 0.967f, -0.139f);
+		}
 
 		if (ImGui::TreeNode("Alternate Orientation")) {
 			auto forward = -main_camera.state.get_backward();
