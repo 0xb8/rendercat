@@ -45,7 +45,7 @@ static GLenum frag_derivative_quality_hint;
 Renderer::Renderer(Scene& s, ShaderSet& shader_set) : m_shader_set(shader_set), m_scene(&s)
 {
 	m_shader = m_shader_set.load_program({"generic.vert", "generic.frag"});
-	m_hdr_shader = m_shader_set.load_program({"fullscreen_triangle.vert", "hdr.frag"});
+	m_hdr_shader = m_shader_set.load_program({"hdr.comp"});
 	m_bloom_downscale_shader = m_shader_set.load_program({"downscale_bloom_luma.comp"});
 
 	glEnable(GL_FRAMEBUFFER_SRGB);
@@ -83,7 +83,7 @@ Renderer::Renderer(Scene& s, ShaderSet& shader_set) : m_shader_set(shader_set), 
 
 	m_per_frame.set_label("per-frame generic uniforms");
 	m_light_per_frame.set_label("per-frame light uniforms");
-
+	m_tonemap_uniform.set_label("per-frame tonemap uniforms");
 
 	dd::initialize(&debug_draw_ctx);
 	init_shadow_resources();
@@ -235,9 +235,9 @@ void Renderer::init_fsr()
 	}
 }
 
-void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio, bool force)
+void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio)
 {
-	if(!force && (width == m_window_width && height == m_window_height))
+	if(width == m_window_width && height == m_window_height)
 		return;
 
 	if(width < 2 || height < 2)
@@ -254,8 +254,8 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 
 	// NOTE: for some reason AMD driver accepts 0 samples, but it's wrong
 	int samples = zcm::clamp((int)zcm::exp2(desired_msaa_level), 1, MSAASampleCountMax);
-	uint32_t backbuffer_width = width * desired_render_scale;
-	uint32_t backbuffer_height = height * desired_render_scale;
+	uint32_t backbuffer_width = width;
+	uint32_t backbuffer_height = height;
 
 	// reinitialize multisampled color texture object
 	rc::texture_handle color_to;
@@ -319,8 +319,8 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 		return;
 	}
 
-	auto downscaled_width = backbuffer_width / 2;
-	auto downscaled_height = backbuffer_height / 2;
+	int downscaled_width = backbuffer_width / 2;
+	int downscaled_height = backbuffer_height / 2;
 
 	rc::texture_handle resolve_downscale_to;
 	glCreateTextures(GL_TEXTURE_2D, 1, resolve_downscale_to.get());
@@ -343,7 +343,7 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 	rc::texture_handle ldr_tonemapped_to;
 	glCreateTextures(GL_TEXTURE_2D, 1, ldr_tonemapped_to.get());
 	rcObjectLabel(ldr_tonemapped_to, fmt::format("LDR tonemapped ({}x{})", backbuffer_width, backbuffer_height));
-	glTextureStorage2D(*ldr_tonemapped_to, 1, GL_RGBA8, backbuffer_width, backbuffer_height);
+	glTextureStorage2D(*ldr_tonemapped_to, 1, GL_RGB10_A2, backbuffer_width, backbuffer_height);
 
 
 	rc::framebuffer_handle ldr_tonemap_fbo;
@@ -359,7 +359,7 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 	rc::texture_handle fsr_pass1_easu_to;
 	glCreateTextures(GL_TEXTURE_2D, 1, fsr_pass1_easu_to.get());
 	rcObjectLabel(fsr_pass1_easu_to, fmt::format("FSR pass1 easu ({}x{})", width, height));
-	glTextureStorage2D(*fsr_pass1_easu_to, 1, GL_RGBA8, width, height);
+	glTextureStorage2D(*fsr_pass1_easu_to, 1, GL_RGB10_A2UI, width, height);
 
 	rc::texture_handle fsr_pass2_rcas_to;
 	glCreateTextures(GL_TEXTURE_2D, 1, fsr_pass2_rcas_to.get());
@@ -390,17 +390,14 @@ void Renderer::resize(uint32_t width, uint32_t height, float device_pixel_ratio,
 	m_fsr_pass2_rcas_to = std::move(fsr_pass2_rcas_to);
 	m_fsr_pass2_rcas_fbo = std::move(fsr_pass2_rcas_fbo);
 
-	m_backbuffer_scale = desired_render_scale;
 	msaa_level = desired_msaa_level;
 	MSAASampleCount = samples;
 	m_window_width = width;
 	m_window_height = height;
-	m_backbuffer_width = backbuffer_width;
-	m_backbuffer_height = backbuffer_height;
 
-	m_scene->main_camera.state.aspect = (float(m_backbuffer_width) / (float)m_backbuffer_height);
+	m_scene->main_camera.state.aspect = (float(m_window_width) / (float)m_window_height);
 	debug_draw_ctx.window_size = zcm::vec2{(float)backbuffer_width, (float)backbuffer_height};
-	fmt::print(stderr, "[renderer] framebuffer resized to {}x{} {}\n", m_backbuffer_width, m_backbuffer_height, force ? "(forced)" : "");
+	fmt::print(stderr, "[renderer] framebuffer resized to {}x{}\n", backbuffer_width, backbuffer_height);
 	std::fflush(stderr);
 }
 
@@ -1008,48 +1005,61 @@ void Renderer::bloom_pass()
 	RC_DEBUG_GROUP("bloom pass");
 	ZoneScoped;
 	TracyGpuZone("bloom pass");
+	auto render_size = _render_size();
 	glBlitNamedFramebuffer(*m_backbuffer_fbo,
 	                       *m_backbuffer_resolve_fbo,
-	                       0, 0, m_backbuffer_width, m_backbuffer_height,
-	                       0, 0, m_backbuffer_width, m_backbuffer_height,
+	                       0, 0, render_size.x, render_size.y,
+	                       0, 0, render_size.x, render_size.y,
 	                       GL_COLOR_BUFFER_BIT,
 	                       GL_NEAREST);
 
 	auto read_texture = *m_backbuffer_resolve_color_to;
-	auto downsample_width = m_backbuffer_width / 2;
-	auto downsample_height = m_backbuffer_height / 2;
-	const auto levels = std::min(NumMipsBloomDownscale, rc::math::num_mipmap_levels(downsample_width, downsample_height));
-	std::array<zcm::ivec2, NumMipsBloomDownscale> widths;
+
+	// source texture scale
+	int src_width = int(m_window_width) / 2;
+	int src_height = int(m_window_height) / 2;
+
+	// region in source texture for dispatching
+	int dispatch_width = render_size.x / 2;
+	int dispatch_height = render_size.y / 2;
+
+	const auto levels = std::min(NumMipsBloomDownscale, rc::math::num_mipmap_levels(dispatch_width, dispatch_height));
+	const auto RegionDim = 16;
+	std::array<zcm::ivec2, NumMipsBloomDownscale> dispatch_dims;
+	std::array<zcm::ivec2, NumMipsBloomDownscale> source_dims;
 
 	glUseProgram(*m_bloom_downscale_shader);
 
 	unif::i2(*m_bloom_downscale_shader, 0, -1, 0); // lvl: 0 mode: down
-	unif::v2(*m_bloom_downscale_shader, 1, {1.0f / downsample_width, 1.0f / downsample_height});
+	unif::v2(*m_bloom_downscale_shader, 1, {1.0f / src_width, 1.0f / src_height});
 	unif::v2(*m_bloom_downscale_shader, 2, {bloom_threshold, bloom_strength});
 
 	glMemoryBarrier(GL_FRAMEBUFFER_BARRIER_BIT|GL_TEXTURE_FETCH_BARRIER_BIT);
 
 	{
 		RC_DEBUG_GROUP("downsample");
-		for (unsigned level = 0; level < levels; ++level) {
-			widths[level] = {static_cast<int>(downsample_width),
-			                 static_cast<int>(downsample_height)};
+		for (int level = 0; level < levels; ++level) {
+			dispatch_dims[level] = {dispatch_width, dispatch_height};
+			source_dims[level] = {src_width, src_height};
 
 			glBindTextureUnit(0, read_texture);
 			glBindImageTexture(0, *m_bloom_color_to, level, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
 
 
-			glDispatchCompute(1 + downsample_width / 16,
-			                  1 + downsample_height / 16,
-			                  1);
+			int dispatch_x = (dispatch_width + (RegionDim - 1)) / RegionDim;
+			int dispatch_y = (dispatch_height+ (RegionDim - 1)) / RegionDim;
+			glDispatchCompute(dispatch_x, dispatch_y, 1);
 			glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT|GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
 			read_texture = *m_bloom_color_to;
-			downsample_width /= 2;
-			downsample_height /= 2;
+
+			dispatch_width /= 2;
+			dispatch_height /= 2;
+			src_width /= 2;
+			src_height /= 2;
 
 			unif::i2(*m_bloom_downscale_shader, 0, level, 0); // downscale
-			unif::v2(*m_bloom_downscale_shader, 1, {1.0f / downsample_width, 1.0f / downsample_height});
+			unif::v2(*m_bloom_downscale_shader, 1, {1.0f / src_width, 1.0f / src_height});
 		}
 	}
 
@@ -1057,17 +1067,19 @@ void Renderer::bloom_pass()
 		RC_DEBUG_GROUP("upsample");
 		for (int level = levels-1; level > 0; level--) {
 
-			downsample_width = widths[level-1].x;
-			downsample_height = widths[level-1].y;
+			dispatch_width = dispatch_dims[level-1].x;
+			dispatch_height = dispatch_dims[level-1].y;
+			src_width = source_dims[level-1].x;
+			src_height = source_dims[level-1].y;
 
 			glBindTextureUnit(0, *m_bloom_color_to);
 			glBindImageTexture(0, *m_bloom_color_to, level-1, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
 			unif::i2(*m_bloom_downscale_shader, 0, level, 1); // upscale
-			unif::v2(*m_bloom_downscale_shader, 1, {1.0f / downsample_width, 1.0f / downsample_height});
+			unif::v2(*m_bloom_downscale_shader, 1, {1.0f / src_width, 1.0f / src_height});
 
-			glDispatchCompute(1 + downsample_width / 16,
-			                  1 + downsample_height / 16,
-			                  1);
+			int dispatch_x = (dispatch_width + (RegionDim - 1)) / RegionDim;
+			int dispatch_y = (dispatch_height+ (RegionDim - 1)) / RegionDim;
+			glDispatchCompute(dispatch_x, dispatch_y, 1);
 			glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT|GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 		}
 	}
@@ -1081,27 +1093,52 @@ void Renderer::tonemap_pass()
 	glUseProgram(*m_hdr_shader);
 	glBindTextureUnit(0, *m_backbuffer_color_to);
 	glBindTextureUnit(1, *m_bloom_color_to);
-	unif::f1(*m_hdr_shader, 0, m_scene->main_camera.state.exposure);
-	unif::i1(*m_hdr_shader, 1, MSAASampleCount);
-	unif::f1(*m_hdr_shader, 2, bloom_strength);
-	unif::i2(*m_hdr_shader, 3, do_bloom, selected_fsr_preset != 0);
-	drawFullscreenTriangle();
+	glBindImageTexture(0, *m_ldr_tonemapped_to, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGB10_A2UI);
+
+	check_and_block_sync(m_tonemap_uniform.next(), "Per-frame uniform sync triggered, blocking!");
+
+	auto uniforms = m_tonemap_uniform.data();
+	assert(uniforms);
+	m_tonemap_uniform.bind(0);
+
+	uniforms->exposure = m_scene->main_camera.state.exposure;
+	uniforms->sample_count = MSAASampleCount;
+	uniforms->bloom_strength = do_bloom ? bloom_strength : 0.0f;
+	uniforms->render_scale = _render_scale();
+	m_tonemap_uniform.flush();
+
+	const auto RegionDim = 16;
+	auto render_size = _render_size();
+	int dispatch_x = (render_size.x + (RegionDim - 1)) / RegionDim;
+	int dispatch_y = (render_size.y + (RegionDim - 1)) / RegionDim;
+	glDispatchCompute(dispatch_x,
+	                  dispatch_y,
+	                  1);
 }
 
 void Renderer::upscale_pass()
 {
+	const auto RegionDim = 16;
+	int dispatch_x = (m_window_width + (RegionDim - 1)) / RegionDim;
+	int dispatch_y = (m_window_height+ (RegionDim - 1)) / RegionDim;
+
 	{
 		TracyGpuNamedZone(fsr_pass1, "FSR pass1 EASU", true);
 		RC_DEBUG_GROUP("FSR pass1 EASU");
 
+		glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT|GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
 		glUseProgram(*m_fsr_easu_shader);
 		glBindTextureUnit(0, *m_ldr_tonemapped_to);
-		glBindImageTexture(0, *m_fsr_pass1_easu_to, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
+		glBindImageTexture(0, *m_fsr_pass1_easu_to, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGB10_A2UI);
 
-		unif::v2(*m_fsr_easu_shader, 0, zcm::vec2(m_backbuffer_width, m_backbuffer_height)); // source size
-		unif::v2(*m_fsr_easu_shader, 1, zcm::vec2(m_window_width, m_window_height));  // dest size
-		glDispatchCompute(1 + m_window_width / 8,
-				  1 + m_window_height / 8,
+		unif::v2(*m_fsr_easu_shader, 0, zcm::vec2(m_window_width, m_window_height)); // source size
+		unif::v2(*m_fsr_easu_shader, 1, zcm::floor(zcm::vec2(m_window_width, m_window_height) * _render_scale())); // viewport size
+		unif::v2(*m_fsr_easu_shader, 2, zcm::vec2(m_window_width, m_window_height));  // dest size
+
+
+		glDispatchCompute(dispatch_x,
+				  dispatch_y,
 				  1);
 
 		glMemoryBarrier(GL_TEXTURE_FETCH_BARRIER_BIT|GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
@@ -1111,17 +1148,27 @@ void Renderer::upscale_pass()
 		TracyGpuNamedZone(fsr_pass1, "FSR pass2 RCAS & filmgrain", true);
 		RC_DEBUG_GROUP("FSR pass2 EASU & filmgrain");
 		glUseProgram(*m_fsr_rcas_shader);
-		glBindTextureUnit(0, *m_fsr_pass1_easu_to);
-		glBindImageTexture(0, *m_fsr_pass2_rcas_to, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
+		glBindImageTexture(0, *m_fsr_pass1_easu_to, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGB10_A2UI);
+		glBindImageTexture(1, *m_fsr_pass2_rcas_to, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA8);
 
 		unif::v2(*m_fsr_rcas_shader, 0, zcm::vec2(fsr_sharpening, fsr_filmgrain)); // sharpening, filmgain
 		unif::i2(*m_fsr_rcas_shader, 1, m_frame_number, 0); // frame num for noise
-		glDispatchCompute(1 + m_window_width / 8,
-				  1 + m_window_height / 8,
+		glDispatchCompute(dispatch_x,
+				  dispatch_y,
 				  1);
 
 		glMemoryBarrier(GL_FRAMEBUFFER_BARRIER_BIT|GL_TEXTURE_FETCH_BARRIER_BIT);
 	}
+}
+
+float Renderer::_render_scale() const noexcept {
+	return zcm::clamp(desired_render_scale, 0.1f, 1.0f);
+}
+
+zcm::ivec2 Renderer::_render_size() const noexcept
+{
+	return zcm::ivec2{static_cast<int>(m_window_width * _render_scale()),
+	                  static_cast<int>(m_window_height * _render_scale())};
 }
 
 void Renderer::draw()
@@ -1132,9 +1179,6 @@ void Renderer::draw()
 
 	ZoneScoped;
 	m_shader_set.check_updates();
-
-	if(unlikely(desired_render_scale != m_backbuffer_scale || desired_msaa_level != msaa_level))
-		resize(m_window_width, m_window_height, m_device_pixel_ratio, true);
 
 	// clear all caches
 	m_opaque_meshes.clear();
@@ -1211,7 +1255,9 @@ void Renderer::draw()
 
 	// set out framebuffer and viewport
 	glBindFramebuffer(GL_FRAMEBUFFER, *m_backbuffer_fbo);
-	glViewport(0, 0, m_backbuffer_width, m_backbuffer_height);
+	auto render_size = _render_size();
+	glViewport(0, 0, render_size.x, render_size.y);
+
 	glClear(GL_DEPTH_BUFFER_BIT); // NOTE: no need to clear color attachment bacause skybox will be drawn over it anyway
 
 	set_uniforms();
@@ -1300,15 +1346,6 @@ void Renderer::draw()
 		bloom_pass();
 	}
 
-	if (selected_fsr_preset != 0) {
-		glBindFramebuffer(GL_FRAMEBUFFER, *m_ldr_tonemap_fbo);
-		glViewport(0, 0, m_backbuffer_width, m_backbuffer_height);
-	} else {
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glViewport(0, 0, m_window_width, m_window_height);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	}
-
 	tonemap_pass();
 
 	if (selected_fsr_preset != 0) {
@@ -1319,13 +1356,18 @@ void Renderer::draw()
 				       0, 0,
 				       m_window_width, m_window_width,
 				       GL_COLOR_BUFFER_BIT, GL_NEAREST);
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	} else {
+		auto render_size = _render_size();
+		glBlitNamedFramebuffer(*m_ldr_tonemap_fbo, 0,
+		                       0, 0, render_size.x, render_size.y,
+		                       0, 0, m_window_width, m_window_height,
+		                       GL_COLOR_BUFFER_BIT, GL_LINEAR);
 	}
-
-
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	m_per_frame.finish();
 	m_light_per_frame.finish();
+	m_tonemap_uniform.finish();
 
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);
@@ -1432,7 +1474,8 @@ void Renderer::draw_gui(Renderer::RenderParams& params)
 
 
 	ImGui::Separator();
-	int width = m_backbuffer_width, height = m_backbuffer_height;
+	auto render_size = _render_size();
+	int width = render_size.x, height = render_size.y;
 	ImGui::Text("render:  %d x %d", width, height);
 	ImGui::Text("display: %d x %d", m_window_width, m_window_height);
 
@@ -1484,10 +1527,11 @@ void Renderer::draw_gui(Renderer::RenderParams& params)
 
 void Renderer::save_hdr_backbuffer(std::string_view path)
 {
+	auto render_size = _render_size();
 	glBlitNamedFramebuffer(*m_backbuffer_fbo,
 	                       *m_backbuffer_resolve_fbo,
-	                       0, 0, m_backbuffer_width, m_backbuffer_height,
-	                       0, 0, m_backbuffer_width, m_backbuffer_height,
+	                       0, 0, render_size.x, render_size.y,
+	                       0, 0, render_size.x, render_size.y,
 	                       GL_COLOR_BUFFER_BIT,
 	                       GL_NEAREST);
 	util::gl_save_hdr_texture(*m_backbuffer_resolve_color_to, path);

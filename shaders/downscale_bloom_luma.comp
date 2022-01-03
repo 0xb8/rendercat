@@ -28,28 +28,50 @@ vec4 upsample(sampler2D tex, float lvl, vec2 uv, vec2 halfpixel){
 	return sum / 12.0;
 }
 
-layout(local_size_x=16, local_size_y=16, local_size_z=1) in;
+vec4 calc_blur(uvec2 gxy) {
+    vec2 uv = vec2(gxy.xy + 0.5) * inv_output_size;
+    const int inputTextureLevel = src_level_mode.x;
+    const bool is_downsample = src_level_mode.y == 0;
+
+    vec4 result = vec4(0);
+    if (is_downsample) {
+        const vec2 halfpixel = vec2(0.5) * inv_output_size;
+        result = downsample(inputTexture, max(0, inputTextureLevel), uv, halfpixel);
+
+        if (inputTextureLevel == -1) {
+            float threshold = bloom_threshold_strength.x;
+            float strength  = bloom_threshold_strength.y * 2;
+            result.a = dot(result.rgb, vec3(0.2126,0.7152,0.0722));
+            result.rgb = mix(vec3(0), result.rgb, smoothstep(0, 1, strength * (result.a - threshold)));
+        }
+    } else {
+        const vec2 halfpixel = vec2(1.16) * inv_output_size;
+        result = upsample(inputTexture, inputTextureLevel, uv, halfpixel);
+    }
+    return result;
+}
+
+#define A_GPU 1
+#define A_GLSL 1
+#include "ffx_a.h"
+
+
+layout(local_size_x=64, local_size_y=1, local_size_z=1) in;
 void main(void)
 {
-	vec2 uv = vec2((gl_GlobalInvocationID.xy + 0.5) * inv_output_size);
-	const int inputTextureLevel = src_level_mode.x;
-	const bool is_downsample = src_level_mode.y == 0;
+    AU2 gxy = ARmp8x8(gl_LocalInvocationID.x) + AU2(gl_WorkGroupID.x << 4u, gl_WorkGroupID.y << 4u);
+    vec4 result = calc_blur(gxy);
+    imageStore(outputTexture, ivec2(gxy), result);
+    gxy.x += 8;
 
-	vec4 result = vec4(0);
-	if (is_downsample) {
-		const vec2 halfpixel = vec2(0.5) * inv_output_size;
-		result = downsample(inputTexture, max(0, inputTextureLevel), uv, halfpixel);
+    result = calc_blur(gxy);
+    imageStore(outputTexture, ivec2(gxy), result);
+    gxy.y += 8;
 
-		if (inputTextureLevel == -1) {
-			float threshold = bloom_threshold_strength.x;
-			float strength  = bloom_threshold_strength.y * 2;
-			result.a = dot(result.rgb, vec3(0.2126,0.7152,0.0722));
-			result.rgb = mix(vec3(0), result.rgb, smoothstep(0, 1, strength * (result.a - threshold)));
-		}
-	} else {
-		const vec2 halfpixel = vec2(1.16) * inv_output_size;
-		result = upsample(inputTexture, inputTextureLevel, uv, halfpixel);
-	}
+    result = calc_blur(gxy);
+    imageStore(outputTexture, ivec2(gxy), result);
+    gxy.x -= 8;
 
-	imageStore(outputTexture, ivec2(gl_GlobalInvocationID), result);
+    result = calc_blur(gxy);
+    imageStore(outputTexture, ivec2(gxy), result);
 }

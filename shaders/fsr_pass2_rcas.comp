@@ -1,7 +1,7 @@
 #version 450 core
 
-layout(binding=0) uniform sampler2D Source;
-layout(binding=0, rgba8) restrict writeonly uniform image2D outputTexture;
+layout(binding=0, rgb10_a2ui) readonly uniform uimage2D Source;
+layout(binding=1, rgba8) restrict writeonly uniform image2D outputTexture;
 
 layout(location = 0) uniform vec2 fsr_params;
 layout(location = 1) uniform ivec2 frame_params;
@@ -11,26 +11,6 @@ layout(location = 1) uniform ivec2 frame_params;
 #include "ffx_a.h"
 
 #define FSR_RCAS_F 1
-
-// Converts a color from linear light gamma to sRGB gamma
-vec3 fromLinear(vec3 linearRGB)
-{
-    bvec3 cutoff = lessThan(linearRGB, vec3(0.0031308));
-    vec3 higher = vec3(1.055)*pow(linearRGB, vec3(1.0/2.4)) - vec3(0.055);
-    vec3 lower = linearRGB * vec3(12.92);
-
-    return mix(higher, lower, cutoff);
-}
-
-// Converts a color from sRGB gamma to linear light gamma
-vec3 toLinear(vec3 sRGB)
-{
-    bvec3 cutoff = lessThan(sRGB, vec3(0.04045));
-    vec3 higher = pow((sRGB + vec3(0.055))/vec3(1.055), vec3(2.4));
-    vec3 lower = sRGB/vec3(12.92);
-
-    return mix(higher, lower, cutoff);
-}
 
 uint pcg(uint v) {
 	uint state = v * uint(747796405) + uint(2891336453);
@@ -61,30 +41,52 @@ float pdf(float noise, float shape) {
 
 
 AF4 FsrRcasLoadF(ASU2 p) {
-    AF4 c = texelFetch(Source, ASU2(p), 0);
-    return AF4(fromLinear(c.rgb), c.a);
+    uvec4 c = imageLoad(Source, p);
+    return AF4((c.rgb / 1023.0), c.a / 3.0);
 }
 void FsrRcasInputF(inout AF1 r, inout AF1 g, inout AF1 b) {}
+
+void storeResult(uvec2 pos, vec3 Gamma2Color) {
+    imageStore(outputTexture, ivec2(pos), vec4(Gamma2Color, 1.0));
+}
 
 #include "ffx_fsr1.h"
 AU4 con0;
 
-
-
-layout(local_size_x=8, local_size_y=8, local_size_z=1) in;
-void main() {
-    FsrRcasCon(con0, fsr_params[0]);
-
-    AU2 gxy = AU2(gl_GlobalInvocationID); // Integer pixel position in output.
-    AF3 Gamma2Color = AF3(0, 0, 0);
-    FsrRcasF(Gamma2Color.r, Gamma2Color.g, Gamma2Color.b, gxy, con0);
-
-    vec2 uv = vec2(gl_GlobalInvocationID.xy) / textureSize(Source, 0);
+void apply_noise(uvec2 pos, inout vec3 Gamma2Color) {
+    vec2 uv = vec2(pos) / imageSize(Source);
     const float PDF = 0.3;
     vec3 rgbNoise = vec3(pdf(prng(uv, frame_params[0] * 0.11), PDF),
                          pdf(prng(uv, frame_params[0] * 0.13), PDF),
                          pdf(prng(uv, frame_params[0] * 0.17), PDF));
     FsrLfgaF(Gamma2Color, rgbNoise, fsr_params[1]);
+}
 
-    imageStore(outputTexture, ivec2(gl_GlobalInvocationID), vec4(toLinear(Gamma2Color) , 1.0));
+
+
+layout(local_size_x=64, local_size_y=1, local_size_z=1) in;
+void main() {
+    FsrRcasCon(con0, fsr_params[0]);
+
+    AF3 Gamma2Color = AF3(0, 0, 0);
+    AU2 gxy = ARmp8x8(gl_LocalInvocationID.x) + AU2(gl_WorkGroupID.x << 4u, gl_WorkGroupID.y << 4u);
+
+    FsrRcasF(Gamma2Color.r, Gamma2Color.g, Gamma2Color.b, gxy, con0);
+    apply_noise(gxy, Gamma2Color);
+    storeResult(gxy, Gamma2Color);
+    gxy.x += 8u;
+
+    FsrRcasF(Gamma2Color.r, Gamma2Color.g, Gamma2Color.b, gxy, con0);
+    apply_noise(gxy, Gamma2Color);
+    storeResult(gxy, Gamma2Color);
+    gxy.y += 8u;
+
+    FsrRcasF(Gamma2Color.r, Gamma2Color.g, Gamma2Color.b, gxy, con0);
+    apply_noise(gxy, Gamma2Color);
+    storeResult(gxy, Gamma2Color);
+    gxy.x -= 8u;
+
+    FsrRcasF(Gamma2Color.r, Gamma2Color.g, Gamma2Color.b, gxy, con0);
+    apply_noise(gxy, Gamma2Color);
+    storeResult(gxy, Gamma2Color);
 }

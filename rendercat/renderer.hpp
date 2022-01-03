@@ -31,11 +31,8 @@ class Renderer
 
 	uint64_t m_frame_number = 0;
 
-	uint32_t m_backbuffer_width  = 0;
-	uint32_t m_backbuffer_height = 0;
 	uint32_t m_window_width  = 0;
 	uint32_t m_window_height = 0;
-	float    m_backbuffer_scale  = 1.0f;
 	float    m_device_pixel_ratio = 1.0f;
 
 	rc::texture_handle     m_brdf_lut_to;
@@ -162,9 +159,21 @@ class Renderer
 	void draw_skybox();
 	void end_draw_light_shadows();
 
+
+	struct alignas(256) TonemapUniformData {
+		float render_scale;
+		float exposure;
+		float bloom_strength;
+		int sample_count;
+	};
+	unif::buf<TonemapUniformData, 3> m_tonemap_uniform;
+
 	void bloom_pass();
 	void tonemap_pass();
 	void upscale_pass();
+
+	float _render_scale() const noexcept;
+	zcm::ivec2 _render_size() const noexcept;
 
 public:
 	static const unsigned int PointShadowWidth = 512;
@@ -201,12 +210,12 @@ public:
 
 
 	static constexpr int MaxLights = RC_MAX_LIGHTS;
-	static constexpr unsigned NumMipsBloomDownscale = 3u;
+	static constexpr int NumMipsBloomDownscale = 3;
 
 	explicit Renderer(Scene & s, ShaderSet& shader_set);
 	~Renderer() = default;
 
-	void resize(uint32_t width, uint32_t height, float device_pixel_ratio, bool force = false);
+	void resize(uint32_t width, uint32_t height, float device_pixel_ratio);
 	void clear_screen();
 	void draw();
 

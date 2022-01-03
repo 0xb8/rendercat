@@ -4,6 +4,8 @@
 #include <glbinding/gl45core/types.h>
 #include <stb_image_write.h>
 #include <cassert>
+#include <vector>
+
 
 using namespace gl45core;
 

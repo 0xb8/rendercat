@@ -142,6 +142,16 @@ void i2(uint32_t shader, std::string_view name, int a, int b)
 	i2(shader, gl45core::glGetUniformLocation(shader, name.data()), a, b);
 }
 
+void i3(uint32_t shader, int location, int a, int b, int c)
+{
+	gl45core::glProgramUniform3i(shader, location, gl45core::GLint(a), b, c);
+}
+
+void i3(uint32_t shader, std::string_view name, int a, int b, int c)
+{
+	i3(shader, gl45core::glGetUniformLocation(shader, name.data()), a, b, c);
+}
+
 void f1(uint32_t shader, int location, float value)
 {
 	gl45core::glProgramUniform1f(shader, location, value);

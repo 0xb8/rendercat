@@ -1,0 +1,99 @@
+#version 450 core
+
+layout(binding=0) uniform sampler2DMS hdrBuffer;
+layout(binding=1) uniform sampler2D bloomBuffer;
+
+layout(binding=0, rgb10_a2ui) restrict writeonly uniform uimage2D outputTexture;
+
+layout(location=0) uniform vec2 fparams;
+layout(location=1) uniform ivec3 iparams;
+
+
+layout(std140, binding=0) uniform TonemapParams {
+    float render_scale;
+    float exposure;
+    float bloom_strength;
+    int sample_count;
+};
+
+bool do_bloom() {
+    return bloom_strength > 0;
+}
+
+vec3 Uncharted2Tonemap(vec3 x)
+{
+	const float A = 0.15;
+	const float B = 0.50;
+	const float C = 0.10;
+	const float D = 0.20;
+	const float E = 0.02;
+	const float F = 0.30;
+	return ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F;
+}
+
+vec3 ACESFilm(vec3 x)
+{
+	const float a = 2.51f;
+	float b = 0.03f;
+	float c = 2.43f;
+	float d = 0.59f;
+	float e = 0.14f;
+	return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
+}
+
+vec3 Uncharted2Tonemap_W = Uncharted2Tonemap(vec3(11.2)); // white point
+
+vec3 calc_tonemap(uvec2 gxy) {
+    vec3 res = vec3(0);
+    vec3 bloom = vec3(0);
+    if (do_bloom()) {
+        vec2 outputBufferSize = imageSize(outputTexture);
+        vec2 bloom_uv = (gxy.xy + 0.5) / outputBufferSize;
+        vec3 color = texture(bloomBuffer, bloom_uv).rgb;
+        color *= bloom_strength;
+        bloom = color;
+    }
+
+    // apply tonemapping per sample to avoid hard contrast aliasing
+    for(int i = 0; i < sample_count; ++i) {
+        vec3 color = texelFetch(hdrBuffer, ivec2(gxy), i).rgb;
+        color += bloom;
+        res += Uncharted2Tonemap(color * exposure * 2);
+    }
+    res /= sample_count * Uncharted2Tonemap_W;
+    return res;
+}
+
+void storeResult(uvec2 gxy, vec3 linear_color) {
+    vec3 res = sqrt(linear_color);
+    res *= 1023;
+    // todo: dither
+    imageStore(outputTexture, ivec2(gxy), uvec4(res, 3));
+}
+
+
+#define A_GPU 1
+#define A_GLSL 1
+#include "ffx_a.h"
+
+layout(local_size_x=64, local_size_y=1, local_size_z=1) in;
+void main()
+{
+    // AMD-recommeded remapping for better cache utilization
+    uvec2 gxy = ARmp8x8(gl_LocalInvocationID.x) + AU2(gl_WorkGroupID.x << 4u, gl_WorkGroupID.y << 4u);
+
+    vec3 linear_color = calc_tonemap(gxy);
+    storeResult(gxy, linear_color);
+    gxy.x += 8;
+
+    linear_color = calc_tonemap(gxy);
+    storeResult(gxy, linear_color);
+    gxy.y += 8;
+
+    linear_color = calc_tonemap(gxy);
+    storeResult(gxy, linear_color);
+    gxy.x -= 8;
+
+    linear_color = calc_tonemap(gxy);
+    storeResult(gxy, linear_color);
+}

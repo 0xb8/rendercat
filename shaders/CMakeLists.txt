@@ -10,7 +10,6 @@ set(VERTEX_SHADER_SOURCES
 set(FRAGMENT_SHADER_SOURCES
 	generic.frag
 	cubemap.frag
-	hdr.frag
 	shadow_mapping.frag
 )
 
@@ -20,6 +19,7 @@ set(COMPUTE_SHADER_SOURCES
 	cubemap_diffuse_irradiance.comp
 	cubemap_specular_envmap.comp
 	downscale_bloom_luma.comp
+    hdr.comp
 	fsr_pass1_easu.comp
 	fsr_pass2_rcas.comp
 )

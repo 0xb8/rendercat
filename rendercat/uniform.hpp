@@ -25,6 +25,10 @@ void i1(uint32_t shader, std::string_view name, int value);
 void i2(uint32_t shader, int location, int a, int b);
 void i2(uint32_t shader, std::string_view name, int a, int b);
 
+void i3(uint32_t shader, int location, int a, int b, int c);
+void i3(uint32_t shader, std::string_view name, int a, int b, int c);
+
+
 // --- float -------------------------------------------------------------------
 
 void f1(uint32_t shader, int location, float value);
