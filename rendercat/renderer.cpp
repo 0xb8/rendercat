@@ -407,7 +407,7 @@ void Renderer::clear_screen()
 	glViewport(0, 0, m_window_width, m_window_height);
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 }
-
+#if 0
 static void drawFullscreenTriangle()
 {
 	static GLuint vao;
@@ -419,6 +419,7 @@ static void drawFullscreenTriangle()
 	glDrawArrays(GL_TRIANGLES, 0, 3);
 	glBindVertexArray(0);
 }
+#endif
 
 
 static void check_and_block_sync(rc::sync_handle sync, const char* message=nullptr) {
