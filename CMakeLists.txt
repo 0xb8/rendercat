@@ -76,12 +76,6 @@ if(CMAKE_CXX_COMPILER_ID MATCHES Clang|GNU AND NOT CMAKE_CXX_SIMULATE_ID)
 	endif()
 endif()
 
-# clang on mingw has problems with TLS destructors etc.
-if (MINGW AND CMAKE_CXX_COMPILER_ID MATCHES Clang)
-	add_definitions(-DDOCTEST_THREAD_LOCAL=)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -femulated-tls")
-endif()
-
 find_package(OpenGL REQUIRED)
 option(USE_SYSTEM_GLBINDING "Use installed glbinding instead of subproject" OFF)
 if (USE_SYSTEM_GLBINDING)
