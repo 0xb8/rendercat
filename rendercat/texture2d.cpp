@@ -376,7 +376,7 @@ Texture::ColorSpace TextureStorage2D::color_space() const noexcept
 
 
 
-ImageTexture2D ImageTexture2D::fromFile(const std::string_view path,
+ImageTexture2D ImageTexture2D::fromFile(const std::filesystem::path& path,
                                         Texture::ColorSpace color_space)
 {
 	ZoneScoped;
@@ -384,9 +384,9 @@ ImageTexture2D ImageTexture2D::fromFile(const std::string_view path,
 
 
 	int width, height, nrChannels;
-	auto data = stbi_load(path.data(), &width, &height, &nrChannels, 0);
+	auto data = stbi_load(path.u8string().data(), &width, &height, &nrChannels, 0);
 	if(!data) {
-		fmt::print(stderr, "[texture2d.fromFile] could not load image data from [{}]\n", path);
+		fmt::print(stderr, "[texture2d.fromFile] could not load image data from [{}]\n", path.u8string());
 		return ImageTexture2D();
 	}
 
@@ -425,7 +425,7 @@ ImageTexture2D ImageTexture2D::fromFile(const std::string_view path,
 		glGenerateTextureMipmap(ret.m_storage.texture_handle());
 		ret.set_default_params();
 		ret.m_storage.set_label(fmt::format("{} ({}x{} {})",
-		                                    path,
+		                                    path.u8string(),
 		                                    ret.m_storage.width(),
 		                                    ret.m_storage.height(),
 		                                    enum_value_str(ret.m_storage.format())));

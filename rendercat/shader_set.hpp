@@ -2,6 +2,8 @@
 
 #include <rendercat/common.hpp>
 #include <string>
+#include <string_view>
+#include <filesystem>
 #include <vector>
 
 namespace rc {
@@ -28,21 +30,21 @@ class ShaderSet
 public:
 
 	// Only single instance is allowed. MUST NOT be static or global instance.
-	explicit ShaderSet(std::string_view directory = path::shader);
+	explicit ShaderSet(std::filesystem::path directory = path::shader);
 	~ShaderSet();
 
 	void check_updates();
 
 	using macros_t = std::vector<ShaderMacro>;
 
-	uint32_t* load_program(std::vector<std::string>&& paths, macros_t&& defines = macros_t());
+	uint32_t* load_program(std::vector<std::filesystem::path>&& paths, macros_t&& defines = macros_t());
 	bool deleteProgram(uint32_t**);
 
 	static constexpr size_t max_programs = 16;
 
 private:
 	class Program;
-	std::string m_directory;
+	std::filesystem::path m_directory;
 	Program*    m_programs[max_programs];
 	unsigned    m_program_count = 0;
 	unsigned    m_next_reload_index = 0;

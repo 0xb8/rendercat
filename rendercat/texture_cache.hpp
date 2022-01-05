@@ -8,9 +8,9 @@ namespace Cache {
 
 void clear();
 
-void add(std::string&& path, rc::ImageTexture2D&& tex);
+void add(const std::filesystem::path&, rc::ImageTexture2D&& tex);
 
-ImageTexture2D* get(const std::string& path);
+ImageTexture2D* get(const std::filesystem::path& path);
 
 
 }

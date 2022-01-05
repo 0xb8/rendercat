@@ -4,7 +4,8 @@
 #include <rendercat/core/bbox.hpp>
 #include <rendercat/material.hpp>
 #include <rendercat/util/gl_unique_handle.hpp>
-#include <string_view>
+#include <string>
+#include <filesystem>
 #include <vector>
 #include <zcm/quat.hpp>
 
@@ -49,9 +50,7 @@ namespace model {
 		std::vector<zcm::vec3> translate;
 	};
 
-	bool load_gltf_file(data& res,
-	                    const std::string_view name,
-			    const std::string_view basedir = std::string_view{});
+	bool load_gltf_file(data& res, const std::filesystem::path& path);
 } // namespace model
 } // namespace rc
 

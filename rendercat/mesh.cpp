@@ -90,7 +90,7 @@ static void apply_gltf_sampler(const fx::gltf::Sampler* s, ImageTexture2D& tex) 
 }
 
 
-static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, const std::string_view texture_path)
+static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, const std::filesystem::path& texture_path)
 {
 	ZoneScoped;
 	fx::gltf::Material mat;
@@ -101,7 +101,7 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 	{
 		auto diffuse_path = get_texture_uri(doc, mat.pbrMetallicRoughness.baseColorTexture);
 		if (!diffuse_path.empty()) {
-			auto map = Material::load_image_texture(texture_path, diffuse_path, Texture::ColorSpace::sRGB);
+			auto map = Material::load_image_texture(texture_path / diffuse_path, Texture::ColorSpace::sRGB);
 			if (map.valid()) {
 				material.set_base_color_map(std::move(map));
 				apply_gltf_sampler(get_gltf_sampler(doc, mat.pbrMetallicRoughness.baseColorTexture),
@@ -112,7 +112,7 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 	{
 		auto normal_path = get_texture_uri(doc, mat.normalTexture);
 		if (!normal_path.empty()) {
-			auto map = Material::load_image_texture(texture_path, normal_path, Texture::ColorSpace::Linear);
+			auto map = Material::load_image_texture(texture_path / normal_path, Texture::ColorSpace::Linear);
 			if (map.valid()) {
 				if (map.channels() < 2) {
 					fmt::print(stderr, "Normal map has less than 2 channels: {}\n", normal_path);
@@ -128,7 +128,7 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 	{
 		auto emission_path = get_texture_uri(doc, mat.emissiveTexture);
 		if (!emission_path.empty()) {
-			auto map = Material::load_image_texture(texture_path, emission_path, Texture::ColorSpace::Linear);
+			auto map = Material::load_image_texture(texture_path / emission_path, Texture::ColorSpace::Linear);
 			if (map.valid()) {
 				if (map.channels() < 3) {
 					fmt::print(stderr, "Emission map has less than 3 channels: {}\n", emission_path);
@@ -143,7 +143,7 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 	{
 		auto roughness_path = get_texture_uri(doc, mat.pbrMetallicRoughness.metallicRoughnessTexture);
 		if (!roughness_path.empty()) {
-			auto map = Material::load_image_texture(texture_path, roughness_path, Texture::ColorSpace::Linear);
+			auto map = Material::load_image_texture(texture_path / roughness_path, Texture::ColorSpace::Linear);
 			if (map.valid()) {
 				if (map.channels() == 1) {
 					std::transform(roughness_path.begin(), roughness_path.end(), roughness_path.begin(), [](auto ch)
@@ -186,7 +186,7 @@ static Material load_gltf_material(const fx::gltf::Document& doc, int mat_idx, c
 		auto occlusion_path = get_texture_uri(doc, mat.occlusionTexture);
 		if (!occlusion_path.empty()) {
 			if (occlusion_path != roughness_path) {
-				auto map = Material::load_image_texture(texture_path, occlusion_path, Texture::ColorSpace::Linear);
+				auto map = Material::load_image_texture(texture_path / occlusion_path, Texture::ColorSpace::Linear);
 				if (map.valid()) {
 					material.set_occlusion_map(std::move(map));
 					apply_gltf_sampler(get_gltf_sampler(doc, mat.occlusionTexture),
@@ -415,7 +415,7 @@ struct node_transform {
 
 static void load_gltf_mesh_with_material(model::data& res,
                                          std::map<int, int>& materials_cache,
-                                         std::string_view material_path,
+                                         const std::filesystem::path& material_path,
                                          const fx::gltf::Document& doc,
                                          const node_transform& transform,
                                          size_t mesh_id) {
@@ -448,7 +448,7 @@ static void load_gltf_mesh_with_material(model::data& res,
 static void load_node_recursive(model::data& res,
                                 const fx::gltf::Document& doc,
                                 std::map<int, int>& materials_cache,
-                                std::string_view material_path,
+                                const std::filesystem::path& material_path,
                                 const node_transform& parent_transform,
                                 size_t node_idx)
 {
@@ -476,25 +476,19 @@ static void load_node_recursive(model::data& res,
 }
 
 
-bool model::load_gltf_file(data& res, const std::string_view name, const std::string_view basedir)
+bool model::load_gltf_file(data& res, const std::filesystem::path& path)
 {
 	ZoneScoped;
-	std::string model_path{rc::path::asset::model};
-	model_path.append(basedir);
-
-	std::string model_path_full = model_path;
-	model_path_full.append(name);
-
-	std::string material_path{rc::path::asset::model};
-	material_path.append(basedir);
 
 	std::map<int, int> materials_cache;
 
 	fx::gltf::Document doc;
 	{
 		ZoneScopedN("parse gltf file");
-		doc = fx::gltf::LoadFromText(model_path_full);
+		doc = fx::gltf::LoadFromText(path);
 	}
+
+	auto material_path = path.parent_path();
 
 	if (doc.scenes.empty()) {
 

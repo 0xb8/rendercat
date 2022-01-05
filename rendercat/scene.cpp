@@ -158,18 +158,22 @@ void Scene::init()
 	spot.set_flux(600);
 	spot_lights.push_back(spot);
 
-	load_model_gltf("sponzahr.gltf", "sponza/");
-	load_model_gltf("2b_feather.gltf", "2b_v6/");
+	load_model_gltf("sponza/sponzahr.gltf");
+	load_model_gltf("2b_v6/2b_feather.gltf");
 
 	Texture::Cache::clear();
 }
 
 
-Model* Scene::load_model_gltf(const std::string_view name, const std::string_view basedir)
+Model* Scene::load_model_gltf(const std::filesystem::path& path)
 {
 	ZoneScoped;
 	model::data data;
-	if(model::load_gltf_file(data, name, basedir)) {
+	auto file = path;
+	if (!file.is_absolute())
+		file = std::filesystem::path{rc::path::asset::model} / file;
+
+	if(model::load_gltf_file(data, file)) {
 		auto base_material_offset = materials.size();
 
 		for(size_t i = 0; i < data.materials.size(); ++i) {
@@ -177,7 +181,7 @@ Model* Scene::load_model_gltf(const std::string_view name, const std::string_vie
 		}
 
 		auto& model = models.emplace_back(Model{});
-		model.name = name.substr(0, name.find_last_of('.'));
+		model.name = file.filename().u8string();
 		model.mesh_count = static_cast<uint32_t>(data.primitives.size());
 
 		model.shaded_meshes = std::unique_ptr<uint32_t[]>(new uint32_t[model.mesh_count]);

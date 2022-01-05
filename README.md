@@ -20,6 +20,7 @@ A simple OpenGL 4.5 renderer used to teach myself various realtime graphics tech
 * Bloom effect
 * Using modern OpenGL 4.5 API
 * Simple FPS controls and GUI using ImGui library
+* AMD FSR upscaling
 
 ## Features (todo)
 * Skeletal animation

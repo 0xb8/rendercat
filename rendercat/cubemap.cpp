@@ -87,14 +87,12 @@ Cubemap::Cubemap()
 	}
 }
 
-void Cubemap::load_cube(std::string_view basedir)
+void Cubemap::load_cube(const std::filesystem::path& dir)
 {
 	ZoneScoped;
-	assert(basedir.length() > 0);
 
-	std::filesystem::path path{basedir};
-	if (!std::filesystem::is_directory(path))
-		return;
+	std::filesystem::path path{dir};
+	assert(std::filesystem::is_directory(path));
 
 	rc::texture_handle tex;
 	// BUG: AMD driver cannot upload faces of single cubemap, only cubemap array (size of 1 still works)
@@ -144,24 +142,24 @@ void Cubemap::load_cube(std::string_view basedir)
 			return;
 		}
 	}
-	rcObjectLabel(tex, fmt::format("cubemap: {} ({}x{})", basedir, prev_face_width, prev_face_height));
+	rcObjectLabel(tex, fmt::format("cubemap: {} ({}x{})", dir.u8string(), prev_face_width, prev_face_height));
 	m_cubemap = std::move(tex);
 }
 
-void Cubemap::load_equirectangular(std::string_view path)
+void Cubemap::load_equirectangular(const std::filesystem::path& file)
 {
 	assert(cubemap_load_shader);
 	ZoneScoped;
 	rc::texture_handle flat_texture;
 	int flat_width, flat_height, chan;
-	auto data = stbi_loadf(path.data(), &flat_width, &flat_height, &chan, 3);
+	auto data = stbi_loadf(file.u8string().data(), &flat_width, &flat_height, &chan, 3);
 	if(data && chan == 3) {
 			glCreateTextures(GL_TEXTURE_2D, 1, flat_texture.get());
 			glTextureStorage2D(*flat_texture, 1, GL_RGB32F, flat_width, flat_height);
 			glTextureSubImage2D(*flat_texture, 0, 0, 0, flat_width, flat_height, GL_RGB, GL_FLOAT, data);
 			stbi_image_free(data);
 	} else {
-		fmt::print(stderr, "[cubemap] could not open equirectangular map file '{}'\n", path);
+		fmt::print(stderr, "[cubemap] could not open equirectangular map file '{}'\n", file.u8string());
 		stbi_image_free(data);
 		return;
 	}
@@ -180,7 +178,7 @@ void Cubemap::load_equirectangular(std::string_view path)
 	glDispatchCompute(face_size/32, face_size/32, 6);
 
 	m_cubemap = std::move(cubemap_to);
-	rcObjectLabel(m_cubemap, fmt::format("cubemap: {} ({}x{})", path, face_size, face_size));
+	rcObjectLabel(m_cubemap, fmt::format("cubemap: {} ({}x{})", file.u8string(), face_size, face_size));
 }
 
 void Cubemap::draw(const Cubemap & cubemap, const zcm::mat4 & view, const zcm::mat4 & projection, int mip_level) noexcept

@@ -10,7 +10,7 @@
 using namespace gl45core;
 
 
-void rc::util::gl_screenshot(unsigned w, unsigned h, std::string_view file)
+void rc::util::gl_screenshot(unsigned w, unsigned h, const std::filesystem::path& file)
 {
 	std::vector<uint8_t> data;
 	data.resize(w * h * 3);
@@ -19,10 +19,10 @@ void rc::util::gl_screenshot(unsigned w, unsigned h, std::string_view file)
 	glReadPixels(0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, data.data());
 
 	stbi_flip_vertically_on_write(true);
-	stbi_write_png(file.data(), w, h, 3, data.data(), 0);
+	stbi_write_png(file.u8string().data(), w, h, 3, data.data(), 0);
 }
 
-void rc::util::gl_save_hdr_texture(uint32_t tex, std::string_view file)
+void rc::util::gl_save_hdr_texture(uint32_t tex, const std::filesystem::path& file)
 {
 	if(!glIsTexture(tex)) {
 		fputs("gl_save_hdr_texture(): not a texture object", stderr);
@@ -48,5 +48,5 @@ void rc::util::gl_save_hdr_texture(uint32_t tex, std::string_view file)
 	glGetTextureImage(tex, 0, GL_RGBA, GL_FLOAT, static_cast<GLsizei>(bufsize), buf.data());
 
 	stbi_flip_vertically_on_write(true);
-	stbi_write_hdr(file.data(), tex_width, tex_height, 4, buf.data());
+	stbi_write_hdr(file.u8string().data(), tex_width, tex_height, 4, buf.data());
 }

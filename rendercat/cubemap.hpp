@@ -1,7 +1,7 @@
 #pragma once
 #include <rendercat/common.hpp>
 #include <rendercat/util/gl_unique_handle.hpp>
-#include <string_view>
+#include <filesystem>
 #include <zcm/fwd.hpp>
 
 namespace rc {
@@ -23,8 +23,8 @@ public:
 	RC_DEFAULT_MOVE_NOEXCEPT(Cubemap)
 	RC_DISABLE_COPY(Cubemap)
 
-	void load_cube(std::string_view basedir);
-	void load_equirectangular(std::string_view path);
+	void load_cube(const std::filesystem::path& dir);
+	void load_equirectangular(const std::filesystem::path& file);
 
 	[[nodiscard]] static Cubemap integrate_diffuse_irradiance(const Cubemap& source);
 	[[nodiscard]] static Cubemap convolve_specular(const Cubemap& source);
