@@ -308,7 +308,7 @@ Material::UniformData * Material::data() const
 	return m_unif_data.data();
 }
 
-static ImageTexture2D try_from_cache_or_load(std::string&& path, Texture::ColorSpace space)
+ImageTexture2D Material::load_image_texture(const std::filesystem::path& path, Texture::ColorSpace space)
 {
 	ZoneScoped;
 	ImageTexture2D ret;
@@ -318,19 +318,8 @@ static ImageTexture2D try_from_cache_or_load(std::string&& path, Texture::ColorS
 	} else {
 		ret = ImageTexture2D::fromFile(path, space);
 		if(ret.valid()) {
-			Texture::Cache::add(std::move(path), ret.share());
+			Texture::Cache::add(path, ret.share());
 		}
 	}
 	return ret;
-}
-
-ImageTexture2D Material::load_image_texture(std::string_view basedir, std::string_view name, Texture::ColorSpace colorspace)
-{
-	std::string filepath;
-	filepath = basedir;
-	if(basedir.find_last_of('/') != basedir.length()-1)
-		filepath.push_back('/');
-	filepath.append(name);
-
-	return try_from_cache_or_load(std::move(filepath), colorspace);
 }

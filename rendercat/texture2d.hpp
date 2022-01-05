@@ -3,6 +3,7 @@
 #include <rendercat/texture.hpp>
 #include <rendercat/util/gl_unique_handle.hpp>
 #include <string_view>
+#include <filesystem>
 #include <zcm/vec4.hpp>
 
 namespace rc {
@@ -67,7 +68,7 @@ struct ImageTexture2D
 {
 	ImageTexture2D() = default;
 
-	[[nodiscard]] static ImageTexture2D fromFile(const std::string_view file, Texture::ColorSpace colorspace);
+	[[nodiscard]] static ImageTexture2D fromFile(const std::filesystem::path& file, Texture::ColorSpace colorspace);
 
 	[[nodiscard]] ImageTexture2D share();
 

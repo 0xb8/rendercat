@@ -5,6 +5,8 @@
 #include <zcm/vec4.hpp>
 #include <zcm/vec3.hpp>
 #include <string>
+#include <string_view>
+#include <filesystem>
 
 namespace rc {
 
@@ -20,7 +22,7 @@ struct Material
 	static void set_default_diffuse(const std::string_view path) noexcept;
 	static void delete_default_diffuse() noexcept;
 	static Material create_default_material();
-	static ImageTexture2D load_image_texture(std::string_view basedir, std::string_view path, Texture::ColorSpace colorspace);
+	static ImageTexture2D load_image_texture(const std::filesystem::path& file_path, Texture::ColorSpace colorspace);
 
 	bool valid() const;
 	void flush();

@@ -17,6 +17,7 @@
 
 #include <memory>
 #include <string_view>
+#include <filesystem>
 
 namespace rc {
 
@@ -133,7 +134,7 @@ struct Scene
 	void load_skybox_cubemap(std::string_view path);
 	void skyboxes_list();
 
-	Model* load_model_gltf(const std::string_view name, const std::string_view basedir);
+	Model* load_model_gltf(const std::filesystem::path& file);
 
 	rc::Camera main_camera;
 

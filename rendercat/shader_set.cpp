@@ -144,7 +144,7 @@ struct Shader
 	rc::shader_handle               handle;
 	const ShaderSet::macros_t*      definitions = nullptr;
 
-	explicit Shader(std::filesystem::path&& root_path, std::filesystem::path&& fpath) :
+	explicit Shader(std::filesystem::path root_path, std::filesystem::path fpath) :
 	        filepath(std::move(fpath)),
 	        root_path(std::move(root_path))
 	{ }
@@ -307,7 +307,7 @@ public:
 };
 
 
-ShaderSet::ShaderSet(std::string_view directory) : m_directory(directory)
+ShaderSet::ShaderSet(std::filesystem::path directory) : m_directory(std::move(directory))
 {
 	static int instance_count = 0;
 	if (++instance_count > 1)
@@ -346,21 +346,21 @@ void ShaderSet::check_updates()
 	}
 }
 
-gl::GLuint * ShaderSet::load_program(std::vector<std::string>&& names, macros_t&& defines)
+gl::GLuint * ShaderSet::load_program(std::vector<std::filesystem::path>&& names, macros_t&& defines)
 {
 	auto program = std::make_unique<Program>(std::move(defines));
 
-	for(const auto& name : names) {
-
-		std::filesystem::path dirpath = m_directory;
-		auto filepath = dirpath / name;
+	for(auto filepath : names) {
+		if (!filepath.is_absolute()) {
+			filepath = m_directory / filepath;
+		}
 
 		if(!std::filesystem::exists(filepath)) {
-			fmt::print(stderr, "[shader]  shader file does not exist: [{}]\n", filepath.string());
+			fmt::print(stderr, "[shader]  shader file does not exist: [{}]\n", filepath.u8string());
 			return nullptr;
 		}
 
-		program->attach_shader(Shader(std::move(dirpath), std::move(filepath)));
+		program->attach_shader(Shader(m_directory, filepath));
 	}
 
 	program->reload();
