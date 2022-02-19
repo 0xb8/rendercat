@@ -172,20 +172,30 @@ static void rc_set_input_captured(GLFWwindow* window, bool value)
 	if(input::captured) {
 		input::mouse_just_captured = true;
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
 		glfwSetCursorDeltaCallback(window, glfw_mouse_motion_callback);
-		glfwSetCharCallback(window, nullptr);
-		glfwSetMouseButtonCallback(window, nullptr);
-		glfwSetScrollCallback(window, glfw_scroll_callback);
+		glfwSetWindowFocusCallback(window, nullptr);
 		glfwSetCursorEnterCallback(window, nullptr);
+		glfwSetCursorPosCallback(window,   nullptr);
+		glfwSetMouseButtonCallback(window, nullptr);
+		glfwSetScrollCallback(window,      glfw_scroll_callback);
+		glfwSetCharCallback(window,        nullptr);
+		glfwSetMonitorCallback(            nullptr);
+
 		io.ConfigFlags |= ImGuiConfigFlags_NoMouse;
 		io.ConfigFlags |= ImGuiConfigFlags_NavNoCaptureKeyboard;
 	} else {
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-		glfwSetCharCallback(window, ImGui_ImplGlfw_CharCallback);
+
 		glfwSetCursorDeltaCallback(window, nullptr);
-		glfwSetMouseButtonCallback(window, ImGui_ImplGlfw_MouseButtonCallback);
-		glfwSetScrollCallback(window, ImGui_ImplGlfw_ScrollCallback);
+		glfwSetWindowFocusCallback(window, ImGui_ImplGlfw_WindowFocusCallback);
 		glfwSetCursorEnterCallback(window, ImGui_ImplGlfw_CursorEnterCallback);
+		glfwSetCursorPosCallback(window,   ImGui_ImplGlfw_CursorPosCallback);
+		glfwSetMouseButtonCallback(window, ImGui_ImplGlfw_MouseButtonCallback);
+		glfwSetScrollCallback(window,      ImGui_ImplGlfw_ScrollCallback);
+		glfwSetCharCallback(window,        ImGui_ImplGlfw_CharCallback);
+		glfwSetMonitorCallback(            ImGui_ImplGlfw_MonitorCallback);
+
 		io.ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
 		io.ConfigFlags &= ~ImGuiConfigFlags_NavNoCaptureKeyboard;
 	}
