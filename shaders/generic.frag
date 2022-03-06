@@ -1,10 +1,6 @@
 #version 450 core
 //layout(early_fragment_tests) in; // breaks alpha-masked sample to coverage, todo: add a define
 
-#include "constants.glsl"
-#include "material.glsl"
-
-
 #extension GL_ARB_shader_group_vote: enable
 #ifndef OPENGL
 	#extension GL_KHR_shader_subgroup_vote: enable
@@ -16,6 +12,10 @@
 	#define subgroupAllEqual(value) allInvocationsEqualARB(equal(value))
 #endif
 
+#include "constants.glsl"
+#include "generic_perframe.glsl"
+
+#include "material.glsl"
 
 layout(binding=30) uniform sampler1D turbo_colormap;
 layout(binding=31) uniform sampler2D uBRDFLut;
@@ -25,50 +25,6 @@ layout(binding=34) uniform samplerCubeArray uIrradiance;
 layout(binding=36) uniform sampler2DArrayShadow spot_shadowmaps;
 layout(binding=37) uniform samplerCubeArrayShadow point_shadowmaps;
 
-
-struct DirectionalLight {
-	vec4 color_intensity;
-	vec3 direction;
-};
-
-struct ExponentialDirectionalFog {
-	vec4 dir_inscattering_color;
-	vec4 direction; // .xyz - direction, .w - exponent
-	float inscattering_opacity;
-	float inscattering_density;
-	float extinction_density;
-	bool enabled;
-};
-
-
-struct PointLightData {
-    vec4 position;  // .xyz - pos,   .w - radius
-    vec4 color;     // .rgb - color, .a - luminous intensity (candela)
-};
-
-struct SpotLightData {
-	vec4 position;  // .xyz - pos,   .w - radius
-	vec4 color;     // .rgb - color, .a - luminous intensity (candela)
-	vec4 direction; // .xyz - dir,   .w - angle scale
-	vec4 angle_offset;
-};
-
-layout(std140, binding=1) uniform PerFrame_frag {
-	mat4  proj_view;
-	mat4  light_proj_view;
-	vec3  camera_forward;
-	float znear;
-	vec3  viewPos;
-	uint  per_frame_flags;
-
-	DirectionalLight directional_light;
-	ExponentialDirectionalFog directional_fog;
-
-	PointLightData point_light[MAX_DYNAMIC_LIGHTS];
-	SpotLightData  spot_light[MAX_DYNAMIC_LIGHTS];
-
-	int num_msaa_samples;
-};
 
 layout(std140, binding=2) uniform PerFrameLight_frag {
 	mat4 spot_light_matrices[MAX_DYNAMIC_LIGHTS];

@@ -11,6 +11,7 @@
 #include <glbinding/gl45core/enum.h>
 #include <glbinding/gl45core/functions.h>
 #include <glbinding/Binding.h>
+#include <glbinding-aux/Meta.h>
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
@@ -362,12 +363,25 @@ static void enable_gl_debug_callback()
 		return;
 	//glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 	//glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, 0, GL_FALSE);
-	uint32_t ids[] = {
+
+	uint32_t ids_bufferinfo[] = {
+	        131185
+	};
+	glDebugMessageControl(GL_DEBUG_SOURCE_API, GL_DEBUG_TYPE_OTHER, GL_DONT_CARE, std::size(ids_bufferinfo), ids_bufferinfo, GL_FALSE);
+
+	uint32_t ids_debug_group[] = {
 	        rc::rc_debug_group::debug_group_id
 	};
-	glDebugMessageControl(rc::rc_debug_group::source, GL_DEBUG_TYPE_PUSH_GROUP, GL_DONT_CARE, std::size(ids), ids, GL_FALSE);
-	glDebugMessageControl(rc::rc_debug_group::source, GL_DEBUG_TYPE_POP_GROUP, GL_DONT_CARE, std::size(ids), ids, GL_FALSE);
+	glDebugMessageControl(rc::rc_debug_group::source, GL_DEBUG_TYPE_PUSH_GROUP, GL_DONT_CARE, std::size(ids_debug_group), ids_debug_group, GL_FALSE);
+	glDebugMessageControl(rc::rc_debug_group::source, GL_DEBUG_TYPE_POP_GROUP, GL_DONT_CARE, std::size(ids_debug_group), ids_debug_group, GL_FALSE);
 	glDebugMessageCallback(gl_debug_callback, 0);
+
+	// check error manually, because setting debug callback might fail
+	auto err = glGetError();
+	if (err != GL_NO_ERROR) {
+		fmt::print(stderr, "debug callback error: {}\n", glbinding::aux::Meta::getString(err));
+		std::fflush(stderr);
+	}
 #endif
 }
 

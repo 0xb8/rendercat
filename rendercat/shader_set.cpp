@@ -189,6 +189,13 @@ struct Shader
 			std::fflush(stdout);
 			return true;
 		}
+		if(new_handle) {
+			char error_log[4096];
+			int size = 0;
+			glGetShaderInfoLog(*new_handle, std::size(error_log), &size, error_log);
+			fmt::print(stderr, "[shader]  compile error [{}]:\n{}\n", filepath.string(), error_log);
+			std::fflush(stderr);
+		}
 		return false;
 
 	} catch(const std::exception& e) {
@@ -228,7 +235,10 @@ public:
 		GLint success = 0;
 		glGetProgramiv(*program, GL_LINK_STATUS, &success);
 		if(!success) {
-			fmt::print(stderr, "[shader]  failed to link program id [{}]\n", *program);
+			char error_log[4096];
+			int size = 0;
+			glGetProgramInfoLog(*program, std::size(error_log), &size, error_log);
+			fmt::print(stderr, "[shader]  failed to link program id [{}]: {}\n", *program, error_log);
 		}
 		return success;
 	}

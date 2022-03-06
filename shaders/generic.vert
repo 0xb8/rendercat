@@ -13,11 +13,8 @@ layout(location=0) out INTERFACE {
 	flat float BitangentSign;
 } vs_out;
 
-
-layout(std140, binding=1) uniform PerFrame_vert {
-    mat4 proj_view;
-    mat4 light_proj_view;
-};
+#include "constants.glsl"
+#include "generic_perframe.glsl"
 
 
 layout(location=5) uniform mat4 model;
