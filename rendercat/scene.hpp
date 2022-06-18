@@ -26,7 +26,9 @@ struct DirectionalLight
 	/// .rgb - color, .a - intensity
 	zcm::vec4 color_intensity;
 
-	zcm::vec3 direction;
+	zcm::quat direction;
+
+	float ambient_intensity;
 };
 
 struct ExponentialDirectionalFog

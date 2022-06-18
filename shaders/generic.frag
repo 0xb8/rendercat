@@ -13,6 +13,8 @@
 #endif
 
 #include "constants.glsl"
+#define ATMOSPHERE_SAMPLE_COUNT 16
+#include "minimal_atmosphere.glsl"
 #include "generic_perframe.glsl"
 
 #include "material.glsl"
@@ -43,7 +45,8 @@ struct Light {
 
 struct PixelParams {
 	vec3  n;
-	vec3  v;
+	vec3  v; // (normalized)
+	float vl; // length(v)
 	vec3  diffuseColor;
 	vec3  f0;
 	vec3  energyCompensation;
@@ -302,11 +305,11 @@ vec3 getNormal()
 }
 
 float remap(float value, float low1, float high1, float low2, float high2) {
-    return low2 + (value - low1) * (high2 - low2) / (high1 - low1);
+	return low2 + (value - low1) * (high2 - low2) / (high1 - low1);
 }
 
 float remap01(float value, float low2, float high2) {
-    return low2 + value * (high2 - low2);
+	return low2 + value * (high2 - low2);
 }
 
 
@@ -375,11 +378,19 @@ float direction_attenuation(const in vec3 lightDir,
 }
 
 vec3 calcPBRDirect(const PixelParams pixel){
+	if (directional_light.color_intensity.w < 0.0)
+		return vec3(0);
+
+	vec3 light_dir   = directional_light.direction;
+	vec3 light_color = directional_light.color_intensity.rgb;
+
+	// Directional light transmittance (planet shadow)
+	vec3 lightTransmittance = Absorb(IntegrateOpticalDepth(fs_in.FragPos, light_dir));
 
 	// calc direct light
 	Light direct_light;
-	direct_light.colorIntensity = directional_light.color_intensity;
-	direct_light.l = directional_light.direction;
+	direct_light.colorIntensity = vec4(light_color * lightTransmittance, directional_light.color_intensity.w);
+	direct_light.l = light_dir;
 	direct_light.NoL = clamp(dot(pixel.n, directional_light.direction), 0.0, 1.0);
 	direct_light.attenuation = 1.0;
 
@@ -456,7 +467,7 @@ vec3 calcPBRSpot(const PixelParams pixel) {
 }
 
 float computeSpecularAO(float NoV, float visibility, float roughness) {
-    return clamp(pow(NoV + visibility, exp2(-16.0 * roughness - 1.0)) - 1.0 + visibility, 0.0, 1.0);
+	return clamp(pow(NoV + visibility, exp2(-16.0 * roughness - 1.0)) - 1.0 + visibility, 0.0, 1.0);
 }
 
 vec3 calcIBL(PixelParams pixel)
@@ -499,6 +510,7 @@ void main()
 	PixelParams pixel;
 	pixel.n = N;
 	pixel.v = V;
+	pixel.vl = viewRayLength;
 	pixel.diffuseColor = diffuse_color;
 	pixel.f0 = mix(vec3(0.04), material_base_color.rgb, material_metallic);
 	pixel.NoV = abs(dot(N, V)) + 1e-5;

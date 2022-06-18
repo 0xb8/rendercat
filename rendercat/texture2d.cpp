@@ -553,7 +553,7 @@ void ImageTexture2D::set_wrapping(Texture::Wrapping s, Texture::Wrapping t) noex
 	m_wrapping_s = s;
 	m_wrapping_t = t;
 	if(unlikely(!m_storage.valid())) return;
-	GLenum wrapping_s{s}, wrapping_t{t};
+	GLenum wrapping_s{static_cast<unsigned>(s)}, wrapping_t{static_cast<unsigned>(t)};
 
 	glTextureParameteri(m_storage.texture_handle(), GL_TEXTURE_WRAP_S, wrapping_s);
 	glTextureParameteri(m_storage.texture_handle(), GL_TEXTURE_WRAP_T, wrapping_t);

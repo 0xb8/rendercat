@@ -93,7 +93,7 @@ class Renderer
 		struct DirectionalLight {
 			zcm::vec4 color_intensity;
 			zcm::vec3 direction;
-			float _padding1;
+			float ambient_intensity;
 		};
 		DirectionalLight dir_light[1];
 
@@ -141,6 +141,8 @@ class Renderer
 
 	zcm::mat4 m_shadow_matrix;
 
+	size_t m_directional_light_hash = 0;
+
 	void set_uniforms();
 
 	void draw_directional_shadow();
@@ -181,6 +183,11 @@ public:
 	bool enable_spot_shadows = true;
 	bool enable_shadow_caching = true;
 	bool window_shown = true;
+
+	bool show_ground = true;
+	bool update_diffuse = true;
+	bool update_specular = true;
+	bool indirect_only = false;
 
 	static constexpr int MaxLights = RC_MAX_LIGHTS;
 	static constexpr unsigned NumMipsBloomDownscale = 3u;

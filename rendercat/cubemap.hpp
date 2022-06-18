@@ -31,6 +31,8 @@ public:
 
 	static void compile_shaders(ShaderSet& shader_set);
 	static void draw(const Cubemap& cubemap, const zcm::mat4& view, const zcm::mat4& projection, int mip_level = 0) noexcept;
+	static void draw_atmosphere(const zcm::mat4& view, const zcm::mat4& projection, bool draw_planet) noexcept;
+	static void draw_atmosphere_to_cube(Cubemap& cube, int size, bool draw_planet) noexcept;
 
 private:
 	friend bool Texture::bind_to_unit(const Cubemap& cubemap, uint32_t unit) noexcept;

@@ -1,4 +1,5 @@
 #include <rendercat/uniform.hpp>
+#include <utility>
 #include <rendercat/util/gl_debug.hpp>
 #include <glbinding/gl45core/enum.h>
 #include <glbinding/gl45core/types.h>

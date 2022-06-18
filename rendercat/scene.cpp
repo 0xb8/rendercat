@@ -30,12 +30,13 @@ void Scene::init()
 	}
 
 	current_cubemap = "assets/cubemaps/field_evening_late";
-	load_skybox_cubemap(current_cubemap);
+	//load_skybox_cubemap(current_cubemap);
 
 	main_camera.state.position = {0.0f, 1.7f, 1};
 	//main_camera.state.orientation = {0, 0, 1, 0};
-	directional_light.direction = zcm::normalize(zcm::vec3{-0.990, 0.137, 0.018});
+	directional_light.direction = zcm::quat::wxyz(0.857, -0.264, 0.281, -0.342);
 	directional_light.color_intensity = zcm::vec4{1.00, 0.675, 0.404, 30.0};
+	directional_light.ambient_intensity = 10.0f;
 
 	fog.inscattering_environment_opacity = 1.0f;
 	fog.dir_inscattering_color = zcm::vec4(1.00, 0.675, 0.404, 1.0f);
@@ -230,74 +231,90 @@ static void show_flux_help()
 	show_help_tooltip("Luminous Power in Lumens");
 }
 
-static bool edit_transform(RigidTransform& transform, int id, const CameraState& camera_state)
+static bool edit_transform(RigidTransform& transform,
+                           const CameraState& camera_state,
+                           int *selected_operation,
+                           int allowed_modes=ImGuizmo::OPERATION::TRANSLATE | ImGuizmo::OPERATION::ROTATE | ImGuizmo::OPERATION::SCALE,
+                           int space = -1)
 {
 	const auto& main_viewport = ImGui::GetMainViewport();
 	ImGuizmo::SetRect(main_viewport->Pos.x, main_viewport->Pos.y,
 	                  main_viewport->Size.x, main_viewport->Size.y);
 
 	ImGui::PushID(&transform);
-	ImGuizmo::SetID(id);
+	ImGuizmo::SetID(reinterpret_cast<uintptr_t>(&transform));
 
 	bool changed = false;
 
-	static int gizmo_operation = ImGuizmo::OPERATION::TRANSLATE;
-	ImGui::RadioButton("Translate (g)", &gizmo_operation, ImGuizmo::OPERATION::TRANSLATE); ImGui::SameLine();
-	ImGui::RadioButton("Rotate (r)", &gizmo_operation, ImGuizmo::OPERATION::ROTATE); ImGui::SameLine();
-	ImGui::RadioButton("Scale (s)", &gizmo_operation, ImGuizmo::OPERATION::SCALE);
+	if (allowed_modes & ImGuizmo::OPERATION::TRANSLATE) {
+		ImGui::RadioButton("Translate (g)", selected_operation, ImGuizmo::OPERATION::TRANSLATE); ImGui::SameLine();
 
-	static bool gizmo_space = false;
-	ImGui::Checkbox("World Space", &gizmo_space);
+		if(ImGui::IsKeyPressed(ImGuiKey_G)) {
+			*selected_operation = ImGuizmo::OPERATION::TRANSLATE;
+		}
+	}
+	if (allowed_modes & ImGuizmo::OPERATION::ROTATE) {
+		ImGui::RadioButton("Rotate (r)", selected_operation, ImGuizmo::OPERATION::ROTATE); ImGui::SameLine();
+		if(ImGui::IsKeyPressed(ImGuiKey_R)) {
+			*selected_operation = ImGuizmo::OPERATION::ROTATE;
+		}
+	}
+	if (allowed_modes & ImGuizmo::OPERATION::SCALE) {
+		ImGui::RadioButton("Scale (s)", selected_operation, ImGuizmo::OPERATION::SCALE);
 
-	if(ImGui::IsKeyPressed(71)) { // g
-		gizmo_operation = ImGuizmo::OPERATION::TRANSLATE;
+		if(ImGui::IsKeyPressed(ImGuiKey_S)) {
+			*selected_operation = ImGuizmo::OPERATION::SCALE;
+		}
 	}
 
-	if(ImGui::IsKeyPressed(82)) { // r
-		gizmo_operation = ImGuizmo::OPERATION::ROTATE;
+	if (space < 0) {
+		static bool val = false;
+		ImGui::Checkbox("World Space", &val);
+		space = val;
 	}
 
-	if(ImGui::IsKeyPressed(83)) { // s
-		gizmo_operation = ImGuizmo::OPERATION::SCALE;
+	if (allowed_modes & ImGuizmo::OPERATION::TRANSLATE) {
+		ImGui::TextUnformatted("Position");
+		ImGui::SameLine();
+		if (ImGui::Button("Reset##position")) {
+			transform.position = zcm::vec3{};
+			changed = true;
+		}
+		changed |= ImGui::DragFloat3("##position",
+		                  zcm::value_ptr(transform.position),
+		                  0.01f);
+		ImGui::Spacing();
 	}
 
-	ImGui::TextUnformatted("Position");
-	ImGui::SameLine();
-	if (ImGui::Button("Reset##position")) {
-		transform.position = zcm::vec3{};
-		changed = true;
+	if (allowed_modes & ImGuizmo::OPERATION::ROTATE) {
+		ImGui::TextUnformatted("Rotation");
+		ImGui::SameLine();
+		if (ImGui::Button("Reset##resetrotation")) {
+			transform.rotation = zcm::quat{};
+			changed = true;
+		}
+
+		{
+			auto euler = zcm::eulerAngles(transform.rotation);
+			auto quat = transform.rotation;
+			ImGui::InputFloat3("Euler (pitch-yaw-roll)", zcm::value_ptr(euler), "%.3f",
+							   ImGuiInputTextFlags_ReadOnly);
+			ImGui::InputFloat4("Quat (xyzw)", zcm::value_ptr(quat), "%.3f",
+							   ImGuiInputTextFlags_ReadOnly);
+		}
+
+		ImGui::Spacing();
 	}
 
-	changed |= ImGui::DragFloat3("##position",
-	                  zcm::value_ptr(transform.position),
-	                  0.01f);
-
-	ImGui::Spacing();
-	ImGui::TextUnformatted("Rotation");
-	ImGui::SameLine();
-	if (ImGui::Button("Reset##resetrotation")) {
-		transform.rotation = zcm::quat{};
-		changed = true;
+	if (allowed_modes & ImGuizmo::OPERATION::SCALE) {
+		ImGui::TextUnformatted("Scale");
+		ImGui::SameLine();
+		if (ImGui::Button("Reset##resetscale")) {
+			transform.scale = zcm::vec3{1};
+			changed = true;
+		}
+		changed |= ImGui::DragFloat3("##scale", zcm::value_ptr(transform.scale), 0.01f);
 	}
-
-	{
-		auto euler = zcm::eulerAngles(transform.rotation);
-		auto quat = transform.rotation;
-		ImGui::InputFloat3("Euler (pitch-yaw-roll)", zcm::value_ptr(euler), "%.3f",
-		                   ImGuiInputTextFlags_ReadOnly);
-		ImGui::InputFloat3("Quat (xyzw)", zcm::value_ptr(quat), "%.3f",
-		                   ImGuiInputTextFlags_ReadOnly);
-	}
-
-
-	ImGui::Spacing();
-	ImGui::TextUnformatted("Scale");
-	ImGui::SameLine();
-	if (ImGui::Button("Reset##resetscale")) {
-		transform.scale = zcm::vec3{1};
-		changed = true;
-	}
-	changed |= ImGui::DragFloat3("##scale", zcm::value_ptr(transform.scale), 0.01f);
 
 	// copy the transform and offset by negative camera position to avoid floating point precision loss.
 	auto transform_copy = transform;
@@ -311,15 +328,15 @@ static bool edit_transform(RigidTransform& transform, int id, const CameraState&
 
 	if (ImGuizmo::Manipulate(zcm::value_ptr(view),
 	                         zcm::value_ptr(proj),
-	                         static_cast<ImGuizmo::OPERATION>(gizmo_operation),
-	                         gizmo_space ? ImGuizmo::MODE::WORLD : ImGuizmo::MODE::LOCAL,
+	                         static_cast<ImGuizmo::OPERATION>(*selected_operation),
+	                         static_cast<ImGuizmo::MODE>(space),
 	                         zcm::value_ptr(transform_mat))) {
 
 		zcm::vec3 translate, scale;
 		zcm::quat rotate;
 		zcm::decompose_orthogonal(transform_mat, scale, rotate, translate);
 
-		switch (gizmo_operation) {
+		switch (*selected_operation) {
 		case ImGuizmo::OPERATION::TRANSLATE:
 			transform.position = translate + camera_state.position;
 			break;
@@ -1127,28 +1144,35 @@ void Scene::update()
 			ImGui::TreePop();
 		}
 
-		if(ImGui::TreeNode("Directional")) {
+		if(ImGui::TreeNode("Sunlight")) {
 
 			ImGui::PushItemWidth(-1.0f);
-			ImGui::TextUnformatted("Direction");
-			ImGui::SliderFloat3("##direction", zcm::value_ptr(directional_light.direction), -1.0, 1.0);
-			directional_light.direction = zcm::normalize(directional_light.direction);
+			RigidTransform transform;
+			transform.rotation = directional_light.direction;
+			transform.position = main_camera.state.position - 2 * main_camera.state.get_backward();
+			int operation = ImGuizmo::OPERATION::ROTATE;
+			if (edit_transform(transform, main_camera.state, &operation, ImGuizmo::OPERATION::ROTATE, ImGuizmo::MODE::LOCAL)) {
+				directional_light.direction = transform.rotation;
+			}
+
 			ImGui::Spacing();
 			ImGui::Spacing();
 			ImGui::TextUnformatted("Color");
 
 			zcm::vec3 color = directional_light.color_intensity.rgb;
-			float intensity = directional_light.color_intensity.a;
+			zcm::vec2 intensity = {directional_light.color_intensity.a, directional_light.ambient_intensity};
+
 
 			if (ImGui::ColorEdit3("##directional_color",   zcm::value_ptr(color),
 			                      ImGuiColorEditFlags_Float | ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoLabel))
 			{
-				directional_light.color_intensity = zcm::vec4{color, intensity};
+				directional_light.color_intensity = zcm::vec4{color, intensity.r};
 			}
 
-			if (ImGui::SliderFloat("Intensity", &intensity, 0.0f, 1e3f))
+			if (ImGui::SliderFloat2("Intensity", zcm::value_ptr(intensity), 0.0f, 1e3f))
 			{
-				directional_light.color_intensity = zcm::vec4{color, intensity};
+				directional_light.color_intensity = zcm::vec4{color, intensity.x};
+				directional_light.ambient_intensity = intensity.y;
 			}
 
 			ImGui::PopItemWidth();
@@ -1209,13 +1233,16 @@ void Scene::update()
 
 	}
 
+	static int model_transform_mode;
+
 	if(ImGui::CollapsingHeader("Models")) {
 		for(unsigned i = 0; i < models.size(); ++i) {
 			Model& model = models[i];
 			ImGui::PushID(i);
 			if(ImGui::TreeNode("Model", "%s", model.name.data())) {
 
-				edit_transform(model.transform, i, main_camera.state);
+
+				edit_transform(model.transform, main_camera.state, &model_transform_mode);
 
 				if(ImGui::TreeNodeEx("##submeshes", ImGuiTreeNodeFlags_CollapsingHeader, "Submeshes: %u", model.mesh_count)) {
 					for(unsigned j = 0; j < model.mesh_count; ++j) {
@@ -1228,7 +1255,7 @@ void Scene::update()
 
 						ImGui::PushID(submesh.name.begin().operator->(), submesh.name.end().operator->());
 						if (ImGui::TreeNode("##submesh", "%s", submesh.name.data())) {
-							edit_transform(shaded_mesh.transform, i * model.mesh_count + j, main_camera.state);
+							edit_transform(shaded_mesh.transform, main_camera.state, &model_transform_mode);
 							show_mesh_ui(submesh, materials[material_idx]);
 							ImGui::TreePop();
 						}

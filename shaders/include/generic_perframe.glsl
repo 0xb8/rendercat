@@ -1,6 +1,7 @@
 struct DirectionalLight {
 	vec4 color_intensity;
 	vec3 direction;
+	float ambient_intensity;
 };
 
 struct ExponentialDirectionalFog {
@@ -14,8 +15,8 @@ struct ExponentialDirectionalFog {
 
 
 struct PointLightData {
-    vec4 position;  // .xyz - pos,   .w - radius
-    vec4 color;     // .rgb - color, .a - luminous intensity (candela)
+	vec4 position;  // .xyz - pos,   .w - radius
+	vec4 color;     // .rgb - color, .a - luminous intensity (candela)
 };
 
 struct SpotLightData {

@@ -10,12 +10,14 @@ set(VERTEX_SHADER_SOURCES
 set(FRAGMENT_SHADER_SOURCES
 	generic.frag
 	cubemap.frag
+	cubemap_atmosphere.frag
 	hdr.frag
 	shadow_mapping.frag
 )
 
 set(COMPUTE_SHADER_SOURCES
 	brdf_lut.comp
+	cubemap_bake.comp
 	cubemap_from_equirectangular.comp
 	cubemap_diffuse_irradiance.comp
 	cubemap_specular_envmap.comp

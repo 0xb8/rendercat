@@ -46,6 +46,8 @@ static uint32_t *cubemap_draw_shader;
 static uint32_t *cubemap_load_shader;
 static uint32_t *compute_diffuse_irradiance_shader;
 static uint32_t *compute_specular_env_map_shader;
+static uint32_t *minimal_atmosphere_shader;
+static uint32_t *compute_minimal_atmosphere_bake_shader;
 
 static void set_tex_params(uint32_t tex, bool mips=false)
 {
@@ -199,6 +201,40 @@ void Cubemap::draw(const Cubemap & cubemap, const zcm::mat4 & view, const zcm::m
 	}
 }
 
+void Cubemap::draw_atmosphere(const zcm::mat4 & view, const zcm::mat4 & projection, bool draw_planet) noexcept
+{
+	assert(minimal_atmosphere_shader);
+	// remove translation part from view matrix
+	unif::m4(*minimal_atmosphere_shader, 0, projection * zcm::mat4{zcm::mat3{view}});
+	unif::b1(*minimal_atmosphere_shader, 1, draw_planet);
+
+	glUseProgram(*minimal_atmosphere_shader);
+	glBindVertexArray(cubemap_vao);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 14); // see cubemap.vert
+	glBindVertexArray(0);
+}
+
+void Cubemap::draw_atmosphere_to_cube(Cubemap& cube, int size, bool draw_planet) noexcept
+{
+	assert(compute_minimal_atmosphere_bake_shader);
+	if (!cube.m_cubemap) {
+		rc::texture_handle tex;
+		// BUG: AMD driver cannot upload faces of single cubemap, only cubemap array (size of 1 still works)
+		glCreateTextures(GL_TEXTURE_CUBE_MAP_ARRAY, 1, tex.get());
+		set_tex_params(*tex);
+
+		// create texture array for point light shadowmaps
+		glTextureStorage3D(*tex, 1, GL_RGBA16F, size, size, 6);
+		rcObjectLabel(tex, fmt::format("Baked atmosphere cubemap ({}x{})", size, size));
+		cube.m_cubemap = std::move(tex);
+	}
+	unif::b1(*compute_minimal_atmosphere_bake_shader, 1, draw_planet);
+	glUseProgram(*compute_minimal_atmosphere_bake_shader);
+	glBindImageTexture(0, *cube.m_cubemap, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+	glDispatchCompute(size/16, size/16, 6);
+	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT|GL_TEXTURE_FETCH_BARRIER_BIT);
+}
+
 
 Cubemap Cubemap::integrate_diffuse_irradiance(const Cubemap & source)
 {
@@ -238,7 +274,7 @@ Cubemap Cubemap::convolve_specular(const Cubemap & source)
 
 	GLint src_size, dst_size;
 	glGetTextureLevelParameteriv(*source.m_cubemap, 0, GL_TEXTURE_WIDTH, &src_size);
-	dst_size = std::min(src_size / 4, 256);
+	dst_size = std::min(std::max(src_size, 64), 256);
 	int dst_numlevels = rc::math::num_mipmap_levels(dst_size, dst_size);
 	glTextureStorage2D(*cubemap_with_mips_to, dst_numlevels, GL_RGBA16F, dst_size, dst_size);
 	set_tex_params(*cubemap_with_mips_to, true);
@@ -297,6 +333,8 @@ void Cubemap::compile_shaders(ShaderSet& shader_set)
 	cubemap_load_shader = shader_set.load_program({"cubemap_from_equirectangular.comp"});
 	compute_diffuse_irradiance_shader = shader_set.load_program({"cubemap_diffuse_irradiance.comp"});
 	compute_specular_env_map_shader = shader_set.load_program({"cubemap_specular_envmap.comp"});
+	minimal_atmosphere_shader = shader_set.load_program({"cubemap.vert", "cubemap_atmosphere.frag"});
+	compute_minimal_atmosphere_bake_shader = shader_set.load_program({"cubemap_bake.comp"});
 }
 
 bool Texture::bind_to_unit(const Cubemap & cubemap, uint32_t unit) noexcept

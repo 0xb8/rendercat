@@ -403,12 +403,18 @@ void Renderer::set_uniforms()
 	per_frame->camera_forward  = -m_scene->main_camera.state.get_backward();
 	per_frame->viewPos         = m_scene->main_camera.state.position;
 
-	per_frame->dir_light[0].color_intensity = m_scene->directional_light.color_intensity;
-	per_frame->dir_light[0].direction       = m_scene->directional_light.direction;
+	const auto directional_light_l = m_scene->directional_light.direction * zcm::vec3{0.0f, 0.0f, 1.0f};
+	auto directional_light_intensity = m_scene->directional_light.color_intensity;
+	if (indirect_only) {
+		directional_light_intensity *= {1, 1, 1, -1};
+	}
+	per_frame->dir_light[0].color_intensity = directional_light_intensity;
+	per_frame->dir_light[0].direction       = directional_light_l;
+	per_frame->dir_light[0].ambient_intensity = m_scene->directional_light.ambient_intensity;
 
 	per_frame->dir_fog.inscattering_opacity     = m_scene->fog.inscattering_environment_opacity;
 	per_frame->dir_fog.dir_inscattering_color = m_scene->fog.dir_inscattering_color;
-	per_frame->dir_fog.direction_exponent     = zcm::vec4{-m_scene->directional_light.direction, m_scene->fog.dir_exponent};
+	per_frame->dir_fog.direction_exponent     = zcm::vec4{-directional_light_l, m_scene->fog.dir_exponent};
 	per_frame->dir_fog.inscattering_density   = m_scene->fog.inscattering_density;
 	per_frame->dir_fog.extinction_density     = m_scene->fog.extinction_density;
 	per_frame->dir_fog.enabled                = (m_scene->fog.state & ExponentialDirectionalFog::Enabled);
@@ -592,7 +598,7 @@ void Renderer::draw_directional_shadow()
 	// TODO: determine frustum size dynamically
 	static float near_plane = -25.0f, far_plane = 25.0f;
 	static zcm::vec4 params = zcm::vec4(-15.0f, 15.0f, -15.0f, 15.0f);
-	auto pos = m_scene->directional_light.direction;
+	auto pos = m_scene->directional_light.direction * zcm::vec3{0.0f, 0.0f, 1.0f};
 
 	zcm::mat4 lightProjection = zcm::orthoRH_ZO(params[0], params[1], params[2],params[3], near_plane, far_plane);
 	auto lightView = zcm::lookAtRH(pos,
@@ -1326,6 +1332,14 @@ void Renderer::draw_gui(Renderer::RenderParams& params)
 	ImGui::SameLine();
 	ImGui::Checkbox("Show model bboxes", &draw_model_bboxes);
 
+	ImGui::Checkbox("Only indirect lighting", &indirect_only);
+
+	ImGui::Checkbox("Show Ground", &show_ground);
+	ImGui::SameLine();
+	ImGui::Checkbox("Update diffuse", &update_diffuse);
+	ImGui::SameLine();
+	ImGui::Checkbox("Update specular", &update_specular);
+
 	const char* labels_cube[] = {"Sky", "Diffuse Irradiance", "Specular Reflectance"};
 	ImGui::Combo("Cubemap", &selected_cubemap, labels_cube, std::size(labels_cube));
 	if (selected_cubemap == 2) {
@@ -1345,6 +1359,11 @@ void Renderer::save_hdr_backbuffer(std::string_view path)
 	util::gl_save_hdr_texture(*m_backbuffer_resolve_color_to, path);
 }
 
+
+static size_t calc_directional_hash(const DirectionalLight& l) {
+	return zcm::hash(l.direction) ^ zcm::hash(l.color_intensity) ^ zcm::hash(l.ambient_intensity);
+}
+
 void Renderer::draw_skybox()
 {
 	ZoneScoped;
@@ -1352,6 +1371,20 @@ void Renderer::draw_skybox()
 	glDepthFunc(GL_GEQUAL);
 	auto view = make_view(m_scene->main_camera.state);
 	auto projection = make_projection(m_scene->main_camera.state);
+
+	//Cubemap::draw_atmosphere(view, projection, true);
+	auto dlh = calc_directional_hash(m_scene->directional_light) ^ show_ground << 1 ^ update_diffuse << 2 ^ update_specular << 3;
+	if (dlh != m_directional_light_hash){
+		m_directional_light_hash = dlh;
+
+		Cubemap::draw_atmosphere_to_cube(m_scene->cubemap, 64, show_ground);
+		if (update_diffuse)
+			m_scene->cubemap_diffuse_irradiance = Cubemap::integrate_diffuse_irradiance(m_scene->cubemap);
+		if (update_specular)
+			m_scene->cubemap_specular_environment = Cubemap::convolve_specular(m_scene->cubemap);
+
+		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT|GL_TEXTURE_FETCH_BARRIER_BIT);
+	}
 
 	int level = selected_cubemap == 2 ? cubemap_mip_level : 0;
 
