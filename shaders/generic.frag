@@ -316,7 +316,8 @@ float remap01(float value, float low2, float high2) {
 vec3 calcFog(const in ExponentialDirectionalFog fog,
              const in vec3 fragColor,
              const in float fragDistance,
-             const in vec3 viewDir)
+             const in vec3 viewDir,
+             const in vec3 direct_transmittance)
 {
 	vec3 fogColor = textureLod(uReflection,
 	                           vec4(-viewDir, 0),
@@ -325,6 +326,7 @@ vec3 calcFog(const in ExponentialDirectionalFog fog,
 	float directional_amount = max(dot(viewDir, fog.direction.xyz), 0.0);
 	directional_amount *= fog.dir_inscattering_color.a;
 	fogColor = mix(fogColor, fog.dir_inscattering_color.rgb, pow(directional_amount, fog.direction.w));
+	fogColor *= direct_transmittance;
 
 	float extinctionAmount   = 1.0 - exp2(-fragDistance * fog.extinction_density);
 	float inscatteringAmount = 1.0 - exp2(-fragDistance * fog.inscattering_density);
@@ -377,7 +379,7 @@ float direction_attenuation(const in vec3 lightDir,
 	return att * att;
 }
 
-vec3 calcPBRDirect(const PixelParams pixel){
+vec3 calcPBRDirect(const PixelParams pixel, out vec3 direct_transmittance){
 	if (directional_light.color_intensity.w < 0.0)
 		return vec3(0);
 
@@ -385,11 +387,11 @@ vec3 calcPBRDirect(const PixelParams pixel){
 	vec3 light_color = directional_light.color_intensity.rgb;
 
 	// Directional light transmittance (planet shadow)
-	vec3 lightTransmittance = Absorb(IntegrateOpticalDepth(fs_in.FragPos, light_dir));
+	direct_transmittance = Absorb(IntegrateOpticalDepth(fs_in.FragPos, light_dir));
 
 	// calc direct light
 	Light direct_light;
-	direct_light.colorIntensity = vec4(light_color * lightTransmittance, directional_light.color_intensity.w);
+	direct_light.colorIntensity = vec4(light_color * direct_transmittance, directional_light.color_intensity.w);
 	direct_light.l = light_dir;
 	direct_light.NoL = clamp(dot(pixel.n, directional_light.direction), 0.0, 1.0);
 	direct_light.attenuation = 1.0;
@@ -520,11 +522,12 @@ void main()
 	pixel.dfg = textureLod(uBRDFLut, vec2(pixel.NoV, pixel.perceptualRoughness), 0.0).rg;
 	pixel.energyCompensation = 1.0 + pixel.f0 * (1.0 / pixel.dfg.y - 1.0);
 
-	vec3 lighting = calcIBL(pixel) + calcPBRDirect(pixel) + calcPBRPoint(pixel) + calcPBRSpot(pixel);
+	vec3 direct_transmittance;
+	vec3 lighting = calcIBL(pixel) + calcPBRDirect(pixel, direct_transmittance) + calcPBRPoint(pixel) + calcPBRSpot(pixel);
 	lighting += getMaterialEmission();
 
 	if(directional_fog.enabled) {
-		lighting = calcFog(directional_fog, lighting, viewRayLength, V);
+		lighting = calcFog(directional_fog, lighting, viewRayLength, V, direct_transmittance);
 	}
 
 	FragColor = vec4(lighting, material_base_color.a);
