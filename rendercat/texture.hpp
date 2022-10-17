@@ -87,20 +87,20 @@ namespace Texture {
 	};
 
 	enum class MagFilter : uint16_t
-        {
-            Nearest = 9728,
-            Linear = 9729
-        };
+	{
+		Nearest = 9728,
+		Linear = 9729
+	};
 
-        enum class MinFilter : uint16_t
-        {
-            Nearest = 9728,
-            Linear = 9729,
-            NearestMipMapNearest = 9984,
-            LinearMipMapNearest = 9985,
-            NearestMipMapLinear = 9986,
-            LinearMipMapLinear = 9987
-        };
+	enum class MinFilter : uint16_t
+	{
+		Nearest = 9728,
+		Linear = 9729,
+		NearestMipMapNearest = 9984,
+		LinearMipMapNearest = 9985,
+		NearestMipMapLinear = 9986,
+		LinearMipMapLinear = 9987
+	};
 
 	enum class Wrapping : std::uint16_t
 	{

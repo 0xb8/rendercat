@@ -258,7 +258,7 @@ void rc::FPSCameraBehavior::move_right(rc::CameraState & state, float movement) 
 
 void rc::FPSCameraBehavior::move_up(rc::CameraState & state, float movement) noexcept
 {
-	state.position += state.get_up() * movement;
+	state.position += state.get_global_up() * movement;
 }
 
 void rc::Camera::update() noexcept

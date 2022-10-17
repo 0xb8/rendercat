@@ -18,8 +18,8 @@ struct TextureStorage2D
 	RC_DISABLE_COPY(TextureStorage2D)
 
 	[[nodiscard]] TextureStorage2D share_view(unsigned minlevel,
-	                            unsigned numlevels,
-	                            Texture::InternalFormat view_format = Texture::InternalFormat::KeepParentFormat);
+	                                          unsigned numlevels,
+	                                          Texture::InternalFormat view_format = Texture::InternalFormat::KeepParentFormat);
 
 	[[nodiscard]] TextureStorage2D share();
 

@@ -485,7 +485,7 @@ bool model::load_gltf_file(data& res, const std::filesystem::path& path)
 	fx::gltf::Document doc;
 	{
 		ZoneScopedN("parse gltf file");
-		doc = fx::gltf::LoadFromText(path);
+		doc = fx::gltf::LoadFromText(path, fx::gltf::ReadQuotas{32, 1024*1024*1024, 1024*1024*1024});
 	}
 
 	auto material_path = path.parent_path();

@@ -9,8 +9,7 @@
 #include <string_view>
 #include <new>
 
-namespace rc {
-namespace unif {
+namespace rc::unif {
 
 // --- bool --------------------------------------------------------------------
 
@@ -144,5 +143,4 @@ private:
 	rc::sync_handle _sync[N];
 };
 
-} // namespace unif
-} // namespace rc
+} // namespace rc::unif

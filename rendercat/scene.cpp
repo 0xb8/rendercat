@@ -421,11 +421,11 @@ static bool edit_light(T& light, int id, Camera& camera) noexcept
 		ImGui::RadioButton("Translate (g)", &gizmo_operation, ImGuizmo::OPERATION::TRANSLATE); ImGui::SameLine();
 		ImGui::RadioButton("Rotate (r)", &gizmo_operation, ImGuizmo::OPERATION::ROTATE);
 
-		if(ImGui::IsKeyPressed(71)) { // g
+		if(ImGui::IsKeyPressed(ImGuiKey_G)) { // g
 			gizmo_operation = ImGuizmo::OPERATION::TRANSLATE;
 		}
 
-		if(ImGui::IsKeyPressed(82)) { // r
+		if(ImGui::IsKeyPressed(ImGuiKey_R)) { // r
 			gizmo_operation = ImGuizmo::OPERATION::ROTATE;
 		}
 
