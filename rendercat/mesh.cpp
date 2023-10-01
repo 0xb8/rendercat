@@ -17,7 +17,7 @@
 
 #include <tracy/Tracy.hpp>
 using namespace gl45core;
-#include <TracyOpenGL.hpp>
+#include <tracy/TracyOpenGL.hpp>
 using namespace rc;
 
 

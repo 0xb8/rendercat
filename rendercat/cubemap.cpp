@@ -26,7 +26,7 @@
 
 #include <tracy/Tracy.hpp>
 using namespace gl45core;
-#include <TracyOpenGL.hpp>
+#include <tracy/TracyOpenGL.hpp>
 using namespace rc;
 
 static const std::array<std::filesystem::path, 6> face_names_hdr {

@@ -28,7 +28,7 @@
 #include <zcm/type_ptr.hpp>
 
 using namespace gl45core;
-#include <TracyOpenGL.hpp>
+#include <tracy/TracyOpenGL.hpp>
 
 using namespace rc;
 
@@ -1174,7 +1174,7 @@ void Renderer::draw()
 	}
 
 	TracyPlot("% unculled draws", (float)rc::math::percent(size_t(num_drawcalls), m_masked_meshes.size() + m_opaque_meshes.size() + m_blended_meshes.size()));
-	TracyPlotConfig("% unculled draws", tracy::PlotFormatType::Percentage);
+	TracyPlotConfig("% unculled draws", tracy::PlotFormatType::Percentage, false, true, 0);
 
 	TracyPlot("Point lights total", num_point_lights);
 	TracyPlot("Spot lights total", num_spot_lights);
