@@ -1,3 +1,4 @@
+#include <cstring>
 #include <rendercat/core/bbox.hpp>
 #include <zcm/component_wise.hpp>
 #include <zcm/geometric.hpp>
@@ -639,6 +640,21 @@ TEST_CASE("BBox include") {
 				zcm::vec3 max;
 			};
 
+			REQUIRE(sizeof(NanBbox2) == sizeof(rc::bbox2));
+			REQUIRE(sizeof(NanBbox3) == sizeof(rc::bbox3));
+
+			auto make_nanbox2 = [](NanBbox2 src) {
+				rc::bbox2 res;
+				memcpy(&res, &src, sizeof(res));
+				return res;
+			};
+
+			auto make_nanbox3 = [](NanBbox3 src) {
+				rc::bbox3 res;
+				memcpy(&res, &src, sizeof(res));
+				return res;
+			};
+
 			NanBbox2 fakebbox2{zcm::vec2(NAN, 0.0f), zcm::vec2(0.0f, NAN)};
 			NanBbox2 fakebbox22{zcm::vec2(0.0f, NAN), zcm::vec2(NAN, 0.0f)};
 			NanBbox2 fakebbox23{zcm::vec2(NAN), zcm::vec2(NAN)};
@@ -659,30 +675,29 @@ TEST_CASE("BBox include") {
 			REQUIRE(zcm::any(zcm::isnan(fakebbox33.min)));
 			REQUIRE(zcm::all(zcm::isnan(fakebbox33.max)));
 
-			// dirty hack that violates strict aliasing, if tests fail thats why
-			bbox2_nan.include(*reinterpret_cast<rc::bbox2*>(&fakebbox2));
-			bbox2_nan.include(*reinterpret_cast<rc::bbox2*>(&fakebbox22));
-			bbox2_nan.include(*reinterpret_cast<rc::bbox2*>(&fakebbox23));
+			bbox2_nan.include(make_nanbox2(fakebbox2));
+			bbox2_nan.include(make_nanbox2(fakebbox22));
+			bbox2_nan.include(make_nanbox2(fakebbox23));
 
-			bbox3_nan.include(*reinterpret_cast<rc::bbox3*>(&fakebbox3));
-			bbox3_nan.include(*reinterpret_cast<rc::bbox3*>(&fakebbox32));
-			bbox3_nan.include(*reinterpret_cast<rc::bbox3*>(&fakebbox33));
+			bbox3_nan.include(make_nanbox3(fakebbox3));
+			bbox3_nan.include(make_nanbox3(fakebbox32));
+			bbox3_nan.include(make_nanbox3(fakebbox33));
 
 			SUBCASE("Nan bbox should become null") {
-				REQUIRE(reinterpret_cast<rc::bbox2*>(&fakebbox2)->is_null());
-				REQUIRE(reinterpret_cast<rc::bbox2*>(&fakebbox22)->is_null());
-				REQUIRE(reinterpret_cast<rc::bbox2*>(&fakebbox23)->is_null());
+				REQUIRE(make_nanbox2(fakebbox2).is_null());
+				REQUIRE(make_nanbox2(fakebbox22).is_null());
+				REQUIRE(make_nanbox2(fakebbox23).is_null());
 
-				REQUIRE(reinterpret_cast<rc::bbox3*>(&fakebbox3)->is_null());
-				REQUIRE(reinterpret_cast<rc::bbox3*>(&fakebbox32)->is_null());
-				REQUIRE(reinterpret_cast<rc::bbox3*>(&fakebbox33)->is_null());
+				REQUIRE(make_nanbox3(fakebbox3).is_null());
+				REQUIRE(make_nanbox3(fakebbox32).is_null());
+				REQUIRE(make_nanbox3(fakebbox33).is_null());
 
 				SUBCASE("And stay null") {
-					auto bbox2 = *reinterpret_cast<rc::bbox2*>(&fakebbox2);
+					auto bbox2 = make_nanbox2(fakebbox2);
 					bbox2.include(zcm::vec2(1213.f, 32242.f));
 					bbox2.include(zcm::vec2(-223.f,-54.32f));
 
-					auto bbox3 = *reinterpret_cast<rc::bbox3*>(&fakebbox3);
+					auto bbox3 = make_nanbox3(fakebbox3);
 					bbox3.include(zcm::vec3(1213.f, 32242.f, 12312.f));
 					bbox3.include(zcm::vec3(-223.f,-54.32f, -232.f));
 

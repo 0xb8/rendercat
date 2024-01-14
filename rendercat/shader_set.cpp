@@ -2,7 +2,7 @@
 #include <rendercat/util/gl_unique_handle.hpp>
 #include <rendercat/util/gl_debug.hpp>
 #include <fmt/format.h>
-#include <sstream>
+#include <fmt/xchar.h>
 #include <fstream>
 #include <filesystem>
 #include <vector>
